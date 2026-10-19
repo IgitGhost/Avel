@@ -266,4 +266,23 @@ D:\Avel\
         - its leftover `HKLM\SOFTWARE\WOW6432Node\Notepad++` key (Good);
         - a Questionable `HKLM\SOFTWARE\Setup` matched to Inno Setup.
       - Zero oracle hits.
-  - **Next:** 3b, ChangeSet removal and undo; then 3c, the GUI.
+  - **3b (removal and undo): done.** Details in [changes.md](changes.md) and [ADR 0004](adr/0004-changeset-folder-journal.md).
+    - **Core** (`src/core/changes`):
+      - **ChangeSet store:** a folder per set with plan, journal and summary, under a protected `%ProgramData%\Avel\Changes`; 30-day purge.
+      - **Registry backup:** exact trees (raw values through the native API, classes, security), merging for partial deletions.
+      - **File quarantine:** renames through the handle, never following links. A folder with files in use moves file by file, and Restart Manager names the holders.
+      - **Services, tasks and packages:** services and tasks with undo; packages only when explicitly allowed.
+      - **Executor:** a safe order, protection checked again before each change, undo that never replaces anything new, and recovery after a crash.
+    - **CLI:**
+      - `avel-cli uninstall ... --remove-leftovers [--min-level good|very-good] [--allow-irreversible]`;
+      - `avel-cli undo --list | --show <id> | <id> [--item <n>]... | --purge`.
+    - **Tests:** 137 unit tests pass. They include:
+      - registry and quarantine round trips compared by independent dumpers (hard links, streams, long paths, junctions, unterminated strings, unpaired surrogates);
+      - store tests (a torn journal line, locks, purge, untrusted roots);
+      - an executor test that kills the run after each of its 14 journal records, recovers, and undoes back to the original.
+    - **Windows Sandbox,** scenario `removal`: **RESULT: PASS** (2026-10-19 23:30).
+      - Removed: all 11 leftovers of `Contoso Fixture` (folders, keys, a Run value, a service, a task, a COM class with its shell extension and `Approved` entry) and Notepad++'s sparse package.
+      - Unchanged: the canaries and the other program; the firewall rule was only reported.
+      - `undo --item` and then `undo` gave back identical `avel_state_dump` dumps.
+      - A run killed after 7 records was settled by the next run and undone exactly.
+  - **Next:** 3c, the GUI (leftover dialog, Undo Center).

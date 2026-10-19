@@ -1,11 +1,28 @@
 # avel_core: the Qt-free engine shared by the CLI and the GUI.
 # It returns codes and data, never user-facing text, so all translation happens in the GUI.
 
+find_package(nlohmann_json CONFIG REQUIRED)
 find_package(wil CONFIG REQUIRED)
 
 configure_file(version.h.in "${CMAKE_CURRENT_BINARY_DIR}/include/core/version.h" @ONLY)
 
 add_library(avel_core STATIC
+    changes/change_set.cpp
+    changes/change_set.h
+    changes/executor.cpp
+    changes/executor.h
+    changes/file_quarantine.cpp
+    changes/file_quarantine.h
+    changes/locks.cpp
+    changes/locks.h
+    changes/registry_backup.cpp
+    changes/registry_backup.h
+    changes/serialization.cpp
+    changes/serialization.h
+    changes/store.cpp
+    changes/store.h
+    changes/system_items.cpp
+    changes/system_items.h
     inventory/appx_source.cpp
     inventory/appx_source.h
     inventory/diagnostic.cpp
@@ -55,6 +72,8 @@ add_library(avel_core STATIC
     platform/command_line.h
     platform/elevation.cpp
     platform/elevation.h
+    platform/file_ops.cpp
+    platform/file_ops.h
     platform/known_folders.cpp
     platform/known_folders.h
     platform/paths.cpp
@@ -62,6 +81,8 @@ add_library(avel_core STATIC
     platform/registry.cpp
     platform/registry.h
     platform/registry_address.h
+    platform/secure_folder.cpp
+    platform/secure_folder.h
     platform/text.cpp
     platform/text.h
     platform/time.cpp
@@ -93,4 +114,5 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE advapi32 msi ole32 oleaut32 shell32 shlwapi taskschd windowsapp xmllite)
+    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd windowsapp
+            xmllite)

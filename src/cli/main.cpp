@@ -10,6 +10,7 @@
 #include "cli/console.h"
 #include "cli/list_command.h"
 #include "cli/scan_command.h"
+#include "cli/undo_command.h"
 #include "cli/uninstall_command.h"
 #include "core/platform/com_security.h"
 #include "core/platform/elevation.h"
@@ -29,17 +30,20 @@ constexpr std::string_view kUsage =
     "             List installed programs. By default shows what Settings > Apps shows;\n"
     "             --all adds updates, system components and frameworks.\n"
     "  uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
-    "            [--no-leftover-scan] [--json]\n"
+    "            [--no-leftover-scan | --remove-leftovers [--min-level <level>]] [--json]\n"
     "             Uninstall programs (by id or exact name) one after another, after\n"
-    "             creating a System Restore point, then show what they left behind.\n"
-    "             Run as administrator.\n"
+    "             creating a System Restore point, then show what they left behind,\n"
+    "             or remove it with a backup. Run as administrator.\n"
     "  scan <program>... | --all [--json] [--min-level <level>] [--all-levels]\n"
     "             Show what programs would leave behind if their uninstallers removed\n"
     "             nothing. Read-only.\n"
+    "  undo --list | --show <id> | <id> [--item <n>]... | --purge [--json]\n"
+    "             List removals of leftovers, or put back what one removed.\n"
+    "             Run as administrator.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n"
     "\n"
-    "Planned: force, trace, undo.\n";
+    "Planned: force, trace.\n";
 
 void print_version() {
     std::string text = "Avel (Ավել) ";
@@ -69,6 +73,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"scan") {
         return avel::cli::run_scan_command(arguments);
+    }
+    if (command == L"undo") {
+        return avel::cli::run_undo_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

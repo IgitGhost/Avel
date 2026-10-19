@@ -7,6 +7,12 @@
 
 namespace avel::cli {
 
+// A location's kind ("folder", "registry-key", ...), its text as shown to people
+// ("HKLM\SOFTWARE\x : value"), and its JSON form.
+std::string_view kind_of(const leftovers::Location& location);
+std::wstring describe_location(const leftovers::Location& location);
+nlohmann::ordered_json location_to_json(const leftovers::Location& location);
+
 // The scan result as JSON: {"leftovers": [...], "protected_count", "elapsed_ms", "diagnostics"}.
 // Items below `min_level` are left out; each item keeps its "index" in the full result, which
 // "inside" refers to.

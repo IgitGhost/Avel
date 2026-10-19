@@ -15,6 +15,8 @@ using leftovers::Leftover;
 using platform::to_utf8;
 using Json = nlohmann::ordered_json;
 
+}  // namespace
+
 std::string_view kind_of(const leftovers::Location& location) {
     return std::visit(
         [](const auto& item) -> std::string_view {
@@ -88,6 +90,8 @@ Json location_to_json(const leftovers::Location& location) {
         location);
     return json;
 }
+
+namespace {
 
 std::string evidence_summary(const Leftover& item) {
     std::string text;

@@ -11,6 +11,7 @@
 #include <string>
 
 #include "cli/console.h"
+#include "cli/change_output.h"
 #include "cli/leftover_output.h"
 #include "cli/program_lookup.h"
 #include "core/inventory/inventory.h"
@@ -33,14 +34,19 @@ using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
     "Usage: avel-cli uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
-    "                          [--no-leftover-scan] [--json]\n"
-    "  <program>           an id from `avel-cli list --json`, or an exact display name\n"
-    "  --quiet             use silent uninstall switches where known (interactive otherwise)\n"
-    "  --dry-run           show what would run, change nothing\n"
-    "  --yes               don't ask for confirmation\n"
-    "  --no-restore-point  skip the System Restore point\n"
-    "  --no-leftover-scan  don't look for what the uninstallers left behind\n"
-    "  --json              machine-readable output (needs --yes or --dry-run)\n";
+    "                          [--no-leftover-scan | --remove-leftovers [--min-level <level>]\n"
+    "                          [--allow-irreversible]] [--json]\n"
+    "  <program>             an id from `avel-cli list --json`, or an exact display name\n"
+    "  --quiet               use silent uninstall switches where known (interactive otherwise)\n"
+    "  --dry-run             show what would run, change nothing\n"
+    "  --yes                 don't ask for confirmation\n"
+    "  --no-restore-point    skip the System Restore point\n"
+    "  --no-leftover-scan    don't look for what the uninstallers left behind\n"
+    "  --remove-leftovers    remove what they left behind, backed up so `avel-cli undo` can put\n"
+    "                        it back\n"
+    "  --min-level <level>   the least likely leftovers to remove: good (default) or very-good\n"
+    "  --allow-irreversible  also remove leftovers undo can't put back (packages)\n"
+    "  --json                machine-readable output (needs --yes or --dry-run)\n";
 
 struct Options {
     std::vector<std::wstring> programs;
@@ -49,6 +55,9 @@ struct Options {
     bool yes = false;
     bool restore_point = true;
     bool leftover_scan = true;
+    bool remove_leftovers = false;
+    leftovers::Confidence min_level = leftovers::Confidence::Good;
+    bool allow_irreversible = false;
     bool json = false;
 };
 
@@ -133,8 +142,23 @@ bool confirm(std::size_t count) {
 
 int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     Options options;
-    for (const auto argument : arguments) {
-        if (argument == L"--quiet") {
+    for (std::size_t i = 0; i < arguments.size(); ++i) {
+        const auto argument = arguments[i];
+        if (argument == L"--remove-leftovers") {
+            options.remove_leftovers = true;
+        } else if (argument == L"--allow-irreversible") {
+            options.allow_irreversible = true;
+        } else if (argument == L"--min-level" && i + 1 < arguments.size()) {
+            const auto level = arguments[++i];
+            if (level == L"good") {
+                options.min_level = leftovers::Confidence::Good;
+            } else if (level == L"very-good") {
+                options.min_level = leftovers::Confidence::VeryGood;
+            } else {
+                print_error("uninstall: --min-level is good or very-good\n");
+                return 2;
+            }
+        } else if (argument == L"--quiet") {
             options.quiet = true;
         } else if (argument == L"--dry-run") {
             options.dry_run = true;
@@ -160,6 +184,15 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     if (options.json && !options.yes && !options.dry_run) {
         print_error("uninstall: --json needs --yes or --dry-run (it can't ask for confirmation)\n");
         return 2;
+    }
+    if (options.remove_leftovers && (options.dry_run || !options.leftover_scan)) {
+        print_error("uninstall: --remove-leftovers can't go with --dry-run or --no-leftover-scan\n");
+        return 2;
+    }
+    // Checked before anything is uninstalled: removing leftovers needs a trustworthy change store.
+    std::unique_ptr<changes::ChangeStore> store;
+    if (options.remove_leftovers && !(store = open_change_store())) {
+        return 1;
     }
 
     const auto inventory = inventory::scan_inventory();
@@ -238,6 +271,28 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     if (scan_leftovers) {
         leftover_scan = leftovers::scan_after_uninstall(targets, batch.results);
     }
+    std::optional<changes::ChangePlan> removal_plan;
+    std::optional<changes::ExecuteResult> removal;
+    if (store && leftover_scan && !leftover_scan->leftovers.empty()) {
+        const auto program_name = [&](const std::wstring& id) {
+            for (const auto& target : targets) {
+                if (target.program_id == id) {
+                    return target.display_name;
+                }
+            }
+            return id;
+        };
+        removal_plan = changes::make_plan(leftover_scan->leftovers, options.min_level, program_name,
+                                          programs.size() == 1 ? L"Leftovers of " + programs.front()->display_name
+                                                               : std::format(L"Leftovers of {} programs", programs.size()));
+        if (!removal_plan->items.empty()) {
+            if (const auto guard = store->lock()) {
+                removal = changes::execute(*store, *removal_plan, cli_execute_options(options.allow_irreversible));
+            } else {
+                print_error("warning: another Avel process is changing the system; leftovers were left in place\n");
+            }
+        }
+    }
     if (options.json) {
         Json root;
         root["avel_version"] = kVersionString;
@@ -253,6 +308,7 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
         root["success"] = all_succeeded;
         root["leftover_scan"] =
             leftover_scan ? leftovers_to_json(*leftover_scan, leftovers::Confidence::Bad) : Json(nullptr);
+        root["leftover_removal"] = removal ? execute_result_to_json(*removal_plan, *removal) : Json(nullptr);
         print(root.dump(2) + "\n");
         return all_succeeded ? 0 : 1;
     }
@@ -263,6 +319,10 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     if (leftover_scan && !leftover_scan->leftovers.empty()) {
         print("\nLeft behind:\n");
         print_leftovers(*leftover_scan, leftovers::Confidence::Questionable);
+    }
+    if (removal) {
+        print("\nRemoving leftovers:\n");
+        print_execute_result(*removal_plan, *removal);
     }
     return all_succeeded ? 0 : 1;
 }
