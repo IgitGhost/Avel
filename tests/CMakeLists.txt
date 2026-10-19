@@ -1,6 +1,6 @@
 # Unit tests for avel_core. They never modify the system: registry tests work in a volatile
-# fixture key under HKCU\Software\Avel.Tests, the inventory smoke test only reads, and the process
-# runner tests start a small helper program. Uninstalling real programs happens only in Windows
+# fixture key under HKCU\Software\Avel.Tests, the inventory and leftover smoke tests only read, the
+# leftover fixture lives in a temp folder, and the process runner tests start a small helper program. Uninstalling real programs happens only in Windows
 # Sandbox (see tests/sandbox).
 
 find_package(GTest CONFIG REQUIRED)
@@ -13,11 +13,19 @@ target_link_libraries(avel_test_spawner PRIVATE avel_options)
 add_executable(avel_core_tests
     unit/command_line_test.cpp
     unit/inventory_test.cpp
+    unit/known_folders_test.cpp
+    unit/leftover_scan_test.cpp
+    unit/leftovers_smoke_test.cpp
+    unit/merge_test.cpp
     unit/name_matching_test.cpp
+    unit/paths_test.cpp
     unit/process_runner_test.cpp
+    unit/product_name_test.cpp
+    unit/protection_test.cpp
     unit/registry_source_test.cpp
     unit/registry_values.h
     unit/related_entries_test.cpp
+    unit/scratch_registry.h
     unit/text_test.cpp
     unit/uninstall_entry_test.cpp
     unit/uninstall_plan_test.cpp

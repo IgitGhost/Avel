@@ -196,6 +196,8 @@ Program to_program(const wam::Package& package) {
                               std::to_wstring(version.Build) + L'.' + std::to_wstring(version.Revision);
 
     program.install_location = try_get([&] { return std::wstring(package.InstalledPath()); });
+    // Windows 10 2004 and later; on older systems the property is missing and this stays empty.
+    program.external_location = try_get([&] { return std::wstring(package.EffectiveExternalPath()); });
 
     // Same naming rule as Settings: a package with a single application shows that application's
     // name ("Calculator" rather than the package's "Windows Calculator"), even if the application

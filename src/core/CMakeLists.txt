@@ -24,18 +24,50 @@ add_library(avel_core STATIC
     inventory/related_entries.h
     inventory/uninstall_entry.cpp
     inventory/uninstall_entry.h
+    leftovers/confidence.cpp
+    leftovers/confidence.h
+    leftovers/drive_scanners.cpp
+    leftovers/environment.cpp
+    leftovers/environment.h
+    leftovers/leftover.cpp
+    leftovers/leftover.h
+    leftovers/merge.cpp
+    leftovers/merge.h
+    leftovers/post_uninstall.cpp
+    leftovers/post_uninstall.h
+    leftovers/product_name.cpp
+    leftovers/product_name.h
+    leftovers/protection.cpp
+    leftovers/protection.h
+    leftovers/registry_scanners.cpp
+    leftovers/scan.cpp
+    leftovers/scan.h
+    leftovers/scan_context.cpp
+    leftovers/scan_target.cpp
+    leftovers/scan_target.h
+    leftovers/scanners.h
+    leftovers/snapshots.cpp
+    leftovers/system_scanners.cpp
+    leftovers/system_snapshots.cpp
     platform/com_security.cpp
     platform/com_security.h
     platform/command_line.cpp
     platform/command_line.h
     platform/elevation.cpp
     platform/elevation.h
+    platform/known_folders.cpp
+    platform/known_folders.h
+    platform/paths.cpp
+    platform/paths.h
     platform/registry.cpp
     platform/registry.h
+    platform/registry_address.h
     platform/text.cpp
     platform/text.h
     platform/time.cpp
     platform/time.h
+    platform/user_hives.cpp
+    platform/user_hives.h
     platform/user_profiles.cpp
     platform/user_profiles.h
     uninstall/batch.cpp
@@ -61,4 +93,4 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE advapi32 msi ole32 shlwapi windowsapp xmllite)
+    PRIVATE advapi32 msi ole32 oleaut32 shell32 shlwapi taskschd windowsapp xmllite)

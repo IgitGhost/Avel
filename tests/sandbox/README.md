@@ -42,6 +42,7 @@ Only one sandbox can run at a time; `-ReplaceRunning` stops a running one first,
 |---|---|
 | `logon` (default) | `avel-cli version` runs and the GUI starts |
 | `uninstall` | Phase 2 acceptance: installs one sample per installer technology and removes each interactively. `scenarios/clicker.ps1`, a separate PowerShell process, clicks through the uninstallers' dialogs in English or Russian. Then it reinstalls them, removes all five in one quiet batch with a System Restore point, and removes two through the GUI. Also writes `uninstall.json` (avel-cli's output), `uninstall.log` (progress while it runs) and `clicks.log` (every window the clicker saw, with its buttons and clicks) |
+| `leftovers` | Phase 3a acceptance (the leftover scan only reads): installs the five samples and previews their leftovers with `avel-cli scan`, then removes them in one quiet batch and checks the scan that follows. Notepad++'s context-menu sparse package must be reported as a package leftover, and no reported item may be, or contain, a special folder, a profile or a drive root, lie in the Windows folder or be a SYSTEM key (an oracle built from .NET's special folders, independent of Avel's protection rules). Also writes `leftovers.json` and `leftovers.log` |
 
 **Don't keep files in `build\sandbox\results` open on the host while a scenario runs.** A host
 process that holds one open, such as `tail -f`, makes the sandbox's appends to it fail ("being
@@ -55,8 +56,9 @@ buttons as panes without an Invoke pattern, so it's only the fallback for button
 window of their own. To try the clicker on a dev machine, pass `-WindowTitle <regex>`: it then
 touches only matching windows.
 
-The `uninstall` scenario needs the sample installers. Download them once (and build the test
-MSIX) with `Get-SampleInstallers.ps1`; they land in `installers/`, which git ignores:
+The `uninstall` and `leftovers` scenarios need the sample installers (`scenarios/samples.ps1`
+lists them). Download them once (and build the test MSIX) with `Get-SampleInstallers.ps1`; they
+land in `installers/`, which git ignores:
 
 | Installer technology | Sample |
 |---|---|

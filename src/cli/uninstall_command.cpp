@@ -7,10 +7,14 @@
 #include <atomic>
 #include <format>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "cli/console.h"
+#include "cli/leftover_output.h"
+#include "cli/program_lookup.h"
 #include "core/inventory/inventory.h"
+#include "core/leftovers/post_uninstall.h"
 #include "core/platform/elevation.h"
 #include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
@@ -28,12 +32,14 @@ using uninstall::Outcome;
 using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
-    "Usage: avel-cli uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point] [--json]\n"
+    "Usage: avel-cli uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
+    "                          [--no-leftover-scan] [--json]\n"
     "  <program>           an id from `avel-cli list --json`, or an exact display name\n"
     "  --quiet             use silent uninstall switches where known (interactive otherwise)\n"
     "  --dry-run           show what would run, change nothing\n"
     "  --yes               don't ask for confirmation\n"
     "  --no-restore-point  skip the System Restore point\n"
+    "  --no-leftover-scan  don't look for what the uninstallers left behind\n"
     "  --json              machine-readable output (needs --yes or --dry-run)\n";
 
 struct Options {
@@ -42,6 +48,7 @@ struct Options {
     bool dry_run = false;
     bool yes = false;
     bool restore_point = true;
+    bool leftover_scan = true;
     bool json = false;
 };
 
@@ -59,47 +66,6 @@ BOOL WINAPI on_console_control(DWORD event) {
         print_error("\nStopping after the running uninstaller (Ctrl+C again to terminate it)...\n");
     }
     return TRUE;
-}
-
-std::string name_of(const Program& program) {
-    if (!program.display_name.empty()) {
-        return to_utf8(program.display_name);
-    }
-    return program.registry ? "(" + to_utf8(program.registry->key_name) + ")" : to_utf8(program.id);
-}
-
-// Finds programs by id, then by exact display name (both ignoring case). Reports problems and
-// returns false if any argument doesn't identify exactly one program.
-bool resolve(const inventory::Inventory& inventory, const std::vector<std::wstring>& queries,
-             std::vector<const Program*>& found) {
-    bool ok = true;
-    for (const auto& query : queries) {
-        std::vector<const Program*> matches;
-        for (const auto& program : inventory.programs) {
-            if (platform::iequals(program.id, query)) {
-                matches = {&program};
-                break;
-            }
-            if (platform::iequals(program.display_name, query)) {
-                matches.push_back(&program);
-            }
-        }
-        if (matches.size() == 1) {
-            found.push_back(matches.front());
-            continue;
-        }
-        ok = false;
-        if (matches.empty()) {
-            print_error("No installed program matches \"" + to_utf8(query) +
-                        "\". See `avel-cli list --all`.\n");
-        } else {
-            print_error("\"" + to_utf8(query) + "\" matches several programs; use an id instead:\n");
-            for (const auto* match : matches) {
-                print_error("  " + to_utf8(match->id) + "\n");
-            }
-        }
-    }
-    return ok;
 }
 
 std::string describe_plan(const uninstall::UninstallPlan& plan) {
@@ -176,6 +142,8 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
             options.yes = true;
         } else if (argument == L"--no-restore-point") {
             options.restore_point = false;
+        } else if (argument == L"--no-leftover-scan") {
+            options.leftover_scan = false;
         } else if (argument == L"--json") {
             options.json = true;
         } else if (argument.starts_with(L"--")) {
@@ -256,12 +224,20 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
         };
     }
 
+    // A simulated run removes nothing, so there would be nothing to find but the programs themselves.
+    const bool scan_leftovers = options.leftover_scan && !options.dry_run;
+    const auto targets = scan_leftovers ? leftovers::capture_targets(programs) : std::vector<leftovers::ScanTarget>();
+
     ::SetConsoleCtrlHandler(on_console_control, TRUE);
     const auto batch = uninstall::run_batch(items, batch_options, events, g_cancellation);
     ::SetConsoleCtrlHandler(on_console_control, FALSE);
 
     const bool all_succeeded = std::all_of(batch.results.begin(), batch.results.end(),
                                            [](const auto& result) { return succeeded(result.outcome); });
+    std::optional<leftovers::ScanResult> leftover_scan;
+    if (scan_leftovers) {
+        leftover_scan = leftovers::scan_after_uninstall(targets, batch.results);
+    }
     if (options.json) {
         Json root;
         root["avel_version"] = kVersionString;
@@ -275,10 +251,18 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
             root["results"].push_back(to_json(items[i], batch.results[i]));
         }
         root["success"] = all_succeeded;
+        root["leftover_scan"] =
+            leftover_scan ? leftovers_to_json(*leftover_scan, leftovers::Confidence::Bad) : Json(nullptr);
         print(root.dump(2) + "\n");
-    } else if (std::any_of(batch.results.begin(), batch.results.end(),
-                           [](const auto& result) { return result.outcome == Outcome::RebootRequired; })) {
+        return all_succeeded ? 0 : 1;
+    }
+    if (std::any_of(batch.results.begin(), batch.results.end(),
+                    [](const auto& result) { return result.outcome == Outcome::RebootRequired; })) {
         print("Restart Windows to complete the removal.\n");
+    }
+    if (leftover_scan && !leftover_scan->leftovers.empty()) {
+        print("\nLeft behind:\n");
+        print_leftovers(*leftover_scan, leftovers::Confidence::Questionable);
     }
     return all_succeeded ? 0 : 1;
 }

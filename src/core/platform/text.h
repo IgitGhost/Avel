@@ -23,4 +23,7 @@ bool iends_with(std::wstring_view text, std::wstring_view suffix);
 // Removes leading and trailing whitespace (and stray NULs, which registry strings sometimes carry).
 std::wstring_view trim(std::wstring_view text);
 
+// Lowercase using culture-independent rules, like .NET's ToLowerInvariant.
+std::wstring to_lower(std::wstring_view text);
+
 }  // namespace avel::platform

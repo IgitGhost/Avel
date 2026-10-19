@@ -62,6 +62,7 @@ Json to_json(const Program& p) {
     json["parent_key_name"] = to_utf8(p.parent_key_name);
     json["package_full_name"] = to_utf8(p.package_full_name);
     json["package_family_name"] = to_utf8(p.package_family_name);
+    json["external_location"] = to_utf8(p.external_location);
     json["system_component"] = p.system_component;
     json["is_update"] = p.is_update;
     json["is_framework"] = p.is_framework;

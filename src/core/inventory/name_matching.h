@@ -6,6 +6,7 @@
 //   KlocTools/Tools/StringTools.cs           (StripStringFromVersionNumber)
 //   KlocTools/Extensions/StringExtensions.cs (ExtendedTrimEndAny)
 //   UninstallTools/Factory/ApplicationEntryTools.cs (CompareStrings)
+//   UninstallTools/ApplicationUninstallerEntry.cs   (PublisherTrimmed)
 #pragma once
 
 #include <optional>
@@ -21,6 +22,10 @@ int sift4_distance(std::wstring_view s1, std::wstring_view s2, int max_offset);
 // Strips trailing version numbers and noise from a program name:
 // "7-Zip 23.01 (x64)" -> "7-Zip", "Foo Helper v2" -> "Foo".
 std::wstring strip_version_number(std::wstring_view name);
+
+// Strips "(R)" and trailing company suffixes from a publisher name: "Microsoft Corporation" ->
+// "Microsoft", "Discord Inc." -> "Discord". Like BCU, suffixes are cut without a word boundary.
+std::wstring trim_publisher(std::wstring_view publisher);
 
 // true = similar, false = different, nullopt = too short to judge (under 5 characters, or 4
 // with `relaxed`). `relaxed` also treats one string being a prefix of the other as similar,

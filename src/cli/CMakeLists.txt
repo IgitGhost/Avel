@@ -7,9 +7,15 @@ configure_file(avel-cli.manifest.in "${CMAKE_CURRENT_BINARY_DIR}/avel-cli.manife
 add_executable(avel_cli
     console.cpp
     console.h
+    leftover_output.cpp
+    leftover_output.h
     list_command.cpp
     list_command.h
     main.cpp
+    program_lookup.cpp
+    program_lookup.h
+    scan_command.cpp
+    scan_command.h
     uninstall_command.cpp
     uninstall_command.h
     "${CMAKE_CURRENT_BINARY_DIR}/avel-cli.manifest")

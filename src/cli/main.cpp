@@ -9,6 +9,7 @@
 
 #include "cli/console.h"
 #include "cli/list_command.h"
+#include "cli/scan_command.h"
 #include "cli/uninstall_command.h"
 #include "core/platform/com_security.h"
 #include "core/platform/elevation.h"
@@ -27,13 +28,18 @@ constexpr std::string_view kUsage =
     "  list [--all] [--json] [--timing]\n"
     "             List installed programs. By default shows what Settings > Apps shows;\n"
     "             --all adds updates, system components and frameworks.\n"
-    "  uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point] [--json]\n"
+    "  uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
+    "            [--no-leftover-scan] [--json]\n"
     "             Uninstall programs (by id or exact name) one after another, after\n"
-    "             creating a System Restore point. Run as administrator.\n"
+    "             creating a System Restore point, then show what they left behind.\n"
+    "             Run as administrator.\n"
+    "  scan <program>... | --all [--json] [--min-level <level>] [--all-levels]\n"
+    "             Show what programs would leave behind if their uninstallers removed\n"
+    "             nothing. Read-only.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n"
     "\n"
-    "Planned: scan, force, trace, undo.\n";
+    "Planned: force, trace, undo.\n";
 
 void print_version() {
     std::string text = "Avel (Ավել) ";
@@ -60,6 +66,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"uninstall") {
         return avel::cli::run_uninstall_command(arguments);
+    }
+    if (command == L"scan") {
+        return avel::cli::run_scan_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

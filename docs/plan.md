@@ -243,4 +243,27 @@ D:\Avel\
     - **Known leftover:** Notepad++'s uninstaller, silent or not, removes the app but leaves its Windows 11 context-menu sparse package ("Notepad++") registered. The scenario reports it as `KNOWN` rather than a failure. It's a leftover for Phase 3, and a candidate for offering related packages together with their app.
     - **Clicker fix (2026-10-19):** managed UI Automation reports classic Win32 buttons as panes, so the old clicker found none. It now finds them with `EnumChildWindows` and presses them by posting `WM_COMMAND`. See `tests/sandbox/README.md`.
   - Still open from Phase 0: the push to GitHub. The first local commit exists.
-- **Next:** Phase 3: leftovers, safety and undo.
+- **Phase 3 (leftovers, safety and undo): in progress, in three sub-phases.** Plan approved 2026-10-19.
+  - **3a (read-only scan): done.** Details in [leftovers.md](leftovers.md).
+    - **Core** (`src/core/leftovers`):
+      - BCU's confidence model and name matching (ported, checked against BCU's values);
+      - snapshots taken once per scan;
+      - 11 scanners: install folder, common folders, shortcuts, software keys, the Uninstall key, path references, related (sparse) packages, services, scheduled tasks, COM classes with their shell extension registrations, and firewall rules;
+      - every user's profile and hive are scanned, with `other-user-data` for other users' items;
+      - two protection layers (HardFloor from the live system, ProtectedPolicy);
+      - merging and containment.
+    - **CLI:**
+      - `avel-cli scan <id|name>... | --all [--json] [--min-level ...] [--all-levels] [--timing]`;
+      - `avel-cli uninstall` scans for leftovers after the batch (`leftover_scan` in its JSON), unless `--no-leftover-scan` is given.
+    - **Speed:** all 201 programs on the dev machine in 1.3 s, about 0.5 s for one program.
+    - **Tests:** 111 unit tests pass. They include:
+      - a fixture test with a fake program and decoys in a temp tree plus volatile registry keys;
+      - `LeftoverSmokeTest`: scans every program on the machine and finds zero hits for an independent oracle (`IKnownFolderManager`, profiles, the Windows folder, drive roots, core keys).
+    - **Windows Sandbox,** scenario `leftovers`: **RESULT: PASS** (2026-10-19 22:19).
+      - The preview found each sample's folder, Uninstall key, shortcuts, App Paths and COM class.
+      - After a quiet batch uninstall of all five, the scan reported:
+        - Notepad++'s sparse package `NotepadPlusPlus_1.0.0.0_neutral__2247w0b46hfww` (Good);
+        - its leftover `HKLM\SOFTWARE\WOW6432Node\Notepad++` key (Good);
+        - a Questionable `HKLM\SOFTWARE\Setup` matched to Inno Setup.
+      - Zero oracle hits.
+  - **Next:** 3b, ChangeSet removal and undo; then 3c, the GUI.

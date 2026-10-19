@@ -3,12 +3,11 @@
 #include <shlwapi.h>
 
 #include <array>
-#include <filesystem>
-#include <system_error>
 
 #include "core/platform/registry.h"
 #include "core/platform/text.h"
 #include "core/platform/time.h"
+#include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
 
 namespace avel::inventory {
@@ -88,29 +87,13 @@ void scan_users(RegistryScanResult& result) {
     const std::wstring current_sid = platform::current_user_sid();
     for (const auto& profile : platform::enumerate_user_profiles()) {
         const bool is_current_user = platform::iequals(profile.sid, current_sid);
-        if (profile.hive_loaded) {
-            RegistryKey hive;
-            if (RegistryKey::open(HKEY_USERS, profile.sid, KEY_READ, hive) == ERROR_SUCCESS) {
-                scan_user_hive(hive.get(), profile, is_current_user, result);
-            }
-            continue;
-        }
-
-        // Signed-out user: load their hive privately. RegLoadAppKey keeps it invisible to other
-        // processes and unloads it when the last handle closes, so the user can still sign in.
-        const std::filesystem::path hive_file = std::filesystem::path(profile.profile_path) / L"NTUSER.DAT";
-        std::error_code ignored;
-        if (profile.profile_path.empty() || !std::filesystem::exists(hive_file, ignored)) {
-            continue;
-        }
-        HKEY loaded = nullptr;
-        const LSTATUS status = ::RegLoadAppKeyW(hive_file.c_str(), &loaded, KEY_READ, REG_PROCESS_APPKEY, 0);
-        if (status != ERROR_SUCCESS) {
+        platform::UserHive hive;
+        const LSTATUS status = platform::open_user_hive(profile, KEY_READ, hive);
+        if (status == ERROR_SUCCESS) {
+            scan_user_hive(hive.key.get(), profile, is_current_user, result);
+        } else if (!profile.hive_loaded && status != ERROR_FILE_NOT_FOUND) {
             result.diagnostics.push_back({DiagnosticCode::UserHiveLoadFailed, profile.sid, status});
-            continue;
         }
-        const wil::unique_hkey hive(loaded);
-        scan_user_hive(hive.get(), profile, is_current_user, result);
     }
 }
 

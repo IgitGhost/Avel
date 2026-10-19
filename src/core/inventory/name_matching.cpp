@@ -60,6 +60,8 @@ std::wstring_view extended_trim_end_any(std::wstring_view text,
 constexpr std::array<std::wstring_view, 14> kVersionCharacters = {L"1", L"2", L"3", L"4", L"5", L"6", L"7",
                                                                   L"8", L"9", L"0", L".", L",", L"-", L"_"};
 constexpr std::array<std::wstring_view, 4> kNoiseSuffixes = {L"Application", L"Helper", L" v", L" CE"};
+constexpr std::array<std::wstring_view, 5> kCompanySuffixes = {L"corp", L"corporation", L"limited", L"inc",
+                                                               L"incorporated"};
 
 }  // namespace
 
@@ -136,6 +138,14 @@ std::wstring strip_version_number(std::wstring_view name) {
     } while (previous_length != input.size());
 
     return std::wstring(input);
+}
+
+std::wstring trim_publisher(std::wstring_view publisher) {
+    std::wstring text(publisher);
+    for (size_t at = text.find(L"(R)"); at != std::wstring::npos; at = text.find(L"(R)", at)) {
+        text.erase(at, 3);
+    }
+    return std::wstring(extended_trim_end_any(text, kCompanySuffixes));
 }
 
 std::optional<bool> compare_names(std::wstring_view a, std::wstring_view b, bool relaxed) {

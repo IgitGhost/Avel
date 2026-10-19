@@ -97,4 +97,14 @@ std::wstring_view trim(std::wstring_view text) {
     return text;
 }
 
+std::wstring to_lower(std::wstring_view text) {
+    std::wstring result(text);
+    if (!result.empty()) {
+        // Lowercasing never changes the length of UTF-16 text with LCMAP_LOWERCASE.
+        ::LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, text.data(), checked_length(text.size()),
+                        result.data(), checked_length(result.size()), nullptr, nullptr, 0);
+    }
+    return result;
+}
+
 }  // namespace avel::platform

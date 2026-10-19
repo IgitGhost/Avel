@@ -79,6 +79,9 @@ struct Program {
     std::wstring parent_key_name;   // Set on updates: the program they belong to
     std::wstring package_full_name;
     std::wstring package_family_name;
+    // For a sparse package (one that gives a classic app package identity, e.g. for its Windows 11
+    // context-menu handler): the app's folder it was registered with. Empty otherwise.
+    std::wstring external_location;
 
     bool system_component = false;  // Hidden from Settings > Apps by its installer
     bool is_update = false;         // A patch or hotfix of another program
