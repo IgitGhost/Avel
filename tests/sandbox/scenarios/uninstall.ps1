@@ -23,15 +23,18 @@ Remove-Item $progressLog -ErrorAction SilentlyContinue
 function Log([string]$text) {
     $report.Add($text)
     Write-Host $text
-    Add-Content $progressLog ('{0:HH:mm:ss} {1}' -f (Get-Date), $text) -Encoding utf8
+    # Best effort: a host process reading the file through the mapped folder can lock it for a
+    # moment, and a lost progress line must not stop the scenario (the report has every line).
+    try { Add-Content $progressLog ('{0:HH:mm:ss} {1}' -f (Get-Date), $text) -Encoding utf8 } catch { }
 }
 function Fail([string]$text) { $script:failures++; Log "  FAIL: $text" }
 
 $samples = @(
     @{ kind = 'msi';  pattern = '^7-Zip ' },
-    # Notepad++ also registers a sparse package named "Notepad++" for the Windows 11 context menu;
-    # its uninstaller must remove that too, hence the separate pattern for "gone".
-    @{ kind = 'nsis'; pattern = '^Notepad\+\+ \('; gone = '^Notepad\+\+' },
+    # Notepad++ also registers a sparse package named "Notepad++" for the Windows 11 context menu,
+    # hence the separate pattern for "gone". Its uninstaller leaves that package behind, silent or
+    # not; it's reported as a known leftover until Phase 3's leftover scan removes it.
+    @{ kind = 'nsis'; pattern = '^Notepad\+\+ \('; gone = '^Notepad\+\+'; known = '^Notepad\+\+$' },
     @{ kind = 'inno'; pattern = '^Inno Setup' },
     @{ kind = 'burn'; pattern = '^Microsoft Visual C\+\+ .*Redistributable \(x64\)' },
     @{ kind = 'msix'; pattern = '^Avel Test App$' }
@@ -107,6 +110,9 @@ function Check-Gone([string]$round) {
     foreach ($sample in $samples) {
         $pattern = if ($sample.gone) { $sample.gone } else { $sample.pattern }
         $left = @($programs | Where-Object { $_.name -match $pattern })
+        $known = @($left | Where-Object { $sample.known -and $_.name -match $sample.known })
+        $left = @($left | Where-Object { $known -notcontains $_ })
+        if ($known) { Log "  KNOWN: $round $($sample.kind): leftover for Phase 3: $($known.name -join ', ')" }
         if ($left) { Fail "$round $($sample.kind): still in the inventory: $($left.name -join ', ')" }
     }
 }

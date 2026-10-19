@@ -213,7 +213,7 @@ D:\Avel\
   - **GUI:** program table with icons, search, categories, a details pane, F5 refresh and diagnostics in the status bar. All of it is translated to RU and HY (71 strings) and was checked through UI Automation in all three languages.
   - **Tests:** 55 unit tests pass, including the registry fixture tests in a volatile HKCU key and a read-only smoke scan.
   - Still open from Phase 0: the first push to GitHub.
-- **Phase 2 (uninstall): implemented. Sandbox acceptance is partly verified; the interactive round is still open.** Details in [uninstall.md](uninstall.md).
+- **Phase 2 (uninstall): done and verified in Windows Sandbox.** Details in [uninstall.md](uninstall.md).
   - **Core** (`src/core/uninstall`):
     - per-program plans: MSI via `msiexec /x`; silent switches for Inno, NSIS, WiX Burn, Squirrel and SdbInst; packages via PackageManager;
     - refusal reasons;
@@ -232,17 +232,15 @@ D:\Avel\
     - plans for every technology;
     - a read-only smoke test that plans every installed program (on the dev machine, 161 of 199 get a silent plan).
   - **Host GUI check:** verified on the host in Simulate mode only.
-  - **Windows Sandbox** (`tests/sandbox`, scenario `uninstall`, samples from `Get-SampleInstallers.ps1`):
-    - **Passed** (run of 2026-10-18 15:41): the quiet batch of all five with a restore point. 7-Zip MSI, Notepad++ NSIS, Inno Setup, VC++ Burn and MSIX were each removed in about 1 s, and the restore point "Avel: uninstall 5 programs" was created.
-    - **Passed:** GUI removal of 7-Zip (silent, with a restore point) and of the MSIX.
-    - **Passed:** MSIX removal in interactive mode.
-    - **Finding:** Notepad++'s silent uninstaller removes the app but leaves its Windows 11 context-menu sparse package ("Notepad++") registered. That's a leftover for Phase 3, and a candidate for offering related packages together with their app.
-    - **Open:** the interactive round for MSI, NSIS, Inno and Burn. The UI Automation clicker (`scenarios/clicker.ps1`) is meant to press the uninstallers' buttons, but in the last run it saw msiexec's window "Установщик Windows" with no buttons. Each interactive uninstall therefore hit its 300 s timeout. The sandbox UI is Russian, and the clicker matches English and Russian labels.
-  - Still open from Phase 0: the first commit and the push to GitHub.
-- **Next:**
-  1. Read `build\sandbox\results\uninstall.txt` (and `clicks.log`) from the last run.
-  2. Fix the clicker so the interactive round passes (`clicks.log` lists each window and its buttons).
-     - In the last run it saw every uninstaller's top-level window (msiexec, NSIS, Inno and Burn) but no buttons in any of them.
-     - First suspect: the clicker can't read into those windows across integrity levels (UIPI). Check its token, run it elevated explicitly, or fall back to Win32 `EnumChildWindows` + `BM_CLICK`.
-  3. Rebuild release and rerun the scenario.
-  4. Then Phase 3: leftovers, safety and undo.
+  - **Windows Sandbox** (`tests/sandbox`, scenario `uninstall`, samples from `Get-SampleInstallers.ps1`): **RESULT: PASS** (run of 2026-10-19 20:53; the two runs before it passed too).
+    - **Interactive round:** 7-Zip MSI, Notepad++ NSIS, Inno Setup, VC++ Burn and MSIX were removed one at a time without silent switches, in 0.4 to 6 s each. The clicker pressed each uninstaller's buttons; `clicks.log` shows them all:
+      - msiexec: "Да";
+      - Notepad++: "Удалить", then "Yes" in a message box, then "Закрыть";
+      - Inno: "Yes", then "OK";
+      - Burn: "Удалить" on the maintenance page, then "Закрыть".
+    - **Quiet batch:** all five were removed with a restore point, about 1 s each, and the restore point "Avel: uninstall 5 programs" was created.
+    - **GUI:** 7-Zip (silent, with a restore point) and the MSIX were removed.
+    - **Known leftover:** Notepad++'s uninstaller, silent or not, removes the app but leaves its Windows 11 context-menu sparse package ("Notepad++") registered. The scenario reports it as `KNOWN` rather than a failure. It's a leftover for Phase 3, and a candidate for offering related packages together with their app.
+    - **Clicker fix (2026-10-19):** managed UI Automation reports classic Win32 buttons as panes, so the old clicker found none. It now finds them with `EnumChildWindows` and presses them by posting `WM_COMMAND`. See `tests/sandbox/README.md`.
+  - Still open from Phase 0: the push to GitHub. The first local commit exists.
+- **Next:** Phase 3: leftovers, safety and undo.

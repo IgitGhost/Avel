@@ -151,10 +151,13 @@ inventory:
 2. They are reinstalled and removed in one quiet batch, with a restore point.
 3. Two are removed through the GUI.
 
-**Status (2026-10-18):**
+**Status (2026-10-19): RESULT: PASS.**
 
 | Round | Status |
 |---|---|
-| Round 2 (quiet batch) | Passed: all five removed, about 1 s each, and the restore point was created. Notepad++ leaves its context-menu sparse package behind, a leftover for Phase 3. |
+| Round 1 (interactive) | Passed: all five removed, 0.4 to 6 s each, with the clicker pressing each uninstaller's buttons. |
+| Round 2 (quiet batch) | Passed: all five removed, about 1 s each, and the restore point was created. |
 | Round 3 (GUI) | Passed. |
-| Round 1 (interactive) | Open for MSI, NSIS, Inno and Burn: the clicker sees the uninstallers' windows but none of their buttons. The packaged app passed. |
+
+Notepad++'s uninstaller, silent or not, leaves its context-menu sparse package behind. The
+scenario reports it as a known leftover for Phase 3 rather than a failure.

@@ -43,6 +43,18 @@ Only one sandbox can run at a time; `-ReplaceRunning` stops a running one first,
 | `logon` (default) | `avel-cli version` runs and the GUI starts |
 | `uninstall` | Phase 2 acceptance: installs one sample per installer technology and removes each interactively. `scenarios/clicker.ps1`, a separate PowerShell process, clicks through the uninstallers' dialogs in English or Russian. Then it reinstalls them, removes all five in one quiet batch with a System Restore point, and removes two through the GUI. Also writes `uninstall.json` (avel-cli's output), `uninstall.log` (progress while it runs) and `clicks.log` (every window the clicker saw, with its buttons and clicks) |
 
+**Don't keep files in `build\sandbox\results` open on the host while a scenario runs.** A host
+process that holds one open, such as `tail -f`, makes the sandbox's appends to it fail ("being
+used by another process"). The scenarios cope: the report is assembled in memory and written at
+the end. The progress logs lose their lines, though.
+
+**The clicker** finds classic buttons (msiexec, NSIS, Inno's `TNewButton`, WiX Burn, message
+boxes and task dialogs) as child windows with `EnumChildWindows`, and presses them by posting
+`WM_COMMAND` to their parent. Managed UI Automation, which PowerShell offers, reports these
+buttons as panes without an Invoke pattern, so it's only the fallback for buttons that have no
+window of their own. To try the clicker on a dev machine, pass `-WindowTitle <regex>`: it then
+touches only matching windows.
+
 The `uninstall` scenario needs the sample installers. Download them once (and build the test
 MSIX) with `Get-SampleInstallers.ps1`; they land in `installers/`, which git ignores:
 
