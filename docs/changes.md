@@ -48,6 +48,11 @@ is a rename on one volume.
 | Package | Its name (`package.json`) | `RemovePackageAsync` for the current user | Not possible |
 | Firewall rule | | Never: reported only | |
 
+COM classes served from the program's folder, and the shell-extension handlers and `Approved`
+entries that name them, are ordinary registry items. They are removed with undo like any other,
+because they are what leave dead entries in Explorer's context menu. The plan first listed them
+as report-only; the user chose removal with undo on 2026-10-19.
+
 **Exactness.** Values are read and written through `NtEnumerateValueKey`, `NtQueryValueKey` and
 `NtSetValueKey`. The Win32 calls may add a terminator to a string value that was stored without
 one, depending on what follows the data in memory.

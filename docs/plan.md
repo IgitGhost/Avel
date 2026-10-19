@@ -285,4 +285,10 @@ D:\Avel\
       - Unchanged: the canaries and the other program; the firewall rule was only reported.
       - `undo --item` and then `undo` gave back identical `avel_state_dump` dumps.
       - A run killed after 7 records was settled by the next run and undone exactly.
-  - **Next:** 3c, the GUI (leftover dialog, Undo Center).
+    - **Decision (2026-10-19):** COM classes and their shell-extension entries are removed with undo, not just reported as first planned.
+  - **Next (next session):** 3c, the GUI.
+    - A leftover dialog after uninstalling: a tree with checkboxes and "why it matched".
+    - Removal with progress.
+    - An Undo Center.
+    - RU/HY translations.
+    - The scan finds about 4,000 Java COM classes on the dev machine, so the dialog must group items.
