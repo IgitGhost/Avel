@@ -1,0 +1,12 @@
+Avel
+Copyright 2026 The Avel Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Avel's leftover-detection confidence model and its duplicate-entry merging
+logic are based on the design of Bulk Crap Uninstaller
+(https://github.com/BCUninstaller/Bulk-Crap-Uninstaller),
+Copyright Marcin Szeniak and contributors, licensed under the Apache License,
+Version 2.0. Source files that port BCU code say so in their header comments.
+
+Third-party components and their licenses are listed in THIRD_PARTY_NOTICES.md.

@@ -1,0 +1,64 @@
+# avel_core: the Qt-free engine shared by the CLI and the GUI.
+# It returns codes and data, never user-facing text, so all translation happens in the GUI.
+
+find_package(wil CONFIG REQUIRED)
+
+configure_file(version.h.in "${CMAKE_CURRENT_BINARY_DIR}/include/core/version.h" @ONLY)
+
+add_library(avel_core STATIC
+    inventory/appx_source.cpp
+    inventory/appx_source.h
+    inventory/diagnostic.cpp
+    inventory/diagnostic.h
+    inventory/inventory.cpp
+    inventory/inventory.h
+    inventory/msi_source.cpp
+    inventory/msi_source.h
+    inventory/name_matching.cpp
+    inventory/name_matching.h
+    inventory/program.cpp
+    inventory/program.h
+    inventory/registry_source.cpp
+    inventory/registry_source.h
+    inventory/related_entries.cpp
+    inventory/related_entries.h
+    inventory/uninstall_entry.cpp
+    inventory/uninstall_entry.h
+    platform/com_security.cpp
+    platform/com_security.h
+    platform/command_line.cpp
+    platform/command_line.h
+    platform/elevation.cpp
+    platform/elevation.h
+    platform/registry.cpp
+    platform/registry.h
+    platform/text.cpp
+    platform/text.h
+    platform/time.cpp
+    platform/time.h
+    platform/user_profiles.cpp
+    platform/user_profiles.h
+    uninstall/batch.cpp
+    uninstall/batch.h
+    uninstall/installer_detection.cpp
+    uninstall/installer_detection.h
+    uninstall/process_runner.cpp
+    uninstall/process_runner.h
+    uninstall/registration.cpp
+    uninstall/registration.h
+    uninstall/restore_point.cpp
+    uninstall/restore_point.h
+    uninstall/uninstall_plan.cpp
+    uninstall/uninstall_plan.h
+    uninstall/uninstaller.cpp
+    uninstall/uninstaller.h)
+
+target_include_directories(avel_core PUBLIC
+    "${PROJECT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_BINARY_DIR}/include")
+
+# WIL is public because platform/registry.h exposes wil::unique_hkey.
+# C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
+target_link_libraries(avel_core
+    PUBLIC avel_options WIL::WIL
+    PRIVATE advapi32 msi ole32 shlwapi windowsapp xmllite)

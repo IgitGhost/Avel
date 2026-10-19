@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "avel",
+  "version-semver": "0.1.0",
+  "description": "Professional software removal suite for Windows",
+  "license": "Apache-2.0",
+  "supports": "windows & x64",
+  "dependencies": [
+    "gtest",
+    "nlohmann-json",
+    "wil"
+  ]
+}
