@@ -9,6 +9,8 @@ add_executable(avel_cli
     change_output.h
     console.cpp
     console.h
+    force_command.cpp
+    force_command.h
     leftover_output.cpp
     leftover_output.h
     list_command.cpp

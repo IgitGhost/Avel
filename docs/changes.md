@@ -47,6 +47,7 @@ is a rename on one volume.
 | Scheduled task | Its XML and security (`task.json`, `task.xml`) | `DeleteTask` | Registered again as the principal it names |
 | Package | Its name (`package.json`) | `RemovePackageAsync` for the current user | Not possible |
 | Firewall rule | | Never: reported only | |
+| Driver | | Never: reported only (removing a driver can leave Windows unable to start) | |
 
 COM classes served from the program's folder, and the shell-extension handlers and `Approved`
 entries that name them, are ordinary registry items. They are removed with undo like any other,
@@ -56,6 +57,11 @@ as report-only; the user chose removal with undo on 2026-10-19.
 **Exactness.** Values are read and written through `NtEnumerateValueKey`, `NtQueryValueKey` and
 `NtSetValueKey`. The Win32 calls may add a terminator to a string value that was stored without
 one, depending on what follows the data in memory.
+
+A key's DACL that is marked auto-inherited (`D:AI(...)`, as `SetSecurityInfo` and Windows
+Installer leave it) loses the mark when it goes back through `RegSetKeySecurity`, unless the
+descriptor asks for inheritance (`SE_DACL_AUTO_INHERIT_REQ`); undo sets that flag. The Phase 4
+Sandbox run found this on Windows Installer's `UserData` keys.
 
 A file renamed to another folder gets the archive attribute, so the attribute is cleared again
 where it wasn't set before.

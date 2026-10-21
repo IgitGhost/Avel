@@ -15,6 +15,7 @@
 // compares paths by component.
 #pragma once
 
+#include <functional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -77,10 +78,11 @@ struct Reference {
     const UserScope* user = nullptr;
 };
 
-// A service and the files it runs (ImagePath, ServiceDll). Drivers are left out.
+// A service and the files it runs (ImagePath, ServiceDll).
 struct ServiceEntry {
     std::wstring name;
     std::vector<std::wstring> paths;
+    bool driver = false;
 };
 
 // A COM class and its server files.
@@ -109,6 +111,16 @@ struct FirewallRule {
     std::wstring program;
 };
 
+// A Windows Installer key that lists products as its values, one of them a target's: an upgrade
+// code (...\UpgradeCodes\<packed code>) or a component (UserData\<sid>\Components\<packed code>).
+struct MsiClient {
+    platform::RegistryAddress key;
+    std::wstring parent;       // display_path of its UpgradeCodes or Components key, lowercase
+    std::wstring product;      // The packed product code: the value's name
+    std::wstring data;         // A component's key path: "C:\Program Files\App\app.exe", "02:\SOFTWARE\..."
+    bool only_client = false;  // The product is the key's only value
+};
+
 struct Snapshots {
     std::vector<std::wstring> known_folders;  // Normalized, lowercase and sorted
     std::vector<FolderNode> folders;
@@ -122,6 +134,7 @@ struct Snapshots {
     std::vector<ComClass> com_classes;
     std::vector<ClassReference> class_references;
     std::vector<FirewallRule> firewall_rules;
+    std::vector<MsiClient> msi_clients;  // Sorted by product; only for products still registered
     std::vector<ScanTiming> timings;
 };
 
@@ -134,6 +147,18 @@ std::wstring key_index_name(std::size_t root, std::wstring_view relative_path);
 void take_services(const ScanEnvironment& environment, Snapshots& snapshots);  // Also firewall rules
 void take_tasks(const ScanEnvironment& environment, Snapshots& snapshots);
 void take_com_classes(const ScanEnvironment& environment, Snapshots& snapshots);
+// The upgrade codes and components of the targets' MSI products (msi_scanner.cpp). Components
+// keys hold tens of thousands of subkeys, so they are read once for all targets, and only for
+// products whose registration is still there.
+void take_msi_clients(const ScanEnvironment& environment, std::span<const ScanTarget> targets,
+                      Snapshots& snapshots);
+
+// Many MSI products record no install folder. Their components' key paths say where their files
+// are: the deepest folder holding most of them (below the first protected folder), if it is named
+// after the product and isn't the publisher's. Empty when there is no such folder.
+std::wstring msi_install_folder(const ScanEnvironment& environment, const Snapshots& snapshots,
+                                const ScanTarget& target,
+                                const std::function<bool(const std::wstring& folder)>& is_protected);
 
 struct ScanContext {
     const ScanEnvironment& environment;
@@ -165,6 +190,7 @@ void scan_services(const ScanContext& context, std::vector<Leftover>& found);
 void scan_tasks(const ScanContext& context, std::vector<Leftover>& found);
 void scan_com_classes(const ScanContext& context, std::vector<Leftover>& found);
 void scan_firewall_rules(const ScanContext& context, std::vector<Leftover>& found);
+void scan_msi_registration(const ScanContext& context, std::vector<Leftover>& found);
 
 // BCU TestForSimilarNames: among items found side by side (in one folder or key), penalizes
 // those whose name another program's name contains, and all but the closest of several similar

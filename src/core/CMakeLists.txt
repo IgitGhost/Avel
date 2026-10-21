@@ -23,12 +23,16 @@ add_library(avel_core STATIC
     changes/store.h
     changes/system_items.cpp
     changes/system_items.h
+    force/force.cpp
+    force/force.h
     inventory/appx_source.cpp
     inventory/appx_source.h
     inventory/diagnostic.cpp
     inventory/diagnostic.h
     inventory/inventory.cpp
     inventory/inventory.h
+    inventory/msi_codes.cpp
+    inventory/msi_codes.h
     inventory/msi_source.cpp
     inventory/msi_source.h
     inventory/name_matching.cpp
@@ -50,6 +54,7 @@ add_library(avel_core STATIC
     leftovers/leftover.h
     leftovers/merge.cpp
     leftovers/merge.h
+    leftovers/msi_scanner.cpp
     leftovers/post_uninstall.cpp
     leftovers/post_uninstall.h
     leftovers/product_name.cpp
@@ -78,6 +83,8 @@ add_library(avel_core STATIC
     platform/known_folders.h
     platform/paths.cpp
     platform/paths.h
+    platform/processes.cpp
+    platform/processes.h
     platform/registry.cpp
     platform/registry.h
     platform/registry_address.h
@@ -91,6 +98,8 @@ add_library(avel_core STATIC
     platform/user_hives.h
     platform/user_profiles.cpp
     platform/user_profiles.h
+    platform/version_info.cpp
+    platform/version_info.h
     uninstall/batch.cpp
     uninstall/batch.h
     uninstall/installer_detection.cpp
@@ -114,5 +123,5 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd windowsapp
+    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd version windowsapp
             xmllite)

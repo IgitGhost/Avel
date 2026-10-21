@@ -17,6 +17,7 @@ namespace avel::leftovers {
 
 enum class Evidence : std::uint8_t {
     UninstallerKey,             // +20 The program's own Uninstall key
+    InstallerRegistration,      // +20 (Avel) Windows Installer's registration of the program's product code
     ExplicitConnection,         // +4  Named by the program's registration (its install folder, ...)
     PathReference,              // +4  (Avel) Points into the program's install folder; see ReferenceKind
     CompanyNameMatch,           // +4  The parent folder or key is named after the publisher

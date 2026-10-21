@@ -149,6 +149,9 @@ bool parse(std::string_view text, SetState& state) {
 }
 
 bool is_removable(const leftovers::Location& location) {
+    if (const auto* service = std::get_if<leftovers::ServiceLocation>(&location)) {
+        return !service->driver;  // Removing a driver can leave Windows unable to start
+    }
     return !std::holds_alternative<leftovers::FirewallRuleLocation>(location);
 }
 

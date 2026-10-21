@@ -41,6 +41,10 @@ public:
     explicit operator bool() const { return static_cast<bool>(key_); }
 
     std::vector<std::wstring> subkey_names() const;
+    // The key's name in the kernel's namespace (\REGISTRY\MACHINE\SOFTWARE\...), whichever path
+    // opened it: two paths to a key that the 32- and 64-bit views share give the same name.
+    // Empty if it can't be read.
+    std::wstring kernel_name() const;
     // Reads every value in one pass, sizing buffers up front.
     std::vector<RegistryValue> values() const;
     std::optional<FILETIME> last_write_time() const;

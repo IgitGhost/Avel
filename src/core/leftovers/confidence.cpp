@@ -10,6 +10,7 @@ namespace avel::leftovers {
 int points(const Record& record) {
     switch (record.evidence) {
         case Evidence::UninstallerKey:
+        case Evidence::InstallerRegistration:
             return 20;
         case Evidence::ExplicitConnection:
         case Evidence::PathReference:
@@ -77,6 +78,8 @@ std::string_view to_string(Evidence evidence) {
     switch (evidence) {
         case Evidence::UninstallerKey:
             return "uninstaller-key";
+        case Evidence::InstallerRegistration:
+            return "installer-registration";
         case Evidence::ExplicitConnection:
             return "explicit-connection";
         case Evidence::PathReference:

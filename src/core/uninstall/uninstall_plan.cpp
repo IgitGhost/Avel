@@ -132,6 +132,9 @@ UninstallPlan make_uninstall_plan(const Program& program, Mode mode, const PlanC
     const std::wstring product_code = msi_product_code_of(program);
     if (!product_code.empty() &&
         (program.source == Source::Msi || program.windows_installer || is_msiexec(command.executable))) {
+        if (program.msi_package_missing) {
+            return fail(PlanError::MsiPackageMissing);
+        }
         plan.method = Method::Msi;
         plan.installer_type = InstallerType::Msi;
         plan.executable = kMsiexec;
@@ -148,6 +151,9 @@ UninstallPlan make_uninstall_plan(const Program& program, Mode mode, const PlanC
     }
     if (is_url(program.uninstall_string)) {
         return fail(PlanError::UnsupportedCommand);
+    }
+    if (program.uninstaller_missing) {
+        return fail(PlanError::UninstallerMissing);
     }
 
     InstallerType type = program.installer_type;
@@ -243,6 +249,10 @@ std::string_view to_string(PlanError error) {
             return "elevation-required";
         case PlanError::UnsupportedCommand:
             return "unsupported-command";
+        case PlanError::UninstallerMissing:
+            return "uninstaller-missing";
+        case PlanError::MsiPackageMissing:
+            return "msi-package-missing";
     }
     return "unknown";
 }

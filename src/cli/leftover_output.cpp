@@ -28,7 +28,7 @@ std::string_view kind_of(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, leftovers::RegistryValueLocation>) {
                 return "registry-value";
             } else if constexpr (std::is_same_v<T, leftovers::ServiceLocation>) {
-                return "service";
+                return item.driver ? "driver" : "service";
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
                 return "task";
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {

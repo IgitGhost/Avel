@@ -27,7 +27,8 @@ struct RegistryValueLocation {
 };
 
 struct ServiceLocation {
-    std::wstring name;  // The service's key name
+    std::wstring name;    // The service's key name
+    bool driver = false;  // A kernel or file system driver: shown, never removed
 };
 
 struct TaskLocation {
@@ -80,6 +81,7 @@ enum class Scanner : std::uint8_t {
     Tasks,
     ComClasses,
     Firewall,
+    MsiRegistration,  // Windows Installer's keys for the program's product code
 };
 
 struct Leftover {

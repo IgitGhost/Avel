@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <windows.h>
+#include <aclapi.h>
 #include <sddl.h>
 
 #include <wil/resource.h>
@@ -15,6 +16,7 @@
 
 #include "core/changes/registry_backup.h"
 #include "core/changes/serialization.h"
+#include "core/platform/registry.h"
 #include "core/platform/text.h"
 #include "registry_dump.h"
 #include "scratch_registry.h"
@@ -108,6 +110,20 @@ protected:
         const auto secured = scratch_.create(LR"(Tree\Secured)");
         set_raw(secured.get(), L"secret", REG_SZ, wide(L"s", true));
         set_dacl(secured.get(), L"D:P(A;;KA;;;" + current_user_sid() + L")(A;;KA;;;SY)(A;;KR;;;BA)");
+
+        // A key whose inherited DACL is marked auto-inherited ("D:AI(...;ID;...)"), as SetSecurityInfo
+        // leaves it; Windows Installer's keys look like this.
+        const auto inherited = scratch_.create(LR"(Tree\AutoInherited)");
+        PACL dacl = nullptr;
+        wil::unique_hlocal_security_descriptor current;
+        ASSERT_EQ(::GetSecurityInfo(inherited.get(), SE_REGISTRY_KEY, DACL_SECURITY_INFORMATION, nullptr, nullptr,
+                                    &dacl, nullptr, wil::out_param_ptr<PSECURITY_DESCRIPTOR*>(current)),
+                  ERROR_SUCCESS);
+        ASSERT_EQ(::SetSecurityInfo(inherited.get(), SE_REGISTRY_KEY,
+                                    DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION, nullptr,
+                                    nullptr, dacl, nullptr),
+                  ERROR_SUCCESS);
+        ASSERT_NE(dump(root(), LR"(Tree\AutoInherited)").find("D:AI("), std::string::npos);
     }
 
     HKEY root() const { return scratch_.get(); }
@@ -247,6 +263,22 @@ TEST_F(RegistryBackupTest, RegTextIsReadable) {
     EXPECT_NE(text.find(L"@=\"\"\r\n"), std::wstring::npos);
     EXPECT_NE(text.find(L"\"Name with \\\"quotes\\\" and \\\\\"=\"a\\\"b\\\\c\"\r\n"), std::wstring::npos);
     EXPECT_NE(text.find(L"[HKEY_CURRENT_USER\\Software\\Tree\\NoDefault\\Deeper]\r\n"), std::wstring::npos);
+}
+
+// Read-only: App Paths is one key that both registry views share, so its WOW6432Node path names
+// the same key, while Run is a separate key per view.
+TEST(RegistryKeyTest, KernelNameSeesThroughSharedKeys) {
+    const auto name_of = [](const wchar_t* path) {
+        platform::RegistryKey key;
+        EXPECT_EQ(platform::RegistryKey::open(HKEY_LOCAL_MACHINE, path, KEY_READ | KEY_WOW64_64KEY, key), ERROR_SUCCESS)
+            << platform::to_utf8(path);
+        return platform::to_lower(key.kernel_name());
+    };
+    const auto app_paths = name_of(LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths)");
+    EXPECT_EQ(app_paths, L"\\registry\\machine\\software\\microsoft\\windows\\currentversion\\app paths");
+    EXPECT_EQ(name_of(LR"(SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths)"), app_paths);
+    EXPECT_NE(name_of(LR"(SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run)"),
+              name_of(LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Run)"));
 }
 
 }  // namespace

@@ -182,5 +182,19 @@ TEST(UninstallPlanTest, ReasonsAProgramCantBeUninstalled) {
               PlanError::UnsupportedCommand);
 }
 
+TEST(UninstallPlanTest, MissingUninstallersAndPackagesNeedForce) {
+    Program gone = desktop_app(LR"("C:\Program Files\App\unins000.exe")");
+    gone.uninstaller_missing = true;
+    EXPECT_EQ(make_uninstall_plan(gone, Mode::Interactive, context()).error, PlanError::UninstallerMissing);
+
+    Program product = desktop_app(L"MsiExec.exe /X" + std::wstring(kCode), InstallerType::Msi);
+    product.windows_installer = true;
+    product.msi_product_code = kCode;
+    product.msi_package_missing = true;
+    EXPECT_EQ(make_uninstall_plan(product, Mode::Quiet, context()).error, PlanError::MsiPackageMissing);
+    product.msi_package_missing = false;
+    EXPECT_TRUE(make_uninstall_plan(product, Mode::Quiet, context()).possible());
+}
+
 }  // namespace
 }  // namespace avel::uninstall

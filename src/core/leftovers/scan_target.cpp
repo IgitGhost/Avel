@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include "core/inventory/uninstall_entry.h"
 #include "core/platform/command_line.h"
 #include "core/platform/paths.h"
 
@@ -56,6 +57,11 @@ ScanTarget make_scan_target(const inventory::Program& program) {
     target.store_app = program.source == inventory::Source::Appx;
     target.package_full_name = program.package_full_name;
     target.uninstall_key = uninstall_key(program);
+    target.msi_product_code = program.msi_product_code;
+    if (target.msi_product_code.empty() && program.windows_installer && program.registry) {
+        // An MSI product's Uninstall key is named after its product code.
+        target.msi_product_code = inventory::extract_guid(program.registry->key_name).value_or(L"");
+    }
 
     if (!program.install_location.empty() && platform::is_absolute_path(program.install_location)) {
         target.install_location = platform::long_path(program.install_location);

@@ -245,7 +245,10 @@ TEST_F(LeftoverScanTest, FindsServicesTasksShellExtensionsAndFirewallRules) {
     expect_found(result, RegistryValueLocation{{Hive::Machine, L"", kApproved}, kClsid}, Confidence::Good);
     expect_found(result, FirewallRuleLocation{L"{33333333-3333-3333-3333-333333333333}"}, Confidence::Good);
 
-    EXPECT_EQ(find(result, ServiceLocation{L"ContosoDriver"}), nullptr);  // Drivers are never leftovers
+    // A driver in the program's folder is reported, marked so it is never removed.
+    const Leftover* driver = find(result, ServiceLocation{L"ContosoDriver"});
+    ASSERT_NE(driver, nullptr);
+    EXPECT_TRUE(std::get<ServiceLocation>(driver->location).driver);
     EXPECT_EQ(find(result, TaskLocation{LR"(\Unrelated)"}), nullptr);
     EXPECT_EQ(find(result, machine_key(LR"(SOFTWARE\Classes\CLSID\{22222222-2222-2222-2222-222222222222})")), nullptr);
     EXPECT_EQ(find(result, FirewallRuleLocation{L"{44444444-4444-4444-4444-444444444444}"}), nullptr);

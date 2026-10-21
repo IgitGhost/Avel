@@ -71,6 +71,8 @@ Json to_json(const Program& p) {
     json["no_repair"] = p.no_repair;
     json["windows_installer"] = p.windows_installer;
     json["msi_product_unregistered"] = p.msi_product_unregistered;
+    json["uninstaller_missing"] = p.uninstaller_missing;
+    json["msi_package_missing"] = p.msi_package_missing;
     if (p.registry) {
         json["registry"] = {{"view", inventory::to_string(p.registry->view)},
                             {"key_name", to_utf8(p.registry->key_name)},

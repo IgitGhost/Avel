@@ -116,6 +116,8 @@ void merge_msi_products(std::vector<Program>& programs, std::vector<Program> msi
         if (first != last) {
             for (auto it = first; it != last; ++it) {
                 fill_missing(programs[it->second], product);
+                // The same product, so the same package.
+                programs[it->second].msi_package_missing = product.msi_package_missing;
             }
             continue;
         }

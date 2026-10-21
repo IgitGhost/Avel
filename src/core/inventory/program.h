@@ -94,9 +94,21 @@ struct Program {
     // installed for the machine or the current user (it may belong to another user, or be a
     // leftover). Settings hides such entries, and msiexec can't uninstall them for this user.
     bool msi_product_unregistered = false;
+    // The file the uninstall command runs (or the script or DLL its host runs) is gone, so the
+    // program can't uninstall itself; see platform::missing_command_file. Not set for MSI products,
+    // which msiexec removes.
+    bool uninstaller_missing = false;
+    // An MSI product whose package Windows Installer can't find: neither its cached copy (the
+    // LocalPackage under C:\Windows\Installer) nor the file it was installed from is there, so
+    // msiexec can't remove it.
+    bool msi_package_missing = false;
 
     std::optional<RegistryLocation> registry;  // The Uninstall key, if any
 };
+
+// The entry can't be uninstalled the normal way: its uninstaller or its MSI package is gone, or
+// Windows Installer no longer knows its product. Avel Force removes such programs.
+bool is_broken(const Program& program);
 
 // Whether Settings > Apps would list the entry. Avel's default view shows exactly these.
 bool is_listed_in_settings(const Program& program);

@@ -4,6 +4,7 @@
 
 #include <array>
 
+#include "core/platform/command_line.h"
 #include "core/platform/registry.h"
 #include "core/platform/text.h"
 #include "core/platform/time.h"
@@ -125,6 +126,11 @@ void scan_uninstall_key(HKEY uninstall_key, const UninstallKeyContext& context, 
                 if (const auto written = entry_key.last_write_time()) {
                     program->install_date = platform::local_date(*written);
                 }
+            }
+            // MSI products are removed by msiexec, whatever their UninstallString says.
+            if (!program->windows_installer && !program->uninstall_string.empty()) {
+                program->uninstaller_missing =
+                    !platform::missing_command_file(program->uninstall_string).empty();
             }
             result.programs.push_back(std::move(*program));
         }

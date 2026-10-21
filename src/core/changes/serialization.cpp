@@ -146,6 +146,9 @@ Json to_json(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, ServiceLocation>) {
                 json["kind"] = "service";
                 put_text(json, "name", item.name);
+                if (item.driver) {
+                    json["driver"] = true;
+                }
             } else if constexpr (std::is_same_v<T, TaskLocation>) {
                 json["kind"] = "task";
                 put_text(json, "path", item.path);
@@ -188,7 +191,7 @@ bool from_json(const Json& json, leftovers::Location& location) {
     }
     const auto text = [&](std::string_view field) { return get_text(json, field); };
     if (kind == "service" && text("name")) {
-        location = ServiceLocation{*text("name")};
+        location = ServiceLocation{*text("name"), json.value("driver", false)};
         return true;
     }
     if (kind == "task" && text("path")) {

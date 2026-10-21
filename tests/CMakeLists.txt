@@ -24,11 +24,14 @@ add_executable(avel_core_tests
     unit/executor_test.cpp
     unit/file_quarantine_test.cpp
     unit/file_tree.h
+    unit/force_test.cpp
     unit/inventory_test.cpp
     unit/known_folders_test.cpp
     unit/leftover_scan_test.cpp
     unit/leftovers_smoke_test.cpp
     unit/merge_test.cpp
+    unit/msi_codes_test.cpp
+    unit/msi_scanner_test.cpp
     unit/name_matching_test.cpp
     unit/paths_test.cpp
     unit/process_runner_test.cpp

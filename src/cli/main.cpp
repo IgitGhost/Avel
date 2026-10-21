@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "cli/console.h"
+#include "cli/force_command.h"
 #include "cli/list_command.h"
 #include "cli/scan_command.h"
 #include "cli/undo_command.h"
@@ -37,13 +38,17 @@ constexpr std::string_view kUsage =
     "  scan <program>... | --all [--json] [--min-level <level>] [--all-levels]\n"
     "             Show what programs would leave behind if their uninstallers removed\n"
     "             nothing. Read-only.\n"
-    "  undo --list | --show <id> | <id> [--item <n>]... | --purge [--json]\n"
-    "             List removals of leftovers, or put back what one removed.\n"
+    "  force <program>... | --folder <path> [--name <name>] | --exe <path>\n"
+    "        [--dry-run] [--yes] [--end-processes] [--min-level <level>] [--json]\n"
+    "             Remove programs whose uninstaller is missing or broken, without\n"
+    "             running it, backed up so undo can put them back. Run as administrator.\n"
+    "  undo --list | --show <id> | <id> [--item <n>]... | --purge | --recover [--json]\n"
+    "             List removals, or put back what one removed.\n"
     "             Run as administrator.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n"
     "\n"
-    "Planned: force, trace.\n";
+    "Planned: trace.\n";
 
 void print_version() {
     std::string text = "Avel (Ավել) ";
@@ -73,6 +78,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"scan") {
         return avel::cli::run_scan_command(arguments);
+    }
+    if (command == L"force") {
+        return avel::cli::run_force_command(arguments);
     }
     if (command == L"undo") {
         return avel::cli::run_undo_command(arguments);

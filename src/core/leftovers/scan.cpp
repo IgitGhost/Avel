@@ -6,6 +6,7 @@
 #include <wil/resource.h>
 
 #include <algorithm>
+#include <future>
 
 #include "core/leftovers/merge.h"
 #include "core/leftovers/protection.h"
@@ -44,7 +45,19 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
     const auto since = [](std::chrono::steady_clock::time_point start) {
         return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
     };
-    const detail::Snapshots snapshots = detail::take_snapshots(environment);
+    // Windows Installer's components are read on their own thread while the snapshots are taken;
+    // their time overlaps the snapshots'.
+    auto installer = std::async(std::launch::async, [&] {
+        detail::Snapshots part;
+        const auto started = std::chrono::steady_clock::now();
+        detail::take_msi_clients(environment, targets, part);
+        part.timings.push_back({"installer", since(started)});
+        return part;
+    });
+    detail::Snapshots snapshots = detail::take_snapshots(environment);
+    detail::Snapshots part = installer.get();
+    snapshots.msi_clients = std::move(part.msi_clients);
+    snapshots.timings.push_back(part.timings.front());
     result.timings = snapshots.timings;
     const HardFloor& floor = HardFloor::live();
     const ProtectedPolicy policy(snapshots.known_folders);
@@ -55,6 +68,11 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
     auto stage = std::chrono::steady_clock::now();
     std::vector<Leftover> found;
     for (auto target : targets) {
+        if (target.install_location.empty()) {
+            target.install_location = detail::msi_install_folder(
+                environment, snapshots, target,
+                [&](const std::wstring& folder) { return is_protected(FileLocation{folder, true}); });
+        }
         // A recorded folder that is protected, or holds protected folders (C:\Program Files),
         // would make everything inside it look like the program's.
         for (auto* folder : {&target.install_location, &target.uninstaller_folder}) {
@@ -65,6 +83,7 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
         if (target.uninstaller_folder.empty()) {
             target.uninstaller.clear();
         }
+        result.targets.push_back(target);
         const auto context = detail::make_context(environment, snapshots, target, others);
         detail::scan_install_location(context, found);
         detail::scan_common_drive(context, found);
@@ -77,6 +96,7 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
         detail::scan_tasks(context, found);
         detail::scan_com_classes(context, found);
         detail::scan_firewall_rules(context, found);
+        detail::scan_msi_registration(context, found);
     }
     merge_duplicates(found);
     result.timings.push_back({"matching", since(stage)});

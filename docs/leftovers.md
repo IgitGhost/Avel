@@ -42,8 +42,8 @@ Each scan reads the system once, whatever the number of programs:
 | Folders | Levels 0–2 under Program Files (both), ProgramData, the Start Menu, and each user's Roaming, Local, LocalLow, Start Menu and VirtualStore. System, reparse-point and blacklisted folders are skipped |
 | Registry keys | Levels 0–2 under `SOFTWARE` (both views), each user's `Software`, and VirtualStore, with the values that hold paths |
 | Shortcuts | `.lnk` files in every Start Menu and desktop, resolved with `IShellLinkW` (raw targets, expanded for their owner) |
-| References | Run/RunOnce, App Paths, SharedDLLs, `Installer\Folders`, MuiCache |
-| Services | Each service's `ImagePath` and `ServiceDll`. Drivers are left out |
+| References | Run/RunOnce, App Paths, SharedDLLs, `Installer\Folders`, MuiCache. A key that both registry views share (App Paths) is read once: its `WOW6432Node` path has the same kernel name |
+| Services | Each service's `ImagePath` and `ServiceDll`, drivers included (they are reported, never removed) |
 | Scheduled tasks | Exec actions of every task (hidden ones too), except Windows' own under `\Microsoft` |
 | COM classes | `InprocServer32` and `LocalServer32` of every class (machine, 32-bit, each user), plus the shell extension handlers and `Shell Extensions\Approved` entries that name a class |
 | Firewall rules | The `App=` path of each rule in the firewall policy |
@@ -66,6 +66,7 @@ the pieces of evidence for and against it.
 | `tasks` | Scheduled tasks running a file from the folder | startup-matched |
 | `com-classes` | COM classes served from the folder, and the shell extension registrations naming them | path-reference |
 | `firewall` | Firewall rules for programs in the folder (reported only, never removed) | path-reference |
+| `msi-registration` | Windows Installer's registration of the program's MSI product code: product keys, install properties, upgrade codes and components (see [force.md](force.md)) | installer-registration |
 
 ## Confidence (`confidence.cpp`)
 
@@ -115,7 +116,8 @@ removal code in 3b, right before it acts.
   - WindowsApps, Package Cache, packaged apps' data (`AppData\Local\Packages`), OneDrive folders
     and Avel's own data;
   - the SYSTEM hive (services and firewall rules are their own item kinds), the top-level keys,
-    the core keys (Run, Uninstall, App Paths, CLSID, ...) with their ancestors, and Avel's key;
+    the core keys (Run, Uninstall, App Paths, CLSID, Windows Installer's containers, ...) with
+    their ancestors, and Avel's key;
   - Windows' own scheduled tasks (`\Microsoft\...`).
 - **ProtectedPolicy**: the known folders (and their ancestors) of the machine and every scanned
   user, and BCU's blacklists of shared folder and key names (`Common Files`, `Microsoft`,
@@ -236,7 +238,5 @@ the `Approved` entry.
 
 ## Not covered yet
 
-- MSI's packed-GUID registration (`Installer\Products` and friends): it only survives a failed
-  msiexec, which Phase 4's broken-MSI cleanup covers.
 - TypeLib, Interface and AppID keys; signed-out users' `UsrClass.dat`.
 - Prefetch, WER, UserAssist, AppCompat, tracing and event logs.

@@ -128,10 +128,12 @@ void take_services(const ScanEnvironment& environment, Snapshots& snapshots) {
             }
             const auto values = service.values();
             const auto* type = platform::find_value(values, L"Type");
-            if (!type || (type->as_integer().value_or(0) & kDriverTypes) != 0) {
-                continue;  // Drivers are Avel Force's business, never a leftover here
+            if (!type) {
+                continue;
             }
-            ServiceEntry entry{name, platform::referenced_paths(string_value(values, L"ImagePath"))};
+            // Drivers are reported, never removed (see changes::is_removable).
+            const bool driver = (type->as_integer().value_or(0) & kDriverTypes) != 0;
+            ServiceEntry entry{name, platform::referenced_paths(string_value(values, L"ImagePath")), driver};
             platform::RegistryKey parameters;
             if (platform::RegistryKey::open(service.get(), L"Parameters", kRead, parameters) == ERROR_SUCCESS) {
                 const std::wstring dll = string_value(parameters.values(), L"ServiceDll");

@@ -3,9 +3,10 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phase 3: leftovers and undo).** Avel lists installed programs, runs their
+> **Status: pre-alpha (Phase 4: Avel Force).** Avel lists installed programs, runs their
 > uninstallers silently or in batches, then finds what they left behind and removes it with a
-> backup that can be undone for 30 days. See [docs/plan.md](docs/plan.md) for the roadmap.
+> backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed
+> by force. See [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
 
@@ -40,6 +41,11 @@
   **Undo** right after the removal, or **Tools > Undo Center** later (30 days), puts it back
   exactly. A removal that a crash or a power cut interrupted is settled at the next start. See
   [docs/changes.md](docs/changes.md).
+- **Forced removal (CLI for now).** For programs whose uninstaller is gone, or whose MSI package
+  Windows Installer can't find, Avel never runs the uninstaller. It ends the program's running
+  processes once you agree, then removes its folder, its Uninstall entry, Windows Installer's
+  registration and its leftovers, with the same backup and undo. It also works for a folder no
+  entry describes, or the program a file belongs to. See [docs/force.md](docs/force.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -54,6 +60,9 @@
   avel-cli uninstall <id> --quiet --yes --json              # machine-readable results
   avel-cli uninstall <id> --quiet --yes --remove-leftovers  # then remove what it left behind
   avel-cli scan <id>                                        # preview a program's leftovers
+  avel-cli force <id> --dry-run                             # what a forced removal would take
+  avel-cli force --exe "C:\Program Files\X\x.exe"           # the program a file belongs to
+  avel-cli force --folder "D:\Tools\Old thing"              # a folder without an Uninstall entry
   avel-cli undo --list                                      # what Avel removed, newest first
   avel-cli undo <set id>                                    # put it back
   ```

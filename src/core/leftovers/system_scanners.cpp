@@ -42,7 +42,7 @@ void scan_services(const ScanContext& context, std::vector<Leftover>& found) {
     }
     for (const auto& service : context.snapshots.services) {
         if (const auto* path = path_inside(service.paths, location)) {
-            found.push_back(make_item(context, ServiceLocation{service.name},
+            found.push_back(make_item(context, ServiceLocation{service.name, service.driver},
                                       {Evidence::StartupMatched, 0, ReferenceKind::ServiceImage, *path},
                                       Scanner::Services, Category::Services));
         }

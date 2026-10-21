@@ -26,6 +26,7 @@ struct ScanTarget {
     std::wstring uninstaller_folder;  // Its folder
 
     std::optional<platform::RegistryAddress> uninstall_key;
+    std::wstring msi_product_code;  // "{GUID}" of a Windows Installer product, for its registration
     bool store_app = false;
     std::wstring package_full_name;
 };

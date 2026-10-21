@@ -12,6 +12,10 @@ bool is_listed_in_settings(const Program& program) {
     return program.source != Source::Msi;
 }
 
+bool is_broken(const Program& program) {
+    return program.uninstaller_missing || program.msi_package_missing || program.msi_product_unregistered;
+}
+
 std::string_view to_string(Source source) {
     switch (source) {
         case Source::Registry:

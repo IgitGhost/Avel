@@ -75,6 +75,34 @@ LSTATUS RegistryKey::open(HKEY parent, std::wstring_view path, REGSAM access, Re
     return status;
 }
 
+std::wstring RegistryKey::kernel_name() const {
+    // NtQueryKey(KeyNameInformation) fills a KEY_NAME_INFORMATION: a byte length, then the name.
+    using NtQueryKeyFunction = LONG(NTAPI*)(HANDLE, int, PVOID, ULONG, PULONG);
+    static const auto query = reinterpret_cast<NtQueryKeyFunction>(
+        ::GetProcAddress(::GetModuleHandleW(L"ntdll.dll"), "NtQueryKey"));
+    constexpr int kKeyNameInformation = 3;
+    if (!query || !key_) {
+        return {};
+    }
+    std::vector<std::byte> buffer(1024);
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        ULONG needed = 0;
+        const LONG status =
+            query(key_.get(), kKeyNameInformation, buffer.data(), static_cast<ULONG>(buffer.size()), &needed);
+        if (status >= 0) {
+            ULONG length = 0;
+            std::memcpy(&length, buffer.data(), sizeof(length));
+            return std::wstring(reinterpret_cast<const wchar_t*>(buffer.data() + sizeof(ULONG)),
+                                length / sizeof(wchar_t));
+        }
+        if (needed <= buffer.size()) {
+            return {};
+        }
+        buffer.resize(needed);
+    }
+    return {};
+}
+
 std::vector<std::wstring> RegistryKey::subkey_names() const {
     std::vector<std::wstring> names;
     DWORD count = 0;

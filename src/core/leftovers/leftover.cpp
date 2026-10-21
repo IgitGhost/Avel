@@ -123,6 +123,8 @@ std::string_view to_string(Scanner scanner) {
             return "com-classes";
         case Scanner::Firewall:
             return "firewall";
+        case Scanner::MsiRegistration:
+            return "msi-registration";
     }
     return "unknown";
 }

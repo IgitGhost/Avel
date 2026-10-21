@@ -45,8 +45,10 @@ constexpr std::array<std::wstring_view, 8> kSystemHives = {L"SYSTEM",   L"SECURI
                                                            L"BCD00000000", L"COMPONENTS", L"DRIVERS", L"SCHEMA"};
 
 // Keys Windows relies on, below SOFTWARE; neither they nor their ancestors may be removed. The
-// WOW6432Node variants are derived from these.
-constexpr std::array<std::wstring_view, 16> kCoreSoftwareKeys = {
+// WOW6432Node variants are derived from these. A "*" component stands for any one key, so
+// "Classes\Installer\*" keeps Windows Installer's Products, Features, UpgradeCodes, ... keys while
+// a single product's key below them (Products\<packed code>) may go.
+constexpr std::array<std::wstring_view, 20> kCoreSoftwareKeys = {
     LR"(Classes\CLSID)",
     LR"(Classes\Interface)",
     LR"(Classes\TypeLib)",
@@ -57,7 +59,11 @@ constexpr std::array<std::wstring_view, 16> kCoreSoftwareKeys = {
     LR"(Microsoft\Windows\CurrentVersion\Uninstall)",
     LR"(Microsoft\Windows\CurrentVersion\App Paths)",
     LR"(Microsoft\Windows\CurrentVersion\SharedDLLs)",
-    LR"(Microsoft\Windows\CurrentVersion\Installer\Folders)",
+    LR"(Microsoft\Windows\CurrentVersion\Installer\*)",
+    LR"(Microsoft\Windows\CurrentVersion\Installer\UserData\*\*)",
+    LR"(Microsoft\Windows\CurrentVersion\Installer\Managed\*\Installer\*)",
+    LR"(Classes\Installer\*)",
+    LR"(Microsoft\Installer\*)",  // A user's own Windows Installer registration
     LR"(Microsoft\Windows\CurrentVersion\Shell Extensions\Approved)",
     LR"(Microsoft\Windows\CurrentVersion\Policies)",
     LR"(Microsoft\Windows NT\CurrentVersion)",
@@ -79,6 +85,27 @@ bool key_path_is_under(std::wstring_view key, std::wstring_view ancestor) {
         return false;
     }
     return key.size() == ancestor.size() || key[ancestor.size()] == L'\\';
+}
+
+// `key` is a key that `pattern` describes, or an ancestor of one: its components match the
+// pattern's first ones, where "*" matches any component.
+bool key_path_leads_to(std::wstring_view key, std::wstring_view pattern) {
+    while (true) {
+        const size_t key_end = std::min(key.find(L'\\'), key.size());
+        const size_t pattern_end = std::min(pattern.find(L'\\'), pattern.size());
+        if (pattern.empty()) {
+            return key.empty();  // The key is deeper than anything the pattern describes
+        }
+        const std::wstring_view part = pattern.substr(0, pattern_end);
+        if (part != L"*" && !platform::iequals(part, key.substr(0, key_end))) {
+            return false;
+        }
+        if (key_end == key.size()) {
+            return true;
+        }
+        key.remove_prefix(key_end + 1);
+        pattern.remove_prefix(std::min(pattern_end + 1, pattern.size()));
+    }
 }
 
 std::vector<std::wstring> core_keys() {
@@ -108,7 +135,7 @@ ProtectionReason check_key_path(platform::Hive hive, std::wstring_view path, boo
         return ProtectionReason::CoreRegistryKey;  // A hive's top-level key: SOFTWARE, Environment, ...
     }
     for (const auto& core : kCoreKeys) {
-        if (key_path_is_under(core, path)) {
+        if (key_path_leads_to(path, core)) {
             return ProtectionReason::CoreRegistryKey;
         }
     }

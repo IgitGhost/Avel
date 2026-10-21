@@ -8,7 +8,7 @@ function Describe($item) {
         { $_ -in 'folder', 'file' } { $location.path }
         'registry-key' { $location.key }
         'registry-value' { "$($location.key) : $($location.value)" }
-        'service' { $location.service }
+        { $_ -in 'service', 'driver' } { $location.service }
         'task' { $location.task }
         'package' { $location.package_full_name }
         default { $location.rule_id }

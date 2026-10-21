@@ -13,6 +13,7 @@
 #include <chrono>
 #include <functional>
 #include <future>
+#include <set>
 
 #include "core/leftovers/protection.h"
 #include "core/leftovers/scanners.h"
@@ -307,12 +308,19 @@ platform::Expander expander_for(const UserScope* user) {
 }
 
 void take_references(const ScanEnvironment& environment, Snapshots& snapshots) {
+    // Some of these keys are shared by the 32- and 64-bit views (App Paths is), so the
+    // WOW6432Node path is another name for the same key: each key is read once.
+    std::set<std::wstring> seen;
+    const auto first_time = [&](const platform::RegistryKey& key) {
+        const std::wstring name = key.kernel_name();
+        return name.empty() || seen.insert(platform::to_lower(name)).second;
+    };
     // Run and RunOnce: values whose data is a command line.
     for (const bool run_once : {false, true}) {
         const auto path = run_once ? LR"(Microsoft\Windows\CurrentVersion\RunOnce)" : LR"(Microsoft\Windows\CurrentVersion\Run)";
         for (const auto& source : software_keys(environment, path, true)) {
             platform::RegistryKey key;
-            if (open_key(environment, source.key, key) != ERROR_SUCCESS) {
+            if (open_key(environment, source.key, key) != ERROR_SUCCESS || !first_time(key)) {
                 continue;
             }
             for (const auto& value : key.values()) {
@@ -327,7 +335,7 @@ void take_references(const ScanEnvironment& environment, Snapshots& snapshots) {
     // App Paths: a key per program file; its default value is the file, "Path" its folder.
     for (const auto& source : software_keys(environment, LR"(Microsoft\Windows\CurrentVersion\App Paths)", true)) {
         platform::RegistryKey key;
-        if (open_key(environment, source.key, key) != ERROR_SUCCESS) {
+        if (open_key(environment, source.key, key) != ERROR_SUCCESS || !first_time(key)) {
             continue;
         }
         for (const auto& name : key.subkey_names()) {
@@ -357,7 +365,7 @@ void take_references(const ScanEnvironment& environment, Snapshots& snapshots) {
     for (const auto& [path, kind] : name_lists) {
         for (const auto& source : software_keys(environment, path, false)) {
             platform::RegistryKey key;
-            if (open_key(environment, source.key, key) != ERROR_SUCCESS) {
+            if (open_key(environment, source.key, key) != ERROR_SUCCESS || !first_time(key)) {
                 continue;
             }
             for (const auto& value : key.values()) {

@@ -136,6 +136,10 @@ QString ProgramText::planErrorText(uninstall::PlanError error) {
             return tr("Can't uninstall: administrator rights are required");
         case PlanError::UnsupportedCommand:
             return tr("Can't uninstall: its uninstall command isn't a program Avel can run");
+        case PlanError::UninstallerMissing:
+            return tr("Can't uninstall: its uninstaller is missing");
+        case PlanError::MsiPackageMissing:
+            return tr("Can't uninstall: Windows Installer can't find its package");
     }
     return {};
 }

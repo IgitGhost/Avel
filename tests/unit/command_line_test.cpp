@@ -71,5 +71,45 @@ TEST(CommandLineTest, EmptyAndWhitespace) {
     EXPECT_EQ(split_command_line(L"   ", files({})).executable, L"");
 }
 
+TEST(CommandLineTest, MissingUninstallerByFullPath) {
+    EXPECT_EQ(missing_command_file(LR"("C:\Program Files\App\unins000.exe" /SILENT)", files({})),
+              LR"(C:\Program Files\App\unins000.exe)");
+    EXPECT_EQ(missing_command_file(LR"(C:\Program Files\App\uninst.exe /S)", files({})),
+              LR"(C:\Program Files\App\uninst.exe)");
+    EXPECT_EQ(missing_command_file(LR"("C:\Program Files\App\unins000.exe" /SILENT)",
+                                   files({LR"(C:\Program Files\App\unins000.exe)"})),
+              L"");
+    // A bare name is found through the search path; it can't be called missing.
+    EXPECT_EQ(missing_command_file(L"MsiExec.exe /X{605108C1-153E-43D8-8A67-7CE326B00ECA}", files({})), L"");
+    EXPECT_EQ(missing_command_file(L"", files({})), L"");
+}
+
+TEST(CommandLineTest, MissingScriptOrDllOfAWindowsHost) {
+    const auto system =
+        files({LR"(C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe)",
+               LR"(C:\Windows\System32\rundll32.exe)", LR"(C:\Windows\System32\wscript.exe)"});
+    EXPECT_EQ(
+        missing_command_file(
+            LR"(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\App\uninstall.ps1" -Quiet)",
+            system),
+        LR"(C:\Program Files\App\uninstall.ps1)");
+    EXPECT_EQ(
+        missing_command_file(
+            LR"("C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -f C:\App\remove.ps1)", system),
+        LR"(C:\App\remove.ps1)");
+    EXPECT_EQ(
+        missing_command_file(LR"(C:\Windows\System32\rundll32.exe "C:\App\setup.dll",Uninstall)", system),
+        LR"(C:\App\setup.dll)");
+    EXPECT_EQ(missing_command_file(LR"(rundll32.exe C:\App\setup.dll,Uninstall /q)", system),
+              LR"(C:\App\setup.dll)");
+    EXPECT_EQ(missing_command_file(LR"(wscript.exe //B "C:\App\remove.vbs")", system),
+              LR"(C:\App\remove.vbs)");
+    // Other options of PowerShell aren't the script; a script that's there isn't missing.
+    EXPECT_EQ(missing_command_file(LR"(powershell.exe -Command "& {Remove-Item x}")", system), L"");
+    EXPECT_EQ(
+        missing_command_file(LR"(powershell.exe -File C:\App\remove.ps1)", files({LR"(C:\App\remove.ps1)"})),
+        L"");
+}
+
 }  // namespace
 }  // namespace avel::platform

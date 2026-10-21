@@ -312,3 +312,28 @@ D:\Avel\
       - Qt ships no Armenian catalog, so Avel carries its own `src/app/i18n/qtbase_hy.ts`: 51 strings in 6 Qt contexts (standard buttons, the edit and scroll bar menus, message boxes). The source texts are taken from Qt's own catalog.
       - The Undo Center's short columns fit their headers in every language.
       - Retranslating open dialogs isn't needed: every dialog is window-modal, so the language menu can't be reached while one is open.
+- **Phase 4 (Avel Force): in progress, in three sub-phases like Phase 3.** Plan approved 2026-10-21. Details in [force.md](force.md).
+  - **User decisions (2026-10-21):**
+    - running processes are listed and ended only after confirmation;
+    - broken MSI products: Windows Installer's registry registration is removed with undo, and the cached package in `C:\Windows\Installer` stays;
+    - Hunter picks windows only (no tray icons);
+    - drivers are shown, never removed;
+    - Force never runs the program's uninstaller.
+  - **4a (forced removal, core and CLI): done.**
+    - **Inventory:** entries are flagged `uninstaller_missing` (the file, or a host's script or DLL, is gone) and `msi_package_missing` (neither Windows Installer's cached package nor the original is there). The uninstall plan refuses them with `uninstaller-missing` and `msi-package-missing`.
+    - **Core** (`src/core/force`, `platform/processes`, `leftovers/msi_scanner.cpp`):
+      - targets for a program, a folder (`folder:<path>`) or the program a file belongs to;
+      - the processes running from a target's folders, ended with `WM_CLOSE` and then `TerminateProcess`;
+      - Windows Installer's registration (packed product codes, product keys, install properties, upgrade codes, components, Burn dependencies), with its containers added to the hard floor;
+      - an MSI program's folder derived from its components' key paths when it records none;
+      - drivers reported, never removable.
+    - **CLI:** `avel-cli force <program>... | --folder <path> [--name] | --exe <path> [--dry-run] [--yes] [--end-processes] [--min-level] [--allow-irreversible] [--json]`.
+    - **Fixes found on the way:**
+      - undo dropped the auto-inherited mark of a key's DACL (`D:AI`), which Windows Installer's keys have;
+      - App Paths, which both registry views share, was reported twice.
+    - **Tests:** 164 unit tests pass.
+    - **Windows Sandbox,** scenario `force`: **RESULT: PASS** (2026-10-21 22:21).
+      - Contoso Fixture without its uninstall script, its app running: `force --yes` alone refused; with `--end-processes` it ended the app and removed 14 items, and undo gave back identical dumps.
+      - 7-Zip's MSI with its package and Windows Installer's cached copy deleted: 42 items, including the shell extension and Windows Installer's registration. Windows Installer then no longer knew the product. Undo gave the registration back exactly, and the product counted as installed again.
+      - A folder without an Uninstall entry went alone; Program Files, `System32` and `C:\Users` were refused.
+  - **Next:** 4b (broken entries listed, MFT deep search, orphans), then 4c (GUI, Hunter, RU/HY).

@@ -39,6 +39,20 @@ std::wstring product_property(const ProductKey& product, const wchar_t* property
     return std::wstring(platform::trim(value));
 }
 
+// Only "not found" on a local disk counts: a file that can't be read may still be there, and
+// network shares or removable media aren't probed (that could take long, or need a disc).
+bool is_missing(const std::wstring& path) {
+    if (path.size() < 3 || path[1] != L':' || path[2] != L'\\' ||
+        ::GetDriveTypeW(path.substr(0, 3).c_str()) != DRIVE_FIXED) {
+        return false;
+    }
+    if (::GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    const DWORD error = ::GetLastError();
+    return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
+}
+
 // Returns ERROR_SUCCESS or the first enumeration error.
 UINT enumerate(const wchar_t* user_sid, std::vector<ProductKey>& products) {
     for (DWORD index = 0;; ++index) {
@@ -83,6 +97,16 @@ Program to_program(const ProductKey& product) {
     program.display_icon = product_property(product, INSTALLPROPERTY_PRODUCTICON);
     program.about_url = product_property(product, INSTALLPROPERTY_URLINFOABOUT);
     program.uninstall_string = L"MsiExec.exe /X" + program.msi_product_code;
+
+    // msiexec removes a product from its cached package, or failing that from the original.
+    const std::wstring cached = product_property(product, INSTALLPROPERTY_LOCALPACKAGE);
+    const std::wstring package_name = product_property(product, INSTALLPROPERTY_PACKAGENAME);
+    const std::wstring original =
+        program.install_source.empty() || package_name.empty()
+            ? std::wstring()
+            : program.install_source + (program.install_source.ends_with(L'\\') ? L"" : L"\\") + package_name;
+    program.msi_package_missing =
+        !cached.empty() && is_missing(cached) && (original.empty() || is_missing(original));
     return program;
 }
 

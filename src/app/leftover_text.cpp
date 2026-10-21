@@ -151,6 +151,8 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
     switch (record.evidence) {
         case Evidence::UninstallerKey:
             return tr("The program's Uninstall entry");
+        case Evidence::InstallerRegistration:
+            return tr("Windows Installer's registration of the program");
         case Evidence::ExplicitConnection:
             return tr("Named in the program's registration");
         case Evidence::PathReference:

@@ -20,7 +20,8 @@ enum class Method : std::uint8_t {
     Package,  // Remove a packaged app through the package manager
 };
 
-// Why a program can't be uninstalled the normal way (Avel Force will cover some of these).
+// Why a program can't be uninstalled the normal way. Avel Force (force.h) removes programs whose
+// uninstaller is missing or broken.
 enum class PlanError : std::uint8_t {
     None,
     NoUninstaller,       // No uninstall command and nothing else to go on
@@ -28,6 +29,8 @@ enum class PlanError : std::uint8_t {
     OtherUser,           // Installed for another account: its uninstaller would act on our profile
     ElevationRequired,   // Installed for all users, but this process isn't elevated
     UnsupportedCommand,  // The command isn't an executable (e.g. a steam:// link)
+    UninstallerMissing,  // The uninstaller's file is gone (Program::uninstaller_missing)
+    MsiPackageMissing,   // Windows Installer can't find the product's package (Program::msi_package_missing)
 };
 
 struct UninstallPlan {

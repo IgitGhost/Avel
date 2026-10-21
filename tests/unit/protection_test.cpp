@@ -96,6 +96,37 @@ TEST(HardFloorTest, GuardsCoreAndSystemRegistryKeys) {
     EXPECT_EQ(floor.check(key(Hive::User, LR"(Software\Microsoft\Windows\CurrentVersion\Run)")), Reason::CoreRegistryKey);
 }
 
+TEST(HardFloorTest, GuardsWindowsInstallersContainersButNotOneProductsKeys) {
+    const HardFloor floor = fixture_floor();
+    constexpr wchar_t kInstaller[] = LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Installer)";
+    const auto machine = [&](std::wstring path) { return floor.check(key(Hive::Machine, path)); };
+    for (const auto* path :
+         {LR"(SOFTWARE\Classes\Installer)", LR"(SOFTWARE\Classes\Installer\Products)", LR"(SOFTWARE\Classes\Installer\Features)",
+          LR"(SOFTWARE\Classes\Installer\UpgradeCodes)", LR"(SOFTWARE\Classes\Installer\Patches)",
+          LR"(SOFTWARE\Classes\Installer\Dependencies)"}) {
+        EXPECT_EQ(machine(path), Reason::CoreRegistryKey) << platform::to_utf8(path);
+    }
+    for (const auto* suffix : {L"", LR"(\UserData)", LR"(\UserData\S-1-5-18)", LR"(\UserData\S-1-5-18\Products)",
+                               LR"(\UserData\S-1-5-18\Components)", LR"(\UserData\S-1-5-21-1-2-3-1001\Products)",
+                               LR"(\Managed)", LR"(\Managed\S-1-5-21-1-2-3-1001\Installer\Products)", LR"(\Folders)",
+                               LR"(\Secure)"}) {
+        EXPECT_EQ(machine(kInstaller + std::wstring(suffix)), Reason::CoreRegistryKey) << platform::to_utf8(suffix);
+    }
+    // One product's keys may go.
+    constexpr wchar_t kProduct[] = L"96F071321C0420726200000010000000";
+    EXPECT_EQ(machine(LR"(SOFTWARE\Classes\Installer\Products\)" + std::wstring(kProduct)), Reason::None);
+    EXPECT_EQ(machine(LR"(SOFTWARE\Classes\Installer\UpgradeCodes\)" + std::wstring(kProduct)), Reason::None);
+    EXPECT_EQ(machine(kInstaller + std::wstring(LR"(\UserData\S-1-5-18\Products\)") + kProduct), Reason::None);
+    EXPECT_EQ(machine(kInstaller + std::wstring(LR"(\UserData\S-1-5-18\Components\)") + kProduct), Reason::None);
+    EXPECT_EQ(machine(kInstaller + std::wstring(LR"(\Managed\S-1-5-21-1-2-3-1001\Installer\Features\)") + kProduct),
+              Reason::None);
+    // A user's own registration.
+    EXPECT_EQ(floor.check(key(Hive::User, LR"(Software\Microsoft\Installer)")), Reason::CoreRegistryKey);
+    EXPECT_EQ(floor.check(key(Hive::User, LR"(Software\Microsoft\Installer\Products)")), Reason::CoreRegistryKey);
+    EXPECT_EQ(floor.check(key(Hive::User, LR"(Software\Microsoft\Installer\Products\)" + std::wstring(kProduct))),
+              Reason::None);
+}
+
 TEST(HardFloorTest, GuardsWindowsTasks) {
     const HardFloor floor = fixture_floor();
     EXPECT_EQ(floor.check(TaskLocation{LR"(\Microsoft\Windows\Defrag\ScheduledDefrag)"}), Reason::WindowsTask);

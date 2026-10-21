@@ -20,6 +20,9 @@ struct ScanTiming {
 
 struct ScanResult {
     std::vector<Leftover> leftovers;  // Sorted by category and location; see Leftover::inside
+    // The targets as the scan used them: protected folders cleared, and an MSI program's folder
+    // found from its components when it records none.
+    std::vector<ScanTarget> targets;
     std::vector<ScanDiagnostic> diagnostics;
     std::size_t protected_count = 0;  // Matches dropped because they are protected (see protection.h)
     std::vector<ScanTiming> timings;

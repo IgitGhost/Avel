@@ -209,7 +209,15 @@ void apply_security(HKEY key, const std::vector<std::byte>& stored) {
         return;
     }
     const auto descriptor = const_cast<std::byte*>(stored.data());
-    ::RegSetKeySecurity(key, DACL_SECURITY_INFORMATION, descriptor);
+    // A DACL marked auto-inherited ("D:AI", as SetSecurityInfo and Windows Installer leave it)
+    // loses the mark on its way through RegSetKeySecurity unless inheritance is asked for.
+    SECURITY_DESCRIPTOR_CONTROL control = 0;
+    DWORD revision = 0;
+    std::vector<std::byte> dacl = stored;
+    if (::GetSecurityDescriptorControl(descriptor, &control, &revision) && (control & SE_DACL_AUTO_INHERITED)) {
+        ::SetSecurityDescriptorControl(dacl.data(), SE_DACL_AUTO_INHERIT_REQ, SE_DACL_AUTO_INHERIT_REQ);
+    }
+    ::RegSetKeySecurity(key, DACL_SECURITY_INFORMATION, dacl.data());
 
     PSID stored_owner = nullptr;
     PSID current_owner = nullptr;
