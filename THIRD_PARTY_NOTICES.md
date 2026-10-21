@@ -20,4 +20,8 @@ compatible build of Qt. Qt's source code is available from the link above, and t
 text ships with every release in `licenses/LGPL-3.0.txt`. Qt's version and license information
 can also be viewed from the GUI under **Help → About Qt**.
 
+Avel embeds Qt's Russian catalog (`qtbase_ru.qm`) as shipped. Qt has no Armenian catalog, so
+`src/app/i18n/qtbase_hy.ts` translates the Qt strings Avel shows. Their source texts come from
+Qt's own catalogs; the Armenian translations are Avel's.
+
 This table is updated whenever a dependency is added to `vcpkg.json` or `src/app/CMakeLists.txt`.

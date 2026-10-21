@@ -308,4 +308,7 @@ D:\Avel\
       - "Remove 12 items" removed all of them.
       - In the Undo Center, Restore all put back the 11 restorable items; the shortcut came back with its folder. The `avel_state_dump` dumps were identical.
     - **Test fix:** `avel_state_dump` printed a missing registry key without a line break, which swallowed the next spec's section. Checks that an item is gone were blind to some keys and values. After the fix, round 1 also checks the removal through the dumps, and passes.
-    - **Not done:** Qt's own catalog for Armenian (standard buttons stay in English), and retranslating open dialogs when the language changes. Both belong to the polish phase.
+    - **Polish (2026-10-21):**
+      - Qt ships no Armenian catalog, so Avel carries its own `src/app/i18n/qtbase_hy.ts`: 51 strings in 6 Qt contexts (standard buttons, the edit and scroll bar menus, message boxes). The source texts are taken from Qt's own catalog.
+      - The Undo Center's short columns fit their headers in every language.
+      - Retranslating open dialogs isn't needed: every dialog is window-modal, so the language menu can't be reached while one is open.

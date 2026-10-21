@@ -79,8 +79,17 @@ add_custom_target(avel_app_deploy
     VERBATIM)
 add_dependencies(deploy avel_app_deploy)
 
-# Qt's own dialogs (standard buttons, file dialogs) need Qt's catalog. Qt ships Russian but not
-# Armenian; an Armenian catalog is planned for the polish phase.
+# Qt's own widgets (standard buttons, edit and scroll bar menus, message boxes) need Qt's catalog.
+# Qt ships Russian. It has no Armenian, so Avel carries the part it shows: i18n/qtbase_hy.ts, with
+# the source texts of Qt's own catalogs, built into :/i18n/qtbase_hy.qm.
+qt_add_lrelease(
+    LRELEASE_TARGET avel_qtbase_hy
+    TS_FILES i18n/qtbase_hy.ts
+    QM_FILES_OUTPUT_VARIABLE qtbase_hy_qm)
+qt_add_resources(avel_app qtbase_hy
+    PREFIX /i18n
+    BASE "${CMAKE_CURRENT_BINARY_DIR}"
+    FILES ${qtbase_hy_qm})
 set(qt_translations_dir "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_TRANSLATIONS}")
 if(EXISTS "${qt_translations_dir}/qtbase_ru.qm")
     qt_add_resources(avel_app qt_translations

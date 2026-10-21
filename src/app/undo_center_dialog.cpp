@@ -59,12 +59,9 @@ UndoCenterDialog::UndoCenterDialog(std::shared_ptr<changes::ChangeStore> store,
     sets_->setUniformRowHeights(true);
     sets_->setAllColumnsShowFocus(true);
     sets_->header()->setStretchLastSection(false);
+    // Few rows: the short columns fit their header and contents in every language.
+    sets_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     sets_->header()->setSectionResizeMode(DescriptionColumn, QHeaderView::Stretch);
-    sets_->setColumnWidth(DateColumn, 150);
-    sets_->setColumnWidth(StateColumn, 130);
-    sets_->setColumnWidth(RemovedColumn, 80);
-    sets_->setColumnWidth(RestoredColumn, 80);
-    sets_->setColumnWidth(SizeColumn, 100);
 
     itemsLabel_ = new QLabel(this);
     itemsLabel_->setWordWrap(true);
