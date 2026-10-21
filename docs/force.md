@@ -37,6 +37,18 @@ package check adds about 20 ms to the Windows Installer source (two more propert
 and a file check), and the whole inventory still takes about 120 ms, because the sources run in
 parallel. None of its 597 entries has either flag.
 
+`inventory::is_broken` is any of the three flags. `avel-cli list --broken` shows every broken entry,
+whether or not Settings lists it, with its reasons; `no-install-folder` is added when the entry's
+folder is gone too (a *dead* entry, whose Uninstall key is all that is left). There is no separate
+cleanup: `avel-cli force <id>` removes a broken entry like any other program. On the development
+machine one entry is broken: ROGFontInstaller, an MSI product Windows Installer doesn't know.
+
+```
+ROGFontInstaller
+    reg:HKLM64:{605108C1-153E-43D8-8A67-7CE326B00ECA}
+    msi-product-unregistered, no-install-folder
+```
+
 ## Targets (`force.h`)
 
 - **An installed program:** `leftovers::make_scan_target`, as for any leftover scan. Packaged
@@ -125,6 +137,65 @@ with an MSI product code `{P}`, the scanner `msi-registration` finds, with the e
 for any one key, so `UserData\S-1-5-18\Products` is protected while one product's key below it
 is not. Before 4a, no scanner reached these keys, but neither protection layer guarded them.
 
+## Deep search (`leftovers/deep_scanner.cpp`)
+
+`scan --deep`, `force --deep` and `uninstall --deep` (`ScanOptions::deep`) also look for folders
+named after the program anywhere on the fixed NTFS volumes. The folders come from each volume's
+master file table, read in one pass (`platform::VolumeFolders`; [ADR 0005](adr/0005-deep-search-from-the-mft.md)
+explains why). It needs administrator rights; without them each volume is reported as
+`deep-search-unavailable`.
+
+- **Skipped:**
+  - reparse points, system folders and the drive scan's blacklisted names;
+  - folders at a volume's root that hold Windows' data or copies of other folders: names starting
+    with `$` (the recycle bin, `$Avel.Quarantine`), `System Volume Information`, `Recovery`,
+    `Windows.old`, `Config.Msi`;
+  - the Windows folder, and the drive scan's roots (searched already);
+  - the program's own folders (the install location scan's), and other programs' folders.
+- **Evidence:** like the drive scan's, without depth, which has no root to count from:
+  - `ProductNamePerfectMatch` (+2) or `ProductNameDodgyMatch` (-2);
+  - `OutsideCommonLocations` (-2), new;
+  - `CompanyNameMatch` (+4) when the parent is named after the publisher;
+  - `ItemNameEqualsCompanyName`, `QuestionableDirectoryName`, `DirectoryStillUsed` and
+    `OtherUserData` as in the drive scan.
+
+  A folder named exactly like the program scores 0, Questionable, so it is shown but never
+  pre-checked: `D:\Backup\Contoso Fixture` may be the user's own. Inside the publisher's folder
+  (`D:\Contoso\Contoso Fixture`) it scores 4, Good. A resemblance alone is never reported.
+- **Cost:** many folders share a name (`bin`, `en-US`), so names are matched, not folders: each
+  distinct name once per program, and paths are rebuilt only for the matches.
+
+## Orphaned folders (`leftovers/orphans.cpp`)
+
+`avel-cli orphans` (`find_orphans`) lists the folders at the top of the places programs are
+installed to that no installed program owns:
+- both Program Files folders;
+- ProgramData;
+- each user's `AppData\Local\Programs` (`FOLDERID_UserProgramFiles`).
+
+Users' AppData itself isn't searched. On the development machine it held about 130 unowned folders,
+nearly all the data of programs that never register: games' saves, package managers' caches
+(pip, npm, uv), portable tools. That's too many to review, and dangerous to offer.
+
+A folder is **owned**, and left out, when:
+- an installed program's install or uninstaller folder is it, lies in it or holds it;
+- its name is like a program's (`match_product_name`), is a whole word of a program's name or
+  publisher ("Code" for Microsoft Visual Studio Code), contains a program's name, or holds a
+  publisher's name as a word ("Intel Package Cache" with Intel's drivers installed). Here the
+  publisher loses its legal form ("Contoso" for "Contoso Ltd."; Ltd, LLC, GmbH, AG, Inc and the
+  like), which BCU's `trim_publisher` doesn't do for "Ltd";
+- a service, task, Run value, App Path, Windows Installer folder, COM class, shortcut or
+  firewall rule points into it. MuiCache and SharedDLLs don't count: they outlive the programs
+  they name;
+- it is Windows' own: `Packages`, `ssh`, `USOShared`, `regid.*`, `Microsoft …`, `Windows …`, and
+  the like.
+
+The rest is reported as `Evidence::NoOwner` (0 points, Questionable), never pre-checked, with
+`OtherUserData` added for another user's folder. Each item's program id is `folder:<path>`, like
+a forced folder's, and the command is read-only: `force --folder <path>` removes one. On the
+development machine it lists 22 folders in 0.6 s, such as `C:\Program Files (x86)\Razer`,
+`C:\Program Files\EA Games` and `C:\ProgramData\FLEXnet`.
+
 ## Drivers
 
 Services whose image lies in the program's folder were leftovers already. Drivers among them
@@ -137,8 +208,11 @@ drivers already (`backup_service` gives `protected`).
 
 ```
 avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path>
-               [--dry-run] [--yes] [--end-processes] [--min-level good|very-good]
+               [--dry-run] [--yes] [--end-processes] [--deep] [--min-level good|very-good]
                [--allow-irreversible] [--json]
+avel-cli list --broken [--json]
+avel-cli orphans [--all-levels] [--json]
+avel-cli scan <program>... [--deep]
 ```
 
 1. It resolves the targets and lists the processes running from their folders.
@@ -172,11 +246,21 @@ avel-cli force --folder "D:\Tools\Old thing" --name "Old Thing"
   - `RegistryBackupTest.RoundTripRestoresTheTreeExactly` now has a key with an auto-inherited
     DACL;
   - `ForceTest`: folder targets and refusals, owners, processes, and ending a real helper
-    process copied into a temporary program folder.
+    process copied into a temporary program folder;
+  - `VolumeFoldersTest`: paths rebuilt from made-up records, a loop, and (elevated only) a
+    temporary folder found on its real volume;
+  - `DeepScanTest`: a made-up volume with matches in and out of the publisher's folder, and
+    every kind of folder the search skips;
+  - `OrphansTest`: a temporary tree with a folder of each kind of owner, and orphans
+    machine-wide, per user and another user's.
 - **Windows Sandbox, scenario `force`** ([tests/sandbox/README.md](../tests/sandbox/README.md)):
   - Contoso Fixture with its uninstall script deleted and its app running;
   - 7-Zip's MSI with its package and Windows Installer's cached copy deleted;
-  - a folder without an Uninstall entry, and refusals of protected folders.
+  - a folder without an Uninstall entry, and refusals of protected folders;
+  - a dead entry: `list --broken`, then `force` removing its key alone;
+  - `C:\Tools\Contoso Fixture`, found by `scan --deep` only, and the elevated volume test;
+  - `orphans`: a folder nobody owns is listed, the installed programs' and Windows' folders
+    aren't.
 
   Each round checks the removal against `avel_state_dump` dumps, and that undo gives them back
   exactly.

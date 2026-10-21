@@ -16,7 +16,7 @@
 namespace avel::leftovers {
 
 ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const ScanTarget> targets,
-                          std::span<const inventory::Program> installed) {
+                          std::span<const inventory::Program> installed, const ScanOptions& options) {
     const auto started = std::chrono::steady_clock::now();
     // Shortcuts are resolved through COM. The caller may already have it, in either apartment.
     const HRESULT com = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -54,10 +54,26 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
         part.timings.push_back({"installer", since(started)});
         return part;
     });
+    // So are the volumes' folders for the deep search.
+    std::future<detail::Snapshots> deep;
+    if (options.deep) {
+        deep = std::async(std::launch::async, [&] {
+            detail::Snapshots part;
+            const auto started = std::chrono::steady_clock::now();
+            detail::take_deep_folders(environment, part, result.diagnostics);
+            part.timings.push_back({"deep", since(started)});
+            return part;
+        });
+    }
     detail::Snapshots snapshots = detail::take_snapshots(environment);
     detail::Snapshots part = installer.get();
     snapshots.msi_clients = std::move(part.msi_clients);
     snapshots.timings.push_back(part.timings.front());
+    if (deep.valid()) {
+        part = deep.get();
+        snapshots.deep = std::move(part.deep);
+        snapshots.timings.push_back(part.timings.front());
+    }
     result.timings = snapshots.timings;
     const HardFloor& floor = HardFloor::live();
     const ProtectedPolicy policy(snapshots.known_folders);
@@ -97,6 +113,7 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
         detail::scan_com_classes(context, found);
         detail::scan_firewall_rules(context, found);
         detail::scan_msi_registration(context, found);
+        detail::scan_deep(context, found);
     }
     merge_duplicates(found);
     result.timings.push_back({"matching", since(stage)});

@@ -19,6 +19,7 @@ std::vector<ScanTarget> capture_targets(std::span<const inventory::Program* cons
 // `results[i]` is the outcome for `targets[i]`. Scans nothing (and returns an empty result) when
 // no uninstall succeeded.
 ScanResult scan_after_uninstall(std::span<const ScanTarget> targets,
-                                std::span<const uninstall::UninstallResult> results);
+                                std::span<const uninstall::UninstallResult> results,
+                                const ScanOptions& options = {});
 
 }  // namespace avel::leftovers

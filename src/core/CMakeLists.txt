@@ -47,6 +47,7 @@ add_library(avel_core STATIC
     inventory/uninstall_entry.h
     leftovers/confidence.cpp
     leftovers/confidence.h
+    leftovers/deep_scanner.cpp
     leftovers/drive_scanners.cpp
     leftovers/environment.cpp
     leftovers/environment.h
@@ -55,6 +56,8 @@ add_library(avel_core STATIC
     leftovers/merge.cpp
     leftovers/merge.h
     leftovers/msi_scanner.cpp
+    leftovers/orphans.cpp
+    leftovers/orphans.h
     leftovers/post_uninstall.cpp
     leftovers/post_uninstall.h
     leftovers/product_name.cpp
@@ -99,6 +102,8 @@ add_library(avel_core STATIC
     platform/user_profiles.cpp
     platform/user_profiles.h
     platform/version_info.cpp
+    platform/volume_folders.cpp
+    platform/volume_folders.h
     platform/version_info.h
     uninstall/batch.cpp
     uninstall/batch.h

@@ -13,7 +13,8 @@ std::string_view kind_of(const leftovers::Location& location);
 std::wstring describe_location(const leftovers::Location& location);
 nlohmann::ordered_json location_to_json(const leftovers::Location& location);
 
-// The scan result as JSON: {"leftovers": [...], "protected_count", "elapsed_ms", "diagnostics"}.
+// The scan result as JSON: {"leftovers": [...], "protected_count", "elapsed_ms", "timings",
+// "diagnostics"}.
 // Items below `min_level` are left out; each item keeps its "index" in the full result, which
 // "inside" refers to.
 nlohmann::ordered_json leftovers_to_json(const leftovers::ScanResult& result, leftovers::Confidence min_level);

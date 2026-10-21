@@ -10,6 +10,7 @@
 #include "cli/console.h"
 #include "cli/force_command.h"
 #include "cli/list_command.h"
+#include "cli/orphans_command.h"
 #include "cli/scan_command.h"
 #include "cli/undo_command.h"
 #include "cli/uninstall_command.h"
@@ -27,21 +28,25 @@ constexpr std::string_view kUsage =
     "Usage: avel-cli <command> [options]\n"
     "\n"
     "Commands:\n"
-    "  list [--all] [--json] [--timing]\n"
+    "  list [--all | --broken] [--json] [--timing]\n"
     "             List installed programs. By default shows what Settings > Apps shows;\n"
-    "             --all adds updates, system components and frameworks.\n"
+    "             --all adds updates, system components and frameworks; --broken shows\n"
+    "             the entries that can't uninstall themselves (see force).\n"
     "  uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
-    "            [--no-leftover-scan | --remove-leftovers [--min-level <level>]] [--json]\n"
+    "            [--no-leftover-scan | --remove-leftovers [--min-level <level>]] [--deep] [--json]\n"
     "             Uninstall programs (by id or exact name) one after another, after\n"
     "             creating a System Restore point, then show what they left behind,\n"
     "             or remove it with a backup. Run as administrator.\n"
-    "  scan <program>... | --all [--json] [--min-level <level>] [--all-levels]\n"
+    "  scan <program>... | --all [--deep] [--json] [--min-level <level>] [--all-levels]\n"
     "             Show what programs would leave behind if their uninstallers removed\n"
     "             nothing. Read-only.\n"
     "  force <program>... | --folder <path> [--name <name>] | --exe <path>\n"
-    "        [--dry-run] [--yes] [--end-processes] [--min-level <level>] [--json]\n"
+    "        [--dry-run] [--yes] [--end-processes] [--deep] [--min-level <level>] [--json]\n"
     "             Remove programs whose uninstaller is missing or broken, without\n"
     "             running it, backed up so undo can put them back. Run as administrator.\n"
+    "  orphans [--json] [--all-levels]\n"
+    "             Show folders in Program Files, ProgramData and AppData\\Local\\Programs\n"
+    "             that no installed program owns. Read-only.\n"
     "  undo --list | --show <id> | <id> [--item <n>]... | --purge | --recover [--json]\n"
     "             List removals, or put back what one removed.\n"
     "             Run as administrator.\n"
@@ -81,6 +86,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"force") {
         return avel::cli::run_force_command(arguments);
+    }
+    if (command == L"orphans") {
+        return avel::cli::run_orphans_command(arguments);
     }
     if (command == L"undo") {
         return avel::cli::run_undo_command(arguments);

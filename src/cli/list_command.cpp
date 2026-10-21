@@ -1,5 +1,7 @@
 #include "cli/list_command.h"
 
+#include <windows.h>
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -22,6 +24,7 @@ using Json = nlohmann::ordered_json;
 
 struct ListOptions {
     bool all = false;
+    bool broken = false;
     bool json = false;
     bool timing = false;
 };
@@ -73,6 +76,7 @@ Json to_json(const Program& p) {
     json["msi_product_unregistered"] = p.msi_product_unregistered;
     json["uninstaller_missing"] = p.uninstaller_missing;
     json["msi_package_missing"] = p.msi_package_missing;
+    json["broken"] = inventory::is_broken(p);
     if (p.registry) {
         json["registry"] = {{"view", inventory::to_string(p.registry->view)},
                             {"key_name", to_utf8(p.registry->key_name)},
@@ -124,6 +128,37 @@ std::wstring type_label(const Program& p) {
     return std::wstring(type.begin(), type.end());
 }
 
+// Why a broken entry can't uninstall itself, and whether its folder is gone too (a dead entry).
+std::string broken_reasons(const Program& p) {
+    std::string reasons;
+    const auto add = [&](std::string_view reason) {
+        reasons += reasons.empty() ? "" : ", ";
+        reasons += reason;
+    };
+    if (p.uninstaller_missing) {
+        add("uninstaller-missing");
+    }
+    if (p.msi_package_missing) {
+        add("msi-package-missing");
+    }
+    if (p.msi_product_unregistered) {
+        add("msi-product-unregistered");
+    }
+    if (p.install_location.empty() ||
+        ::GetFileAttributesW(p.install_location.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        add("no-install-folder");
+    }
+    return reasons;
+}
+
+void print_broken(const std::vector<const Program*>& programs) {
+    for (const auto* p : programs) {
+        const std::wstring name =
+            p->display_name.empty() && p->registry ? L"(" + p->registry->key_name + L")" : p->display_name;
+        print(std::format("{}\n    {}\n    {}\n", to_utf8(name), to_utf8(p->id), broken_reasons(*p)));
+    }
+}
+
 void print_table(const std::vector<const Program*>& programs) {
     const int width = console_width();
     // Name, version, publisher, type; the name column absorbs extra width.
@@ -152,13 +187,15 @@ int run_list_command(const std::vector<std::wstring_view>& arguments) {
     for (const auto argument : arguments) {
         if (argument == L"--all") {
             options.all = true;
+        } else if (argument == L"--broken") {
+            options.broken = true;
         } else if (argument == L"--json") {
             options.json = true;
         } else if (argument == L"--timing") {
             options.timing = true;
         } else {
             print_error("list: unknown option " + to_utf8(argument) + "\n");
-            print_error("Usage: avel-cli list [--all] [--json] [--timing]\n");
+            print_error("Usage: avel-cli list [--all | --broken] [--json] [--timing]\n");
             return 2;
         }
     }
@@ -167,13 +204,19 @@ int run_list_command(const std::vector<std::wstring_view>& arguments) {
 
     std::vector<const Program*> selected;
     for (const auto& program : inventory.programs) {
-        if (options.all || inventory::is_listed_in_settings(program)) {
+        // Broken entries count whether or not Settings shows them.
+        if (options.broken ? inventory::is_broken(program)
+                           : options.all || inventory::is_listed_in_settings(program)) {
             selected.push_back(&program);
         }
     }
 
     if (options.json) {
         print_json(inventory, selected);
+    } else if (options.broken) {
+        print_broken(selected);
+        print(std::format("\n{} broken entr{}; `avel-cli force <id>` removes one\n", selected.size(),
+                          selected.size() == 1 ? "y" : "ies"));
     } else {
         print_table(selected);
         const size_t hidden = inventory.programs.size() - selected.size();

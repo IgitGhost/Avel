@@ -24,9 +24,11 @@ enum class Evidence : std::uint8_t {
     AllSubdirsMatched,          // +4  The folder is, or will be, empty once the other leftovers are gone
     StartupMatched,             // +6  A startup entry (Run value, task, service) of the program
     ProductNamePerfectMatch,    // +2
+    NoOwner,                    // 0   (Avel) An orphaned folder: no installed program owns it
     Depth,                      // 2 - 2 * level: how deep below a search root the item sits
     DirectlyInsideKnownFolder,  // -1
     ProductNameDodgyMatch,      // -2
+    OutsideCommonLocations,     // -2  (Avel) Found by the deep search, away from where programs keep files
     ItemNameEqualsCompanyName,  // -2  Looks like a whole publisher's folder, e.g. "Adobe" for Adobe AIR
     UsedBySimilarNamedApp,      // -2  Might belong to another program with a similar name
     OtherUserData,              // -2  (Avel) In another user's profile, for a machine-wide program

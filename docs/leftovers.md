@@ -47,6 +47,8 @@ Each scan reads the system once, whatever the number of programs:
 | Scheduled tasks | Exec actions of every task (hidden ones too), except Windows' own under `\Microsoft` |
 | COM classes | `InprocServer32` and `LocalServer32` of every class (machine, 32-bit, each user), plus the shell extension handlers and `Shell Extensions\Approved` entries that name a class |
 | Firewall rules | The `App=` path of each rule in the firewall policy |
+| Windows Installer clients | The upgrade codes and components that list a target's MSI product, read only for products still registered (see [force.md](force.md)) |
+| Volume folders | With `--deep` only: every folder of each fixed NTFS volume, from its master file table ([ADR 0005](adr/0005-deep-search-from-the-mft.md)) |
 
 ## Scanners
 
@@ -67,20 +69,23 @@ the pieces of evidence for and against it.
 | `com-classes` | COM classes served from the folder, and the shell extension registrations naming them | path-reference |
 | `firewall` | Firewall rules for programs in the folder (reported only, never removed) | path-reference |
 | `msi-registration` | Windows Installer's registration of the program's MSI product code: product keys, install properties, upgrade codes and components (see [force.md](force.md)) | installer-registration |
+| `deep-search` | With `--deep`: folders named after the program anywhere else on the fixed volumes (see [force.md](force.md)) | name match, outside-common-locations, company name |
+| `orphans` | Not run for a program: `avel-cli orphans` lists folders no installed program owns (see [force.md](force.md)) | no-owner |
 
 ## Confidence (`confidence.cpp`)
 
-The score is the sum of the records' points: BCU's values, plus four of Avel's own (marked *).
+The score is the sum of the records' points: BCU's values, plus seven of Avel's own (marked *).
 
 | Evidence | Points |
 |---|---|
-| uninstaller-key | +20 |
+| uninstaller-key, installer-registration * | +20 |
 | startup-matched * | +6 |
 | explicit-connection, path-reference *, company-name-match, all-subdirs-matched | +4 |
 | product-name-perfect-match | +2 |
+| no-owner * | 0 |
 | depth(n) | 2 − 2·n |
 | directly-inside-known-folder | −1 |
-| product-name-dodgy-match, item-name-equals-company-name, used-by-similar-named-app, other-user-data * | −2 |
+| product-name-dodgy-match, item-name-equals-company-name, used-by-similar-named-app, other-user-data *, outside-common-locations * | −2 |
 | questionable-directory-name | −3 |
 | startup-is-run-once * | −5 |
 | directory-still-used | −7 |

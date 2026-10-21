@@ -82,6 +82,8 @@ enum class Scanner : std::uint8_t {
     ComClasses,
     Firewall,
     MsiRegistration,  // Windows Installer's keys for the program's product code
+    DeepSearch,       // Folders named after the program anywhere on the fixed volumes (ScanOptions::deep)
+    Orphans,          // Folders no installed program owns (find_orphans)
 };
 
 struct Leftover {

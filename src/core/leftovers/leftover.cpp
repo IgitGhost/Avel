@@ -125,6 +125,10 @@ std::string_view to_string(Scanner scanner) {
             return "firewall";
         case Scanner::MsiRegistration:
             return "msi-registration";
+        case Scanner::DeepSearch:
+            return "deep-search";
+        case Scanner::Orphans:
+            return "orphans";
     }
     return "unknown";
 }

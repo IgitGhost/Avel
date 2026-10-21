@@ -35,7 +35,7 @@ using Json = nlohmann::ordered_json;
 constexpr std::string_view kUsage =
     "Usage: avel-cli uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
     "                          [--no-leftover-scan | --remove-leftovers [--min-level <level>]\n"
-    "                          [--allow-irreversible]] [--json]\n"
+    "                          [--allow-irreversible]] [--deep] [--json]\n"
     "  <program>             an id from `avel-cli list --json`, or an exact display name\n"
     "  --quiet               use silent uninstall switches where known (interactive otherwise)\n"
     "  --dry-run             show what would run, change nothing\n"
@@ -46,7 +46,8 @@ constexpr std::string_view kUsage =
     "                        it back\n"
     "  --min-level <level>   the least likely leftovers to remove: good (default) or very-good\n"
     "  --allow-irreversible  also remove leftovers undo can't put back (packages)\n"
-    "  --json                machine-readable output (needs --yes or --dry-run)\n";
+    "  --deep                also search every fixed drive for folders named after the programs\n"
+    "  --json              machine-readable output (needs --yes or --dry-run)\n";
 
 struct Options {
     std::vector<std::wstring> programs;
@@ -59,6 +60,7 @@ struct Options {
     leftovers::Confidence min_level = leftovers::Confidence::Good;
     bool allow_irreversible = false;
     bool json = false;
+    bool deep = false;
 };
 
 // Ctrl+C stops the batch after the running uninstaller; a second Ctrl+C terminates that one too.
@@ -166,6 +168,8 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
             options.yes = true;
         } else if (argument == L"--no-restore-point") {
             options.restore_point = false;
+        } else if (argument == L"--deep") {
+            options.deep = true;
         } else if (argument == L"--no-leftover-scan") {
             options.leftover_scan = false;
         } else if (argument == L"--json") {
@@ -269,7 +273,7 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
                                            [](const auto& result) { return succeeded(result.outcome); });
     std::optional<leftovers::ScanResult> leftover_scan;
     if (scan_leftovers) {
-        leftover_scan = leftovers::scan_after_uninstall(targets, batch.results);
+        leftover_scan = leftovers::scan_after_uninstall(targets, batch.results, {.deep = options.deep});
     }
     std::optional<changes::ChangePlan> removal_plan;
     std::optional<changes::ExecuteResult> removal;

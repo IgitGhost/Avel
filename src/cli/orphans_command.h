@@ -1,0 +1,11 @@
+#pragma once
+
+#include <string_view>
+#include <vector>
+
+namespace avel::cli {
+
+// avel-cli orphans [--json] [--all-levels] [--timing]
+int run_orphans_command(const std::vector<std::wstring_view>& arguments);
+
+}  // namespace avel::cli

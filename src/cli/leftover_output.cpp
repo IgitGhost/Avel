@@ -156,6 +156,11 @@ Json leftovers_to_json(const leftovers::ScanResult& result, leftovers::Confidenc
     json["leftovers"] = std::move(items);
     json["protected_count"] = result.protected_count;
     json["elapsed_ms"] = result.elapsed.count();
+    Json timings = Json::array();
+    for (const auto& timing : result.timings) {
+        timings.push_back({{"stage", timing.stage}, {"elapsed_ms", timing.elapsed.count()}});
+    }
+    json["timings"] = std::move(timings);
     json["diagnostics"] = std::move(diagnostics);
     return json;
 }

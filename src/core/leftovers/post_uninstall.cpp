@@ -14,7 +14,8 @@ std::vector<ScanTarget> capture_targets(std::span<const inventory::Program* cons
 }
 
 ScanResult scan_after_uninstall(std::span<const ScanTarget> targets,
-                                std::span<const uninstall::UninstallResult> results) {
+                                std::span<const uninstall::UninstallResult> results,
+                                const ScanOptions& options) {
     std::vector<ScanTarget> removed;
     for (std::size_t i = 0; i < targets.size() && i < results.size(); ++i) {
         const auto outcome = results[i].outcome;
@@ -28,7 +29,7 @@ ScanResult scan_after_uninstall(std::span<const ScanTarget> targets,
     // What other programs still use is judged by what is installed now, after the batch.
     const auto inventory = inventory::scan_inventory();
     const LiveEnvironment environment;
-    return scan_leftovers(environment.environment(), removed, inventory.programs);
+    return scan_leftovers(environment.environment(), removed, inventory.programs, options);
 }
 
 }  // namespace avel::leftovers

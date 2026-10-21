@@ -10,6 +10,8 @@ std::string_view to_string(ScanDiagnosticCode code) {
             return "not-elevated";
         case ScanDiagnosticCode::UserHiveUnavailable:
             return "user-hive-unavailable";
+        case ScanDiagnosticCode::DeepSearchUnavailable:
+            return "deep-search-unavailable";
     }
     return "unknown";
 }

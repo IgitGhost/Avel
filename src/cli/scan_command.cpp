@@ -23,9 +23,10 @@ using platform::to_utf8;
 using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
-    "Usage: avel-cli scan <program>... | --all [--json] [--min-level <level>] [--all-levels] [--timing]\n"
+    "Usage: avel-cli scan <program>... | --all [--deep] [--json] [--min-level <level>] [--all-levels] [--timing]\n"
     "  <program>            an id from `avel-cli list --json`, or an exact display name\n"
     "  --all                every program Settings > Apps lists\n"
+    "  --deep               also search every fixed drive for folders named after them (administrator)\n"
     "  --json               machine-readable output\n"
     "  --min-level <level>  questionable (default), good or very-good\n"
     "  --all-levels         also show unlikely matches (confidence \"bad\")\n"
@@ -36,6 +37,7 @@ constexpr std::string_view kUsage =
 struct Options {
     std::vector<std::wstring> programs;
     bool all = false;
+    bool deep = false;
     bool json = false;
     bool timing = false;
     Confidence min_level = Confidence::Questionable;
@@ -62,6 +64,8 @@ int run_scan_command(const std::vector<std::wstring_view>& arguments) {
         const auto argument = arguments[i];
         if (argument == L"--all") {
             options.all = true;
+        } else if (argument == L"--deep") {
+            options.deep = true;
         } else if (argument == L"--json") {
             options.json = true;
         } else if (argument == L"--timing") {
@@ -100,7 +104,8 @@ int run_scan_command(const std::vector<std::wstring_view>& arguments) {
         targets.push_back(leftovers::make_scan_target(*program));
     }
     const leftovers::LiveEnvironment environment;
-    const auto result = leftovers::scan_leftovers(environment.environment(), targets, inventory.programs);
+    const auto result =
+        leftovers::scan_leftovers(environment.environment(), targets, inventory.programs, {.deep = options.deep});
 
     if (options.json) {
         Json root;

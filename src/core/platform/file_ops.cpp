@@ -3,6 +3,7 @@
 #include <sddl.h>
 
 #include <cstring>
+#include <cwchar>
 #include <vector>
 
 #include "core/platform/elevation.h"
@@ -142,6 +143,18 @@ bool is_fixed_ntfs(const std::wstring& volume_root) {
     return ::GetVolumeInformationW(volume_root.c_str(), nullptr, 0, nullptr, nullptr, nullptr, file_system,
                                    MAX_PATH + 1) &&
            iequals(file_system, L"NTFS");
+}
+
+std::vector<std::wstring> fixed_ntfs_volumes() {
+    std::vector<std::wstring> roots;
+    wchar_t buffer[512] = {};
+    const DWORD length = ::GetLogicalDriveStringsW(511, buffer);
+    for (const wchar_t* root = buffer; root < buffer + length && *root; root += std::wcslen(root) + 1) {
+        if (is_fixed_ntfs(root)) {
+            roots.emplace_back(root);
+        }
+    }
+    return roots;
 }
 
 std::optional<ItemInfo> item_info(const std::wstring& path) {

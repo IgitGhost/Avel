@@ -33,6 +33,8 @@ DWORD delete_tree(const std::wstring& path);
 // kind Avel quarantines on.
 std::optional<std::wstring> volume_root(const std::wstring& path);
 bool is_fixed_ntfs(const std::wstring& volume_root);
+// The roots ("D:\") of every fixed NTFS volume with a drive letter.
+std::vector<std::wstring> fixed_ntfs_volumes();
 
 // A path with a \\?\ prefix when it's too long for the plain Win32 APIs.
 std::wstring extended(const std::wstring& path);

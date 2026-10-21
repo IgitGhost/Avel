@@ -166,6 +166,8 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
             return with_reference(tr("Starts the program"), tr("Starts the program (%1)"));
         case Evidence::ProductNamePerfectMatch:
             return tr("Named exactly like the program");
+        case Evidence::NoOwner:
+            return tr("No installed program owns it");
         case Evidence::Depth:
             return record.level <= 0 ? tr("At the top of a common location")
                                      : tr("%n level(s) below a common location", nullptr, record.level);
@@ -173,6 +175,8 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
             return tr("Directly inside a system folder");
         case Evidence::ProductNameDodgyMatch:
             return tr("Its name only resembles the program's");
+        case Evidence::OutsideCommonLocations:
+            return tr("Found by the disk search, away from where programs keep their files");
         case Evidence::ItemNameEqualsCompanyName:
             return tr("Named after the publisher, whose other programs may use it");
         case Evidence::UsedBySimilarNamedApp:
@@ -273,6 +277,10 @@ QString LeftoverText::diagnosticText(const leftovers::ScanDiagnostic& diagnostic
                 "weren't checked.");
         case ScanDiagnosticCode::UserHiveUnavailable:
             return tr("The registry of user %1 couldn't be opened (error %2); their entries weren't checked.")
+                .arg(toQString(diagnostic.subject))
+                .arg(diagnostic.error);
+        case ScanDiagnosticCode::DeepSearchUnavailable:
+            return tr("Drive %1 couldn't be searched (error %2).")
                 .arg(toQString(diagnostic.subject))
                 .arg(diagnostic.error);
     }

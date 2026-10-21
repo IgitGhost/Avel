@@ -124,6 +124,7 @@ void take_folders(const ScanEnvironment& environment, Snapshots& snapshots) {
         }
     }
     for (const auto& [root, user] : roots) {
+        snapshots.folder_roots.push_back(root);
         if (::GetFileAttributesW(root.c_str()) != INVALID_FILE_ATTRIBUTES) {
             walk_folder(snapshots, root, 0, user, machine.windows);
         }

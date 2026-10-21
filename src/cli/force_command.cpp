@@ -30,7 +30,7 @@ using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
     "Usage: avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path>\n"
-    "                      [--dry-run] [--yes] [--end-processes] [--min-level <level>]\n"
+    "                      [--dry-run] [--yes] [--end-processes] [--deep] [--min-level <level>]\n"
     "                      [--allow-irreversible] [--json]\n"
     "  <program>             an id from `avel-cli list --json`, or an exact display name\n"
     "  --folder <path>       a folder no Uninstall entry describes; --name is what its other\n"
@@ -39,6 +39,8 @@ constexpr std::string_view kUsage =
     "  --dry-run             show what would be removed, change nothing\n"
     "  --yes                 don't ask for confirmation\n"
     "  --end-processes       end the programs' running processes (needed with --yes when any run)\n"
+    "  --deep                also search every fixed drive for folders named after the programs;\n"
+    "                        what it finds alone is questionable and only shown\n"
     "  --min-level <level>   the least likely items to remove: good (default) or very-good\n"
     "  --allow-irreversible  also remove items undo can't put back (packages)\n"
     "  --json                machine-readable output (needs --yes or --dry-run)\n"
@@ -58,6 +60,7 @@ struct Options {
     Confidence min_level = Confidence::Good;
     bool allow_irreversible = false;
     bool json = false;
+    bool deep = false;
 };
 
 struct StoppedProcess {
@@ -104,6 +107,8 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
             options.yes = true;
         } else if (argument == L"--end-processes") {
             options.end_processes = true;
+        } else if (argument == L"--deep") {
+            options.deep = true;
         } else if (argument == L"--allow-irreversible") {
             options.allow_irreversible = true;
         } else if (argument == L"--json") {
@@ -194,7 +199,8 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
     }
 
     // The scan's targets know an MSI program's folder even when its entry records none.
-    const auto scan = leftovers::scan_leftovers(environment, targets, inventory.programs);
+    const auto scan =
+        leftovers::scan_leftovers(environment, targets, inventory.programs, {.deep = options.deep});
     targets = scan.targets;
     std::vector<StoppedProcess> processes;
     for (auto& process : force::processes_in(environment, targets, platform::running_processes(),

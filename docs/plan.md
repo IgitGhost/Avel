@@ -336,4 +336,13 @@ D:\Avel\
       - Contoso Fixture without its uninstall script, its app running: `force --yes` alone refused; with `--end-processes` it ended the app and removed 14 items, and undo gave back identical dumps.
       - 7-Zip's MSI with its package and Windows Installer's cached copy deleted: 42 items, including the shell extension and Windows Installer's registration. Windows Installer then no longer knew the product. Undo gave the registration back exactly, and the product counted as installed again.
       - A folder without an Uninstall entry went alone; Program Files, `System32` and `C:\Users` were refused.
-  - **Next:** 4b (broken entries listed, MFT deep search, orphans), then 4c (GUI, Hunter, RU/HY).
+  - **4b (broken entries, deep search, orphans; core and CLI): done.**
+    - `avel-cli list --broken` shows the entries that can't uninstall themselves, with their reasons (`no-install-folder` marks a dead entry); `force` removes them.
+    - **Deep search** (`--deep` on `scan`, `force` and `uninstall`): folders named after the program anywhere on the fixed NTFS volumes, read from each volume's master file table ([ADR 0005](adr/0005-deep-search-from-the-mft.md)). A folder found only by its name is Questionable (new evidence `outside-common-locations`, −2); inside the publisher's folder it is Good.
+    - **Orphans** (`avel-cli orphans`): folders in both Program Files, ProgramData and each user's `AppData\Local\Programs` that no installed program owns by folder, name, publisher or reference. They are Questionable (`no-owner`), never pre-checked. Users' AppData was left out after the first host run: about 130 of its folders were games' saves, package caches and portable tools' data.
+    - **Tests:** 170 unit tests pass (one, reading a real volume, runs elevated only).
+    - **Windows Sandbox,** scenario `force` with three new rounds: **RESULT: PASS** (2026-10-21 23:00). `removal` and `leftovers` still pass.
+      - A dead entry is listed by `list --broken`, and `force` removes its key alone; undo gives it back exactly.
+      - The volume reading tests pass elevated; `C:\Tools\Contoso Fixture` is found by `scan --deep` only, at Questionable. The Sandbox's volume was read in 16 ms.
+      - `orphans` lists a folder nobody owns, and none of the installed programs' or Windows' folders. A folder named after the fixture's publisher ("Contoso Orphan", publisher "Contoso Ltd") is owned. The first run listed it, because BCU's `trim_publisher` keeps "Ltd"; orphans now drop legal forms themselves.
+  - **Next:** 4c (GUI: Force flow, Hunter, deep search button, orphan finder, Broken category, RU/HY).

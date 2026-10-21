@@ -15,6 +15,7 @@
 // compares paths by component.
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <span>
 #include <string>
@@ -121,8 +122,23 @@ struct MsiClient {
     bool only_client = false;  // The product is the key's only value
 };
 
+// The folders of the fixed volumes that the deep search may offer, grouped by name.
+struct DeepFolders {
+    struct Folder {
+        std::uint32_t volume = 0;  // Index into volumes
+        std::uint32_t index = 0;   // Index into its folders()
+    };
+    struct Name {
+        std::wstring name;  // As the first folder so named spells it
+        std::vector<Folder> folders;
+    };
+    std::vector<platform::VolumeFolders> volumes;
+    std::vector<Name> names;
+};
+
 struct Snapshots {
     std::vector<std::wstring> known_folders;  // Normalized, lowercase and sorted
+    std::vector<std::wstring> folder_roots;   // Where the folders below come from, normalized
     std::vector<FolderNode> folders;
     std::vector<KeyRoot> key_roots;
     std::vector<KeyNode> keys;
@@ -135,6 +151,7 @@ struct Snapshots {
     std::vector<ClassReference> class_references;
     std::vector<FirewallRule> firewall_rules;
     std::vector<MsiClient> msi_clients;  // Sorted by product; only for products still registered
+    DeepFolders deep;                    // Empty unless ScanOptions::deep
     std::vector<ScanTiming> timings;
 };
 
@@ -152,6 +169,11 @@ void take_com_classes(const ScanEnvironment& environment, Snapshots& snapshots);
 // products whose registration is still there.
 void take_msi_clients(const ScanEnvironment& environment, std::span<const ScanTarget> targets,
                       Snapshots& snapshots);
+
+// The folders of every fixed NTFS volume (deep_scanner.cpp). A volume that can't be read is
+// reported in `diagnostics`.
+void take_deep_folders(const ScanEnvironment& environment, Snapshots& snapshots,
+                       std::vector<ScanDiagnostic>& diagnostics);
 
 // Many MSI products record no install folder. Their components' key paths say where their files
 // are: the deepest folder holding most of them (below the first protected folder), if it is named
@@ -191,6 +213,7 @@ void scan_tasks(const ScanContext& context, std::vector<Leftover>& found);
 void scan_com_classes(const ScanContext& context, std::vector<Leftover>& found);
 void scan_firewall_rules(const ScanContext& context, std::vector<Leftover>& found);
 void scan_msi_registration(const ScanContext& context, std::vector<Leftover>& found);
+void scan_deep(const ScanContext& context, std::vector<Leftover>& found);
 
 // BCU TestForSimilarNames: among items found side by side (in one folder or key), penalizes
 // those whose name another program's name contains, and all but the closest of several similar

@@ -177,19 +177,6 @@ std::vector<std::wstring> set_folders(const std::wstring& root) {
     return names;
 }
 
-// Volume roots ("D:\") of every fixed NTFS volume with a drive letter.
-std::vector<std::wstring> fixed_volumes() {
-    std::vector<std::wstring> roots;
-    wchar_t buffer[512] = {};
-    const DWORD length = ::GetLogicalDriveStringsW(511, buffer);
-    for (const wchar_t* root = buffer; root < buffer + length && *root; root += wcslen(root) + 1) {
-        if (platform::is_fixed_ntfs(root)) {
-            roots.emplace_back(root);
-        }
-    }
-    return roots;
-}
-
 }  // namespace
 
 StoreOptions default_store_options() {
@@ -308,7 +295,7 @@ bool ChangeStore::remove(const std::wstring& id) {
         }
     }  // Releases the lock file before deleting the folder
     bool removed = true;
-    for (const auto& volume : fixed_volumes()) {
+    for (const auto& volume : platform::fixed_ntfs_volumes()) {
         const std::wstring quarantine = volume + kQuarantineFolder + L"\\" + id;
         if (::GetFileAttributesW(quarantine.c_str()) != INVALID_FILE_ATTRIBUTES) {
             removed = platform::delete_tree(quarantine) == ERROR_SUCCESS && removed;

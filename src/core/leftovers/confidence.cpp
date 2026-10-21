@@ -26,6 +26,7 @@ int points(const Record& record) {
         case Evidence::DirectlyInsideKnownFolder:
             return -1;
         case Evidence::ProductNameDodgyMatch:
+        case Evidence::OutsideCommonLocations:
         case Evidence::ItemNameEqualsCompanyName:
         case Evidence::UsedBySimilarNamedApp:
         case Evidence::OtherUserData:
@@ -38,6 +39,8 @@ int points(const Record& record) {
             return -7;
         case Evidence::StoreApp:
             return -10;
+        case Evidence::NoOwner:
+            return 0;
     }
     return 0;
 }
@@ -92,12 +95,16 @@ std::string_view to_string(Evidence evidence) {
             return "startup-matched";
         case Evidence::ProductNamePerfectMatch:
             return "product-name-perfect-match";
+        case Evidence::NoOwner:
+            return "no-owner";
         case Evidence::Depth:
             return "depth";
         case Evidence::DirectlyInsideKnownFolder:
             return "directly-inside-known-folder";
         case Evidence::ProductNameDodgyMatch:
             return "product-name-dodgy-match";
+        case Evidence::OutsideCommonLocations:
+            return "outside-common-locations";
         case Evidence::ItemNameEqualsCompanyName:
             return "item-name-equals-company-name";
         case Evidence::UsedBySimilarNamedApp:

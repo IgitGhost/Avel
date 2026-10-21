@@ -10,7 +10,12 @@
 #      program and Windows Installer's registration, so Windows Installer no longer knows the
 #      product, and undo must give back the registration exactly;
 #   3. a folder no Uninstall entry describes: `force --folder` must remove it and nothing outside
-#      it, and must refuse Program Files and the Windows folder.
+#      it, and must refuse Program Files and the Windows folder;
+#   4. an Uninstall entry whose uninstaller and folder are gone: `list --broken` must show it, and
+#      `force` must remove the key alone, which undo gives back;
+#   5. C:\Tools\Contoso Fixture: only `scan --deep` may find it, at questionable; the volume reading
+#      unit tests, skipped unelevated on the host, must pass here;
+#   6. `orphans` must list a folder nobody owns and none of the installed programs' or Windows'.
 # Writes results\force.json (avel-cli's output), results\force.log and, last, results\force.txt.
 
 $ErrorActionPreference = 'Stop'
@@ -231,6 +236,97 @@ try {
         $undo = Invoke-Cli @('undo', $removal.set_id, '--json') 'undo-folder'
         Compare-State $before (Split-StateDump (Get-StateDump @("file:$orphan"))) 'undo gave back the folder exactly'
     }
+
+    # 4. A dead entry: its uninstaller and its folder are gone, only the Uninstall key is left.
+    Log ''
+    Log 'Round 4: an Uninstall entry whose program is gone'
+    $deadKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NorthwindDeadTool'
+    New-Item $deadKey -Force | Out-Null
+    New-ItemProperty $deadKey -Name DisplayName -Value 'Northwind Dead Tool' | Out-Null
+    New-ItemProperty $deadKey -Name Publisher -Value 'Northwind Traders' | Out-Null
+    New-ItemProperty $deadKey -Name InstallLocation -Value 'C:\Program Files\Northwind Dead Tool' | Out-Null
+    New-ItemProperty $deadKey -Name UninstallString -Value '"C:\Program Files\Northwind Dead Tool\uninst.exe" /S' | Out-Null
+    $deadSpecs = @('key:HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NorthwindDeadTool')
+    $before = Split-StateDump (Get-StateDump $deadSpecs)
+    $broken = Invoke-Cli @('list', '--broken', '--json') 'list-broken'
+    $dead = @($broken.json.programs | Where-Object { $_.name -eq 'Northwind Dead Tool' })
+    if (-not $dead -or -not $dead[0].uninstaller_missing) { Fail 'list --broken does not show the dead entry' }
+    else { Log "  OK: list --broken shows it: $($dead[0].id)" }
+    foreach ($entry in $broken.json.programs) {
+        Log "    broken: $($entry.name)"
+        if (-not $entry.broken) { Fail "list --broken shows an entry that isn't broken: $($entry.name)" }
+    }
+    $listed = Invoke-Cli @('list', '--broken') 'list-broken-text'
+    if ($listed.text -notmatch 'Northwind Dead Tool[\s\S]*uninstaller-missing, no-install-folder') {
+        Fail 'list --broken (text) does not give the reasons'
+    }
+    if ($dead) {
+        $run = Invoke-Cli @('force', "`"$($dead[0].id)`"", '--yes', '--json') 'force-dead'
+        $removal = $run.json.leftover_removal
+        Check-Done $removal 'round 4'
+        if ($removal -and @($removal.items).Count -ne 1) { Fail "round 4: $(@($removal.items).Count) items planned, not just the key" }
+        elseif ($removal) { Expect-Planned $removal 'registry-key' 'Uninstall\\NorthwindDeadTool$' 'round 4' }
+        if (Test-Path $deadKey) { Fail 'round 4: the key is still there' }
+        if ($removal) {
+            $undo = Invoke-Cli @('undo', $removal.set_id, '--json') 'undo-dead'
+            Compare-State $before (Split-StateDump (Get-StateDump $deadSpecs)) 'undo gave back the dead entry exactly'
+        }
+    }
+
+    # 5. The deep search: a folder named after the program outside the common locations.
+    Log ''
+    Log 'Round 5: deep search'
+    # stdout only: under 'Stop', Windows PowerShell turns a native program's stderr into an error.
+    $tests = & "$bin\avel_core_tests.exe" '--gtest_filter=VolumeFoldersTest.*:DeepScanTest.*'
+    $tests | Where-Object { $_ -match '^\[  (PASSED|FAILED|SKIPPED) ' } | ForEach-Object { Log "  $_" }
+    if ($LASTEXITCODE -ne 0 -or ($tests -match 'SKIPPED')) { Fail 'the deep search unit tests did not all pass elevated' }
+    else { Log '  OK: the volume reading tests pass elevated' }
+    $tool = 'C:\Tools\Contoso Fixture'
+    New-Item -ItemType Directory -Force $tool | Out-Null
+    Set-Content "$tool\notes.txt" 'a copy kept elsewhere' -Encoding ascii
+    $fixture = @(Get-Inventory | Where-Object { $_.name -eq 'Contoso Fixture' })
+    $id = "`"$($fixture[0].id)`""
+    $plain = Invoke-Cli @('scan', $id, '--all-levels', '--json') 'scan-plain'
+    if (@($plain.json.leftovers | Where-Object { (Where-Text $_.location) -eq $tool })) { Fail "found $tool without --deep" }
+    $deep = Invoke-Cli @('scan', $id, '--deep', '--all-levels', '--json') 'scan-deep' 600
+    $hit = @($deep.json.leftovers | Where-Object { (Where-Text $_.location) -eq $tool })
+    if (-not $hit) { Fail "--deep did not find $tool" }
+    elseif ($hit[0].found_by -ne 'deep-search' -or $hit[0].confidence -ne 'questionable') {
+        Fail "--deep found $tool by $($hit[0].found_by) at $($hit[0].confidence), not deep-search at questionable"
+    } else { Log "  OK: only --deep finds $tool, at questionable" }
+    foreach ($item in @($deep.json.leftovers | Where-Object { $_.found_by -eq 'deep-search' })) {
+        Log "    deep-search: $($item.confidence) $(Where-Text $item.location)"
+    }
+    foreach ($diagnostic in $deep.json.diagnostics) {
+        if ($diagnostic.code -eq 'deep-search-unavailable') { Fail "deep search: $($diagnostic.subject) unreadable ($($diagnostic.error))" }
+    }
+    $stage = @($deep.json.timings | Where-Object { $_.stage -eq 'deep' })
+    if ($stage) { Log "  deep search read the volumes in $($stage[0].elapsed_ms) ms; the scan took $($deep.json.elapsed_ms) ms" }
+    Check-Safe $deep.json.leftovers 'round 5'
+
+    # 6. Orphaned folders. The fixture is installed again (undo in round 1), so its folder and
+    # "Contoso Orphan" (named after its publisher, restored in round 3) are owned.
+    Log ''
+    Log 'Round 6: orphaned folders'
+    $northwind = 'C:\Program Files\Northwind Orphan'
+    New-Item -ItemType Directory -Force $northwind | Out-Null
+    Set-Content "$northwind\readme.txt" 'nobody owns this' -Encoding ascii
+    $orphans = Invoke-Cli @('orphans', '--all-levels', '--json') 'orphans'
+    $paths = @($orphans.json.leftovers | ForEach-Object { Where-Text $_.location })
+    foreach ($path in $paths) { Log "    orphan: $path" }
+    if ($paths -notcontains $northwind) { Fail "orphans does not list $northwind" }
+    else { Log "  OK: orphans lists $northwind" }
+    foreach ($owned in 'C:\Program Files\7-Zip', $fixtureRoot, 'C:\Program Files\Contoso Orphan',
+                       'C:\Program Files\Common Files', 'C:\Program Files\WindowsApps', 'C:\Program Files\Windows Defender',
+                       'C:\ProgramData\Microsoft', 'C:\ProgramData\Package Cache') {
+        if ($paths -contains $owned) { Fail "orphans lists an owned folder: $owned" }
+    }
+    foreach ($item in $orphans.json.leftovers) {
+        if ($item.found_by -ne 'orphans' -or $item.confidence -notin 'questionable', 'bad') {
+            Fail "orphans: $(Where-Text $item.location) is $($item.found_by) at $($item.confidence)"
+        }
+    }
+    Check-Safe $orphans.json.leftovers 'round 6'
 } catch {
     Fail "scenario error: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber)"
 } finally {

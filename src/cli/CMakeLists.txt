@@ -16,6 +16,8 @@ add_executable(avel_cli
     list_command.cpp
     list_command.h
     main.cpp
+    orphans_command.cpp
+    orphans_command.h
     program_lookup.cpp
     program_lookup.h
     scan_command.cpp

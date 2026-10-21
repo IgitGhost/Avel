@@ -29,6 +29,12 @@ struct ScanResult {
     std::chrono::milliseconds elapsed{};
 };
 
+struct ScanOptions {
+    // Also look for folders named after the programs anywhere on the fixed NTFS volumes, read
+    // from their master file tables (ADR 0005). Needs administrator rights; takes a few seconds.
+    bool deep = false;
+};
+
 // Finds what the target programs left behind, or would leave if their uninstallers removed
 // nothing (for a program that is still installed).
 // `installed` is what is installed now; the targets' own entries in it are ignored, the rest
@@ -36,6 +42,6 @@ struct ScanResult {
 // protected-folder policy before it is reported.
 // Takes a few hundred milliseconds: it reads folders, keys and shortcuts once for all targets.
 ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const ScanTarget> targets,
-                          std::span<const inventory::Program> installed);
+                          std::span<const inventory::Program> installed, const ScanOptions& options = {});
 
 }  // namespace avel::leftovers

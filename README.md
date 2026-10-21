@@ -45,7 +45,10 @@
   Windows Installer can't find, Avel never runs the uninstaller. It ends the program's running
   processes once you agree, then removes its folder, its Uninstall entry, Windows Installer's
   registration and its leftovers, with the same backup and undo. It also works for a folder no
-  entry describes, or the program a file belongs to. See [docs/force.md](docs/force.md).
+  entry describes, or the program a file belongs to. `list --broken` shows the entries that can't
+  uninstall themselves, `--deep` searches every fixed drive for a program's folders (read from
+  the master file table), and `orphans` lists folders no installed program owns. See
+  [docs/force.md](docs/force.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -53,6 +56,7 @@
   avel-cli list --all      # plus updates, system components, frameworks and MSI-only products
   avel-cli list --json     # every field, for scripts
   avel-cli list --timing   # per-source scan times and diagnostics
+  avel-cli list --broken   # entries whose uninstaller or MSI package is gone
 
   # Run as administrator. Programs by id (from list --json) or exact name.
   avel-cli uninstall "7-Zip 26.00 (x64)" --dry-run         # show the plan only
@@ -60,6 +64,8 @@
   avel-cli uninstall <id> --quiet --yes --json              # machine-readable results
   avel-cli uninstall <id> --quiet --yes --remove-leftovers  # then remove what it left behind
   avel-cli scan <id>                                        # preview a program's leftovers
+  avel-cli scan <id> --deep                                 # ... and search every fixed drive
+  avel-cli orphans                                          # folders no installed program owns
   avel-cli force <id> --dry-run                             # what a forced removal would take
   avel-cli force --exe "C:\Program Files\X\x.exe"           # the program a file belongs to
   avel-cli force --folder "D:\Tools\Old thing"              # a folder without an Uninstall entry
