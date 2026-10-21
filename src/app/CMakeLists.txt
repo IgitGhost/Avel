@@ -8,6 +8,10 @@ qt_standard_project_setup(
     I18N_TRANSLATED_LANGUAGES ru hy)
 
 qt_add_executable(avel_app WIN32
+    change_set_progress_dialog.cpp
+    change_set_progress_dialog.h
+    change_store_access.cpp
+    change_store_access.h
     details_view.cpp
     details_view.h
     icon_loader.cpp
@@ -16,6 +20,12 @@ qt_add_executable(avel_app WIN32
     inventory_loader.h
     language_manager.cpp
     language_manager.h
+    leftover_dialog.cpp
+    leftover_dialog.h
+    leftover_model.cpp
+    leftover_model.h
+    leftover_text.cpp
+    leftover_text.h
     main.cpp
     main_window.cpp
     main_window.h
@@ -25,6 +35,9 @@ qt_add_executable(avel_app WIN32
     program_table_model.h
     program_text.cpp
     program_text.h
+    right_elide_delegate.h
+    undo_center_dialog.cpp
+    undo_center_dialog.h
     uninstall_dialog.cpp
     uninstall_dialog.h
     uninstall_progress_dialog.cpp

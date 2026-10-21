@@ -1,9 +1,14 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QStringList>
+#include <QThreadPool>
 
 #include <memory>
 #include <vector>
+
+#include "core/leftovers/scan.h"
+#include "leftover_model.h"
 
 class QAction;
 class QActionGroup;
@@ -22,6 +27,7 @@ struct Program;
 
 namespace avel::app {
 
+class ChangeStoreAccess;
 class DetailsView;
 class IconLoader;
 class InventoryLoader;
@@ -55,6 +61,11 @@ private:
     void updateActions();
     std::vector<const inventory::Program*> selectedPrograms() const;
     void uninstallSelected();
+    void previewLeftovers();
+    void onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> scan,
+                           std::vector<LeftoverModel::Program> programs);
+    void openUndoCenter();
+    void onMaintenanceFinished(const QStringList& settled);
     void openInstallLocation();
     void showTableMenu(const QPoint& position);
     void ensureColumnsFit();
@@ -69,15 +80,19 @@ private:
     ProgramFilterModel* filter_ = nullptr;
     InventoryLoader* loader_ = nullptr;
     IconLoader* iconLoader_ = nullptr;
+    ChangeStoreAccess* stores_ = nullptr;
     std::shared_ptr<const inventory::Inventory> inventory_;
 
     QMenu* fileMenu_ = nullptr;
     QMenu* viewMenu_ = nullptr;
     QMenu* languageMenu_ = nullptr;
+    QMenu* toolsMenu_ = nullptr;
     QMenu* helpMenu_ = nullptr;
     QAction* refreshAction_ = nullptr;
     QAction* uninstallAction_ = nullptr;
     QAction* openLocationAction_ = nullptr;
+    QAction* previewLeftoversAction_ = nullptr;
+    QAction* undoCenterAction_ = nullptr;
     QAction* findAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* systemLanguageAction_ = nullptr;
@@ -96,6 +111,10 @@ private:
     QLabel* scanLabel_ = nullptr;
     QLabel* warningLabel_ = nullptr;
     QLabel* elevationLabel_ = nullptr;
+
+    bool previewRunning_ = false;
+    // Declared last so it's destroyed first: its destructor waits for a running preview scan.
+    QThreadPool previewPool_;
 };
 
 }  // namespace avel::app

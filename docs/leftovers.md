@@ -147,7 +147,7 @@ Nothing is scanned after a simulated run.
 **CLI.**
 - `avel-cli scan <id|name>... | --all [--json] [--min-level questionable|good|very-good] [--all-levels] [--timing]`
   previews what each program would leave behind if its uninstaller removed nothing. It's useful
-  to check the matching on a live system.
+  to check the matching on a live system. The GUI's Preview leftovers does the same.
 - `avel-cli uninstall` scans after the batch and prints what was left behind. JSON output gains
   a `leftover_scan` object (every level). `--no-leftover-scan` turns it off.
 
@@ -156,7 +156,46 @@ points, reference, detail), owners, the scanner that found it and the index of i
 plus the protected matches dropped, the time taken and diagnostics (`not-elevated`,
 `user-hive-unavailable`).
 
-**GUI.** Phase 3c.
+**GUI** (`src/app`).
+- **The confirm dialog** has "Look for leftovers afterwards", on by default and remembered. It is
+  disabled in Simulate mode, which never scans.
+- **After the batch,** the progress dialog captures the targets before the uninstallers run and
+  scans on its worker thread. When it finds anything at Questionable or above, it opens
+  `LeftoverDialog` by itself, on top of the uninstall results. Its **Leftovers…** button opens the
+  dialog again until something is removed.
+- **`LeftoverModel`** is a tree: program, then group, then item.
+  - The groups are the scan's categories, with COM classes and shell extensions (the
+    `com-classes` scanner) apart from the rest of the registry. Java 8 alone registers thousands
+    of them.
+  - An item sits under the nearest shown item that contains it, whatever its group. A Start Menu
+    folder holds its shortcuts, a key its values. A nested item shows only the part of its path
+    below its container's.
+  - Groups and containers with up to 50 items start expanded. Rows have uniform heights, so a
+    tree of 16 000 items stays fast.
+- **Checks** are tri-state.
+  - Removing a folder or key takes everything inside it, so checking an item checks everything
+    below it. Unchecking an item unchecks the items it is inside of. Their other contents stay
+    checked and are still removed one by one.
+  - Firewall rules are shown without a checkbox (report only).
+- **Presets** (remembered): *Safe* checks Very likely items only, *Moderate* (the default) Likely
+  ones too, and *Advanced* Uncertain ones too. Unlikely items (Bad) are hidden unless
+  "Show unlikely matches" is on, and never checked by a preset. Hidden items are never removed.
+  The scan itself is the same for every preset; it takes about half a second.
+- **Columns:**
+  - the item;
+  - its type;
+  - the confidence, as a color and a label (Very likely, Likely, Uncertain, Unlikely);
+  - *Why it matched*: the evidence for it, strongest first, then what speaks against it.
+
+  The tooltip lists every record with its points and what matched (the referencing value, for
+  instance), plus the score.
+- **Diagnostics** (not elevated, a user's hive unavailable) show above the tree, and the count of
+  protected matches left out below it. Ctrl+C copies the selected items' paths.
+- **Preview leftovers** (File menu, or the program's context menu) runs the same scan for
+  installed programs and shows the dialog read-only: what would remain if their uninstallers
+  removed nothing. It works without administrator rights, with the `not-elevated` note.
+- **Translations:** `LeftoverText` holds the categories, kinds, confidence levels, evidence,
+  reference kinds and diagnostics, translated to Russian and Armenian.
 
 ## Numbers from the development machine
 
@@ -197,7 +236,6 @@ the `Approved` entry.
 
 ## Not covered yet
 
-- Removal, backup and undo: Phase 3b.
 - MSI's packed-GUID registration (`Installer\Products` and friends): it only survives a failed
   msiexec, which Phase 4's broken-MSI cleanup covers.
 - TypeLib, Interface and AppID keys; signed-out users' `UsrClass.dat`.

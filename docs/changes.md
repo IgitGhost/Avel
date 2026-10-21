@@ -127,7 +127,27 @@ be undone like any other.
 - `AVEL_TEST_FAULT_AFTER=<n>` ends the process after n journal records, as a crash would. Only
   the Sandbox's recovery test uses it.
 
-**GUI.** Phase 3c.
+**GUI** (`src/app`, administrator only, like the GUI itself):
+- **After an uninstall,** `LeftoverDialog` shows what the leftover scan found, and Remove runs the
+  checked items as one set in `ChangeSetProgressDialog` (see [leftovers.md](leftovers.md)). If
+  checked packages can't be undone, the dialog asks first: remove them too, keep them, or cancel.
+- **The progress dialog** runs `execute()` on a worker thread and shows each item's progress.
+  Then it lists what wasn't removed, or not completely, with the reason and the processes holding
+  files. Its **Undo** button runs `restore()` right away. It can't be closed while it runs.
+- **Tools > Undo Center** lists the sets from the last 30 days: date, description, state, how many
+  items were removed and restored, and the size of the backup. A set's items show their state from
+  the journal; restorable ones have a checkbox. **Restore all**, **Restore checked** and
+  **Delete backup** (with a confirmation) act on the selected set. A set is read and let go at
+  once, because undo opens it again and only one holder may have it.
+- **At startup** the GUI settles interrupted sets and purges old ones on a worker thread, as every
+  `avel-cli` run does. If it settled any, it says so and offers the Undo Center.
+- **Locks:** a run waits up to 30 s for the store's mutex, then reports that another Avel process
+  is changing the system. The store is opened once (`ChangeStoreAccess`) and shared by the
+  dialogs. Without administrator rights, or with an untrusted store, removal and undo are
+  disabled with the reason shown.
+- **Text:** `LeftoverText` turns item states, reasons, set states and folder statuses into
+  translated text. A set's description ("Leftovers of Notepad++") is stored in the language that
+  was active when the set was made.
 
 ## Testing
 
@@ -170,6 +190,9 @@ be undone like any other.
     and leave the canaries, the other program and the firewall rule as they were.
   - Undo, one item and then the rest, must give back identical dumps.
   - So must a run killed after 7 records, once recovered and undone.
+  - **The GUI round** does the same through UI Automation: uninstall the fixture in `avel.exe`,
+    press Remove in the leftover dialog, then Restore all in the Undo Center. The dumps must show
+    every leftover gone, then all of them back exactly.
 
 ## Known limits
 

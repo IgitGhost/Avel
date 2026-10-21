@@ -243,7 +243,7 @@ D:\Avel\
     - **Known leftover:** Notepad++'s uninstaller, silent or not, removes the app but leaves its Windows 11 context-menu sparse package ("Notepad++") registered. The scenario reports it as `KNOWN` rather than a failure. It's a leftover for Phase 3, and a candidate for offering related packages together with their app.
     - **Clicker fix (2026-10-19):** managed UI Automation reports classic Win32 buttons as panes, so the old clicker found none. It now finds them with `EnumChildWindows` and presses them by posting `WM_COMMAND`. See `tests/sandbox/README.md`.
   - Still open from Phase 0: the push to GitHub. The first local commit exists.
-- **Phase 3 (leftovers, safety and undo): in progress, in three sub-phases.** Plan approved 2026-10-19.
+- **Phase 3 (leftovers, safety and undo): done and verified in Windows Sandbox, in three sub-phases.** Plan approved 2026-10-19.
   - **3a (read-only scan): done.** Details in [leftovers.md](leftovers.md).
     - **Core** (`src/core/leftovers`):
       - BCU's confidence model and name matching (ported, checked against BCU's values);
@@ -286,9 +286,26 @@ D:\Avel\
       - `undo --item` and then `undo` gave back identical `avel_state_dump` dumps.
       - A run killed after 7 records was settled by the next run and undone exactly.
     - **Decision (2026-10-19):** COM classes and their shell-extension entries are removed with undo, not just reported as first planned.
-  - **Next (next session):** 3c, the GUI.
-    - A leftover dialog after uninstalling: a tree with checkboxes and "why it matched".
-    - Removal with progress.
-    - An Undo Center.
-    - RU/HY translations.
-    - The scan finds about 4,000 Java COM classes on the dev machine, so the dialog must group items.
+  - **3c (GUI): done.** Details in the "Front ends" sections of [leftovers.md](leftovers.md) and [changes.md](changes.md).
+    - **Uninstall flow:**
+      - the confirm dialog gained "Look for leftovers afterwards";
+      - the progress dialog scans on its worker thread and opens `LeftoverDialog` by itself;
+      - Remove runs the set in `ChangeSetProgressDialog`, whose Undo puts it back at once.
+    - **`LeftoverModel`:**
+      - a tree of program, group and item, with COM registrations in a group of their own;
+      - each item under the item that contains it;
+      - tri-state checks, where a checked container takes its contents along;
+      - presets Safe, Moderate (the default) and Advanced, with unlikely items behind a toggle;
+      - "why it matched" as a column, and as a tooltip with the points.
+    - **Undo Center** (Tools menu): restores all or the checked items of a set, or deletes its backup.
+    - **At startup** interrupted sets are settled and old ones purged. A prompt appears when any were settled.
+    - **Preview leftovers** (File menu) shows the scan for installed programs, read-only. On the dev machine, Java 8 (64-bit) gives a tree of 8,598 items.
+    - **Core:** `restore()` reports each item, for the progress bar.
+    - **Text:** `LeftoverText` translates the codes. There are 191 new strings, complete in RU and HY with plural forms, and checked on screen in all three languages.
+    - **Tests:** 146 pass. The 9 new `LeftoverModelTest` cases cover grouping, containment, checks, presets, hidden items and the plan.
+    - **Windows Sandbox,** scenario `removal` with a new GUI round: **RESULT: PASS** (2026-10-21 21:07).
+      - Through UI Automation, the GUI uninstalled `Contoso Fixture`. The leftover dialog opened by itself, with 12 of 13 items checked (the firewall rule is shown only).
+      - "Remove 12 items" removed all of them.
+      - In the Undo Center, Restore all put back the 11 restorable items; the shortcut came back with its folder. The `avel_state_dump` dumps were identical.
+    - **Test fix:** `avel_state_dump` printed a missing registry key without a line break, which swallowed the next spec's section. Checks that an item is gone were blind to some keys and values. After the fix, round 1 also checks the removal through the dumps, and passes.
+    - **Not done:** Qt's own catalog for Armenian (standard buttons stay in English), and retranslating open dialogs when the language changes. Both belong to the polish phase.

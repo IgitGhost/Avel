@@ -52,7 +52,13 @@ std::string dump_registry(const std::wstring& spec) {
         return "<missing>\n";
     }
     const wil::unique_hkey key(raw);
-    return avel::testing::dump_key(key.get(), name);
+    std::string text = avel::testing::dump_key(key.get(), name);
+    // A missing key dumps as "<missing>" with no line break; without one the next "== spec" header
+    // would join this line and its section would vanish.
+    if (!text.ends_with('\n')) {
+        text += '\n';
+    }
+    return text;
 }
 
 // "HKLM\path|name": one value of a shared key (Run, Approved), whose other values other programs

@@ -14,6 +14,10 @@
 
 #include <algorithm>
 
+#include "change_set_progress_dialog.h"
+#include "change_store_access.h"
+#include "core/leftovers/post_uninstall.h"
+#include "leftover_dialog.h"
 #include "program_text.h"
 
 namespace avel::app {
@@ -22,11 +26,14 @@ using uninstall::Outcome;
 
 UninstallProgressDialog::UninstallProgressDialog(std::shared_ptr<const inventory::Inventory> inventory,
                                                  std::vector<uninstall::BatchItem> items,
-                                                 uninstall::BatchOptions options, QWidget* parent)
+                                                 uninstall::BatchOptions options, bool scanLeftovers,
+                                                 ChangeStoreAccess* stores, QWidget* parent)
     : QDialog(parent),
       inventory_(std::move(inventory)),
       items_(std::move(items)),
-      options_(std::move(options)) {
+      options_(std::move(options)),
+      scanLeftovers_(scanLeftovers && !options_.dry_run),
+      stores_(stores) {
     setWindowTitle(options_.dry_run ? tr("Simulating uninstall") : tr("Uninstalling"));
     results_.resize(items_.size());
 
@@ -57,6 +64,10 @@ UninstallProgressDialog::UninstallProgressDialog(std::shared_ptr<const inventory
 
     auto* buttons = new QDialogButtonBox(this);
     stopButton_ = buttons->addButton(tr("Stop"), QDialogButtonBox::ActionRole);
+    leftoversButton_ = buttons->addButton(tr("Leftovers…"), QDialogButtonBox::ActionRole);
+    leftoversButton_->setToolTip(tr("Review what the uninstallers left behind"));
+    leftoversButton_->hide();
+    connect(leftoversButton_, &QPushButton::clicked, this, &UninstallProgressDialog::showLeftovers);
     closeButton_ = buttons->addButton(QDialogButtonBox::Close);
     closeButton_->setEnabled(false);
     connect(stopButton_, &QPushButton::clicked, this, &UninstallProgressDialog::requestStop);
@@ -114,6 +125,15 @@ void UninstallProgressDialog::start() {
 
     // The worker only touches the batch data; everything visible happens on the GUI thread.
     worker_ = std::thread([this] {
+        // What the scan needs about each program has to be read before its uninstaller runs.
+        std::vector<leftovers::ScanTarget> targets;
+        if (scanLeftovers_) {
+            std::vector<const inventory::Program*> programs;
+            for (const auto& item : items_) {
+                programs.push_back(item.program);
+            }
+            targets = leftovers::capture_targets(programs);
+        }
         uninstall::BatchEvents events;
         events.restore_point_done = [this](uninstall::RestorePointStatus status, std::uint32_t error) {
             QMetaObject::invokeMethod(
@@ -133,8 +153,14 @@ void UninstallProgressDialog::start() {
             QMetaObject::invokeMethod(
                 this, [=, this] { onItemFinished(index, result); }, Qt::QueuedConnection);
         };
-        uninstall::run_batch(items_, options_, events, cancellation_);
-        QMetaObject::invokeMethod(this, [this] { onBatchFinished(); }, Qt::QueuedConnection);
+        const auto batch = uninstall::run_batch(items_, options_, events, cancellation_);
+        std::shared_ptr<const leftovers::ScanResult> scan;
+        if (scanLeftovers_) {
+            QMetaObject::invokeMethod(this, [this] { onScanStarted(); }, Qt::QueuedConnection);
+            scan = std::make_shared<const leftovers::ScanResult>(
+                leftovers::scan_after_uninstall(targets, batch.results));
+        }
+        QMetaObject::invokeMethod(this, [this, scan] { onBatchFinished(scan); }, Qt::QueuedConnection);
     });
 }
 
@@ -195,7 +221,12 @@ void UninstallProgressDialog::onItemFinished(std::size_t index, const uninstall:
     progress_->setValue(row + 1);
 }
 
-void UninstallProgressDialog::onBatchFinished() {
+void UninstallProgressDialog::onScanStarted() {
+    stopButton_->setEnabled(false);
+    statusLabel_->setText(tr("Looking for leftovers…"));
+}
+
+void UninstallProgressDialog::onBatchFinished(std::shared_ptr<const leftovers::ScanResult> scan) {
     if (worker_.joinable()) {
         worker_.join();
     }
@@ -223,11 +254,68 @@ void UninstallProgressDialog::onBatchFinished() {
     if (count({Outcome::RebootRequired}) > 0) {
         summary += u' ' + tr("Restart Windows to finish.");
     }
+    // Nothing was scanned if no uninstall succeeded.
+    scan_ = removed > 0 ? std::move(scan) : nullptr;
+    if (scan_) {
+        const auto likely = static_cast<int>(
+            std::count_if(scan_->leftovers.begin(), scan_->leftovers.end(), [](const auto& item) {
+                return leftovers::level(item.records) >= leftovers::Confidence::Questionable;
+            }));
+        if (scan_->leftovers.empty()) {
+            summary += u' ' + tr("No leftovers found.");
+        } else if (likely == 0) {
+            summary += u' ' + tr("Avel found only unlikely leftovers.");
+        } else {
+            summary += u' ' + tr("Avel found %n leftover(s).", nullptr, likely);
+        }
+        leftoversButton_->setVisible(!scan_->leftovers.empty());
+        if (likely > 0) {
+            leftoversButton_->setDefault(true);
+            // Straight on to the review; the outcome stays here, behind it.
+            QMetaObject::invokeMethod(this, &UninstallProgressDialog::showLeftovers, Qt::QueuedConnection);
+        }
+    }
     statusLabel_->setText(summary);
 }
 
+void UninstallProgressDialog::showLeftovers() {
+    if (!scan_ || stores_ == nullptr) {
+        return;
+    }
+    // The programs that were removed name the groups, in batch order.
+    std::vector<LeftoverModel::Program> programs;
+    for (std::size_t i = 0; i < items_.size(); ++i) {
+        const auto outcome = results_[i].outcome;
+        if (outcome == Outcome::Removed || outcome == Outcome::RebootRequired) {
+            const auto* program = items_[i].program;
+            programs.push_back({program->id, program->display_name.empty()
+                                                 ? tr("(no name)")
+                                                 : toQString(program->display_name)});
+        }
+    }
+    auto* review = new LeftoverDialog(scan_, std::move(programs), LeftoverDialog::Mode::Review,
+                                      stores_->store() ? QString() : stores_->unavailableReason(), this);
+    review->setAttribute(Qt::WA_DeleteOnClose);
+    connect(review, &QDialog::accepted, this, [this, review] {
+        auto* removal =
+            new ChangeSetProgressDialog(stores_->store(), review->plan(), review->allowIrreversible(), this);
+        removal->setAttribute(Qt::WA_DeleteOnClose);
+        connect(removal, &QDialog::finished, this, [this, removal] {
+            if (removal->changedAnything()) {
+                // The scan no longer matches the system; the Undo Center has the rest.
+                changedAnything_ = true;
+                leftoversButton_->setEnabled(false);
+                closeButton_->setDefault(true);
+            }
+        });
+        removal->open();
+    });
+    review->open();
+}
+
 void UninstallProgressDialog::requestStop() {
-    if (!running_ || cancellation_.terminate_current) {
+    // Nothing to stop once the batch is over and the leftover scan runs.
+    if (!running_ || !stopButton_->isEnabled() || cancellation_.terminate_current) {
         return;
     }
     QMessageBox box(QMessageBox::Question, tr("Stop uninstalling"), tr("What should Avel do?"),

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/inventory/inventory.h"
+#include "core/leftovers/scan.h"
 #include "core/uninstall/batch.h"
 
 class QLabel;
@@ -18,16 +19,19 @@ class QTableWidget;
 
 namespace avel::app {
 
+class ChangeStoreAccess;
+
 // Runs an uninstall batch on a worker thread and shows its progress. Can't be closed while an
-// uninstaller runs; "Stop" ends the batch after the current program, or terminates it.
+// uninstaller runs; "Stop" ends the batch after the current program, or terminates it. Then it
+// looks for leftovers, if asked to, and opens the leftover review when it finds some.
 class UninstallProgressDialog : public QDialog {
     Q_OBJECT
 
 public:
-    // `inventory` keeps the programs the items point to alive.
+    // `inventory` keeps the programs the items point to alive. `stores` must outlive the dialog.
     UninstallProgressDialog(std::shared_ptr<const inventory::Inventory> inventory,
                             std::vector<uninstall::BatchItem> items, uninstall::BatchOptions options,
-                            QWidget* parent = nullptr);
+                            bool scanLeftovers, ChangeStoreAccess* stores, QWidget* parent = nullptr);
     ~UninstallProgressDialog() override;
 
     // Whether any uninstaller ran, so the program list needs refreshing.
@@ -45,13 +49,18 @@ private:
     bool askContinueWithoutRestorePoint(std::uint32_t error);
     void onItemStarted(std::size_t index);
     void onItemFinished(std::size_t index, const uninstall::UninstallResult& result);
-    void onBatchFinished();
+    void onScanStarted();
+    void onBatchFinished(std::shared_ptr<const leftovers::ScanResult> scan);
+    void showLeftovers();
     void requestStop();
     void setStatus(int row, const QString& text);
 
     std::shared_ptr<const inventory::Inventory> inventory_;
     std::vector<uninstall::BatchItem> items_;
     uninstall::BatchOptions options_;
+    bool scanLeftovers_ = false;
+    ChangeStoreAccess* stores_ = nullptr;
+    std::shared_ptr<const leftovers::ScanResult> scan_;
     uninstall::Cancellation cancellation_;
     std::thread worker_;
     bool started_ = false;
@@ -63,6 +72,7 @@ private:
     QProgressBar* progress_ = nullptr;
     QTableWidget* table_ = nullptr;
     QPushButton* stopButton_ = nullptr;
+    QPushButton* leftoversButton_ = nullptr;
     QPushButton* closeButton_ = nullptr;
 };
 

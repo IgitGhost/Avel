@@ -16,7 +16,7 @@ class QTreeWidget;
 namespace avel::app {
 
 // Confirms an uninstall: shows how each selected program will be removed and offers silent mode,
-// a System Restore point and a dry run.
+// a System Restore point, a leftover scan afterwards and a dry run.
 class UninstallDialog : public QDialog {
     Q_OBJECT
 
@@ -27,6 +27,8 @@ public:
     // The programs with their plans for the chosen mode.
     const std::vector<uninstall::BatchItem>& items() const { return items_; }
     uninstall::BatchOptions options() const;
+    // Look for what the uninstallers left behind once they're done (never after a dry run).
+    bool scanLeftovers() const;
 
     void accept() override;
 
@@ -41,6 +43,7 @@ private:
     QTreeWidget* list_ = nullptr;
     QCheckBox* quietBox_ = nullptr;
     QCheckBox* restorePointBox_ = nullptr;
+    QCheckBox* leftoverScanBox_ = nullptr;
     QCheckBox* simulateBox_ = nullptr;
     QPushButton* okButton_ = nullptr;
 };

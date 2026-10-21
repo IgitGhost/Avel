@@ -15,6 +15,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSettings>
 #include <QSplitter>
 #include <QStatusBar>
@@ -26,16 +27,21 @@
 #include <algorithm>
 #include <cmath>
 
+#include "change_store_access.h"
 #include "core/inventory/inventory.h"
+#include "core/leftovers/environment.h"
+#include "core/leftovers/post_uninstall.h"
 #include "core/platform/elevation.h"
 #include "core/uninstall/registration.h"
 #include "details_view.h"
 #include "icon_loader.h"
 #include "inventory_loader.h"
 #include "language_manager.h"
+#include "leftover_dialog.h"
 #include "program_filter_model.h"
 #include "program_table_model.h"
 #include "program_text.h"
+#include "undo_center_dialog.h"
 #include "uninstall_dialog.h"
 #include "uninstall_progress_dialog.h"
 
@@ -66,6 +72,8 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     filter_->setSourceProgramModel(model_);
     loader_ = new InventoryLoader(this);
     iconLoader_ = new IconLoader(static_cast<int>(std::ceil(kIconSize * devicePixelRatioF())), this);
+    stores_ = new ChangeStoreAccess(this);
+    previewPool_.setMaxThreadCount(1);
 
     createActions();
     createMenus();
@@ -83,7 +91,10 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     connect(filter_, &QAbstractItemModel::modelReset, this, &MainWindow::updateCounts);
     connect(filter_, &QAbstractItemModel::layoutChanged, this, &MainWindow::updateCounts);
 
+    connect(stores_, &ChangeStoreAccess::maintenanceFinished, this, &MainWindow::onMaintenanceFinished);
+
     loader_->start();
+    stores_->startMaintenance();
 }
 
 void MainWindow::createActions() {
@@ -99,6 +110,13 @@ void MainWindow::createActions() {
     openLocationAction_ = new QAction(style()->standardIcon(QStyle::SP_DirOpenIcon), QString(), this);
     openLocationAction_->setEnabled(false);
     connect(openLocationAction_, &QAction::triggered, this, &MainWindow::openInstallLocation);
+
+    previewLeftoversAction_ = new QAction(this);
+    previewLeftoversAction_->setEnabled(false);
+    connect(previewLeftoversAction_, &QAction::triggered, this, &MainWindow::previewLeftovers);
+
+    undoCenterAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowBack), QString(), this);
+    connect(undoCenterAction_, &QAction::triggered, this, &MainWindow::openUndoCenter);
 
     findAction_ = new QAction(this);
     findAction_->setShortcut(QKeySequence::Find);
@@ -144,6 +162,7 @@ void MainWindow::createMenus() {
     fileMenu_->addSeparator();
     fileMenu_->addAction(uninstallAction_);
     fileMenu_->addAction(openLocationAction_);
+    fileMenu_->addAction(previewLeftoversAction_);
     fileMenu_->addSeparator();
     fileMenu_->addAction(exitAction_);
 
@@ -156,6 +175,9 @@ void MainWindow::createMenus() {
             languageMenu_->addAction(action);
         }
     }
+
+    toolsMenu_ = menuBar()->addMenu(QString());
+    toolsMenu_->addAction(undoCenterAction_);
 
     helpMenu_ = menuBar()->addMenu(QString());
     helpMenu_->addAction(aboutAction_);
@@ -268,7 +290,13 @@ void MainWindow::retranslateUi() {
     uninstallAction_->setText(tr("&Uninstall…"));
     uninstallAction_->setToolTip(tr("Uninstall the selected programs (Del)"));
     openLocationAction_->setText(tr("&Open install folder"));
+    previewLeftoversAction_->setText(tr("&Preview leftovers…"));
+    previewLeftoversAction_->setToolTip(
+        tr("Show what the leftover scan finds for the selected programs, without removing anything"));
     exitAction_->setText(tr("E&xit"));
+    toolsMenu_->setTitle(tr("&Tools"));
+    undoCenterAction_->setText(tr("&Undo Center…"));
+    undoCenterAction_->setToolTip(tr("Put back leftovers Avel removed in the last 30 days"));
     viewMenu_->setTitle(tr("&View"));
     languageMenu_->setTitle(tr("&Language"));
     systemLanguageAction_->setText(tr("System default"));
@@ -391,6 +419,7 @@ void MainWindow::updateActions() {
     uninstallAction_->setEnabled(!programs.empty());
     openLocationAction_->setEnabled(programs.size() == 1 &&
                                     uninstall::install_location_exists(*programs.front()));
+    previewLeftoversAction_->setEnabled(!programs.empty() && !previewRunning_);
 }
 
 std::vector<const inventory::Program*> MainWindow::selectedPrograms() const {
@@ -418,7 +447,8 @@ void MainWindow::uninstallSelected() {
     confirmation->setAttribute(Qt::WA_DeleteOnClose);
     connect(confirmation, &QDialog::accepted, this, [this, confirmation, inventory = inventory_] {
         auto* progress =
-            new UninstallProgressDialog(inventory, confirmation->items(), confirmation->options(), this);
+            new UninstallProgressDialog(inventory, confirmation->items(), confirmation->options(),
+                                        confirmation->scanLeftovers(), stores_, this);
         progress->setAttribute(Qt::WA_DeleteOnClose);
         connect(progress, &QDialog::finished, this, [this, progress] {
             if (progress->changedAnything()) {
@@ -428,6 +458,76 @@ void MainWindow::uninstallSelected() {
         progress->open();
     });
     confirmation->open();
+}
+
+void MainWindow::previewLeftovers() {
+    const auto programs = selectedPrograms();
+    if (programs.empty() || !inventory_ || previewRunning_) {
+        return;
+    }
+    std::vector<LeftoverModel::Program> names;
+    for (const auto* program : programs) {
+        names.push_back({program->id,
+                         program->display_name.empty() ? tr("(no name)") : toQString(program->display_name)});
+    }
+    previewRunning_ = true;
+    updateActions();
+    statusBar()->showMessage(tr("Looking for leftovers…"));
+    // The inventory copy keeps the programs alive while the scan reads them.
+    previewPool_.start([this, inventory = inventory_, programs, names = std::move(names)] {
+        const auto targets = leftovers::capture_targets(programs);
+        const leftovers::LiveEnvironment environment;
+        auto scan = std::make_shared<const leftovers::ScanResult>(
+            leftovers::scan_leftovers(environment.environment(), targets, inventory->programs));
+        QMetaObject::invokeMethod(
+            this, [this, scan = std::move(scan), names] { onPreviewFinished(scan, names); },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> scan,
+                                   std::vector<LeftoverModel::Program> programs) {
+    previewRunning_ = false;
+    updateActions();
+    statusBar()->clearMessage();
+    auto* preview = new LeftoverDialog(std::move(scan), std::move(programs), LeftoverDialog::Mode::Preview,
+                                       QString(), this);
+    preview->setAttribute(Qt::WA_DeleteOnClose);
+    preview->open();
+}
+
+void MainWindow::openUndoCenter() {
+    auto* center = new UndoCenterDialog(stores_->store(), stores_->unavailableReason(), this);
+    center->setAttribute(Qt::WA_DeleteOnClose);
+    connect(center, &QDialog::finished, this, [this, center] {
+        // What it restored may include a program's Uninstall entry.
+        if (center->changedAnything()) {
+            loader_->start();
+        }
+    });
+    center->open();
+}
+
+void MainWindow::onMaintenanceFinished(const QStringList& settled) {
+    if (settled.isEmpty()) {
+        return;
+    }
+    auto* box =
+        new QMessageBox(QMessageBox::Information, tr("Interrupted removal"),
+                        tr("%n removal(s) didn't finish last time: Avel or Windows stopped while they ran.",
+                           nullptr, static_cast<int>(settled.size())),
+                        QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setInformativeText(tr("Avel has checked what was removed. The Undo Center can put it back."));
+    QPushButton* open = box->addButton(tr("Open Undo Center"), QMessageBox::AcceptRole);
+    box->addButton(QMessageBox::Close);
+    box->setDefaultButton(open);
+    connect(box, &QMessageBox::buttonClicked, this, [this, open](QAbstractButton* clicked) {
+        if (clicked == open) {
+            openUndoCenter();
+        }
+    });
+    box->open();
 }
 
 void MainWindow::openInstallLocation() {
@@ -444,6 +544,7 @@ void MainWindow::showTableMenu(const QPoint& position) {
     QMenu menu(this);
     menu.addAction(uninstallAction_);
     menu.addAction(openLocationAction_);
+    menu.addAction(previewLeftoversAction_);
     menu.exec(table_->viewport()->mapToGlobal(position));
 }
 

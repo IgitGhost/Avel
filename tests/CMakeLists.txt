@@ -51,3 +51,25 @@ target_compile_definitions(avel_core_tests PRIVATE AVEL_TEST_SPAWNER=L"$<TARGET_
 add_dependencies(avel_core_tests avel_test_spawner)
 
 gtest_discover_tests(avel_core_tests DISCOVERY_MODE PRE_TEST)
+
+# The GUI's leftover tree. avel.exe isn't a library, so the test builds the sources it needs from
+# src/app. It runs without a QGuiApplication: nothing it calls needs one.
+if(TARGET avel_app)
+    find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui)
+    add_executable(avel_app_tests
+        app/leftover_model_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/leftover_model.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/leftover_model.h
+        ${PROJECT_SOURCE_DIR}/src/app/leftover_text.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/program_text.cpp)
+    set_target_properties(avel_app_tests PROPERTIES AUTOMOC ON)
+    target_include_directories(avel_app_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
+    target_compile_definitions(avel_app_tests PRIVATE QT_NO_KEYWORDS QT_DISABLE_DEPRECATED_UP_TO=0x060C00)
+    target_link_libraries(avel_app_tests PRIVATE avel_core Qt6::Gui GTest::gtest_main)
+    # Qt's DLLs next to the test, so test discovery can start it.
+    add_custom_command(TARGET avel_app_tests POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different $<TARGET_RUNTIME_DLLS:avel_app_tests>
+                $<TARGET_FILE_DIR:avel_app_tests>
+        COMMAND_EXPAND_LISTS)
+    gtest_discover_tests(avel_app_tests DISCOVERY_MODE PRE_TEST)
+endif()

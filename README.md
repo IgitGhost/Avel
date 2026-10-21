@@ -3,9 +3,9 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phase 2: uninstall).** Avel lists installed programs and runs their uninstallers,
-> silently or in batches. Leftover cleanup and Avel's own backup/undo arrive in Phase 3; until then
-> it relies on System Restore points. See [docs/plan.md](docs/plan.md) for the roadmap.
+> **Status: pre-alpha (Phase 3: leftovers and undo).** Avel lists installed programs, runs their
+> uninstallers silently or in batches, then finds what they left behind and removes it with a
+> backup that can be undone for 30 days. See [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
 
@@ -24,6 +24,22 @@
   - or as a **simulation** that shows what would run and changes nothing.
 
   See [docs/uninstall.md](docs/uninstall.md).
+- **Leftovers.** After an uninstall, Avel looks for what the uninstaller left behind:
+  - folders, files and shortcuts in every user's profile;
+  - registry keys and values, COM classes and the shell extensions that name them;
+  - services, scheduled tasks, sparse packages and firewall rules.
+
+  Each item gets a confidence level and shows why it matched. A tree groups them by program and
+  kind, with Safe, Moderate and Advanced presets. Windows' own folders and keys are never offered.
+  See [docs/leftovers.md](docs/leftovers.md).
+- **Backup and undo.** Everything Avel removes is backed up first and recorded as it goes:
+  - registry trees exactly, with their security;
+  - files moved to a quarantine;
+  - services and tasks with their configuration.
+
+  **Undo** right after the removal, or **Tools > Undo Center** later (30 days), puts it back
+  exactly. A removal that a crash or a power cut interrupted is settled at the next start. See
+  [docs/changes.md](docs/changes.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -36,6 +52,10 @@
   avel-cli uninstall "7-Zip 26.00 (x64)" --dry-run         # show the plan only
   avel-cli uninstall <id> <id> --quiet --yes                # silent batch, no prompt
   avel-cli uninstall <id> --quiet --yes --json              # machine-readable results
+  avel-cli uninstall <id> --quiet --yes --remove-leftovers  # then remove what it left behind
+  avel-cli scan <id>                                        # preview a program's leftovers
+  avel-cli undo --list                                      # what Avel removed, newest first
+  avel-cli undo <set id>                                    # put it back
   ```
 
 ## Planned modules
@@ -99,9 +119,12 @@ docs/         Plan, design notes, research notes and architecture decision recor
 
 ## Safety
 
-Avel deletes software, files and registry keys. Until the backup and undo system (Phase 3) is
-finished, uninstalling relies on each program's own uninstaller plus a System Restore point.
-Development tests of destructive features run only inside Windows Sandbox (`tests/sandbox`).
+Avel deletes software, files and registry keys.
+- Uninstalling runs each program's own uninstaller, after a System Restore point.
+- Leftovers are removed only after a backup, and only outside protected places: Windows, Program
+  Files, the user profiles and the known folders, and the core registry keys. Every removal can be
+  undone for 30 days.
+- Development tests of destructive features run only inside Windows Sandbox (`tests/sandbox`).
 
 ## License
 

@@ -23,6 +23,7 @@ namespace avel::app {
 namespace {
 
 constexpr auto kRestorePointKey = "uninstall/restorePoint"_L1;
+constexpr auto kLeftoverScanKey = "uninstall/leftoverScan"_L1;
 
 }  // namespace
 
@@ -61,6 +62,11 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
     restorePointBox_->setToolTip(
         tr("Lets you roll Windows back if an uninstaller breaks something. Takes up to a "
            "minute, and Windows creates at most one such point a day."));
+    leftoverScanBox_ = new QCheckBox(tr("Look for leftovers afterwards"), this);
+    leftoverScanBox_->setChecked(QSettings().value(kLeftoverScanKey, true).toBool());
+    leftoverScanBox_->setToolTip(
+        tr("Once the uninstallers are done, Avel looks for the files, registry entries, services and tasks "
+           "they left behind, and lets you choose what to remove."));
     simulateBox_ = new QCheckBox(tr("Simulate only: show what would happen, change nothing"), this);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -73,6 +79,7 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
     layout->addWidget(list_, 1);
     layout->addWidget(quietBox_);
     layout->addWidget(restorePointBox_);
+    layout->addWidget(leftoverScanBox_);
     layout->addWidget(simulateBox_);
     layout->addWidget(buttons);
 
@@ -82,7 +89,7 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
 
     list_->resizeColumnToContents(0);
     list_->setColumnWidth(0, std::min(list_->columnWidth(0) + 16, 320));
-    resize(760, std::min(260 + count * 22, 600));
+    resize(760, std::min(280 + count * 22, 620));
 }
 
 uninstall::BatchOptions UninstallDialog::options() const {
@@ -98,8 +105,13 @@ uninstall::BatchOptions UninstallDialog::options() const {
     return options;
 }
 
+bool UninstallDialog::scanLeftovers() const {
+    return leftoverScanBox_->isChecked() && !simulateBox_->isChecked();
+}
+
 void UninstallDialog::accept() {
     QSettings().setValue(kRestorePointKey, restorePointBox_->isChecked());
+    QSettings().setValue(kLeftoverScanKey, leftoverScanBox_->isChecked());
     QDialog::accept();
 }
 
@@ -119,6 +131,8 @@ void UninstallDialog::updatePlans() {
         items_.push_back(std::move(item));
     }
     okButton_->setText(simulateBox_->isChecked() ? tr("Simulate") : tr("Uninstall"));
+    // A simulated run removes nothing, so there would be nothing to find.
+    leftoverScanBox_->setEnabled(!simulateBox_->isChecked());
     okButton_->setEnabled(possible > 0);
 }
 

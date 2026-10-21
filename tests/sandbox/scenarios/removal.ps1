@@ -1,5 +1,5 @@
-# Runs inside Windows Sandbox (Start-AvelSandbox.ps1 -Scenario removal). Phase 3b acceptance test
-# for removing leftovers and undoing it:
+# Runs inside Windows Sandbox (Start-AvelSandbox.ps1 -Scenario removal). Phase 3b and 3c acceptance
+# test for removing leftovers and undoing it, from the CLI and from the GUI:
 #   1. installs three samples, "Contoso Fixture" (fixture.ps1: one leftover of every kind), a
 #      program of the same publisher that stays, and canaries named after the fixture in places
 #      Avel must never touch; dumps their state with avel_state_dump;
@@ -10,7 +10,10 @@
 #   3. undoes one item (--item), then the rest: the fixture's leftovers must be back exactly;
 #   4. reinstalls the fixture and removes it again, killing avel-cli part way
 #      (AVEL_TEST_FAULT_AFTER); the next run must settle the interrupted set, and undo must again
-#      give back exactly what was there.
+#      give back exactly what was there;
+#   5. Phase 3c: reinstalls the fixture and uninstalls it through the GUI (UI Automation): the
+#      leftover dialog must open by itself, "Remove" must take every fixture leftover away, and
+#      the Undo Center's "Restore all" must give back exactly what was there.
 # Writes results\removal.json (avel-cli's output), results\removal.log and, last,
 # results\removal.txt.
 
@@ -146,8 +149,123 @@ function Check-Removal($json, [string]$label, [switch]$WithSamples) {
 
 $specs = @(Get-FixtureLeftoverSpecs) + @(Get-UntouchableSpecs)
 
+# Drives avel.exe through UI Automation, in English: uninstall the fixture, remove its leftovers
+# from the leftover dialog, then put them back from the Undo Center.
+function Invoke-GuiRound {
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $A = [System.Windows.Automation.AutomationElement]
+    $CT = [System.Windows.Automation.ControlType]
+    New-Item -Path 'HKCU:\Software\Avel\Avel\ui' -Force | Out-Null
+    Set-ItemProperty 'HKCU:\Software\Avel\Avel\ui' -Name language -Value en
+    function Cond($property, $value) { New-Object System.Windows.Automation.PropertyCondition($property, $value) }
+    function All { New-Object System.Windows.Automation.AndCondition(, [System.Windows.Automation.Condition[]]$args) }
+    $gui = Start-Process (Join-Path $bin 'avel.exe') -PassThru
+    $inApp = Cond $A::ProcessIdProperty $gui.Id
+    # Fresh lookups every time: Qt's provider invalidates element references when the UI changes.
+    function Find($condition, [int]$seconds = 20, $root = $A::RootElement) {
+        $deadline = (Get-Date).AddSeconds($seconds)
+        while ((Get-Date) -lt $deadline) {
+            try { $e = $root.FindFirst('Descendants', (All $inApp $condition)); if ($e) { return $e } } catch { }
+            Start-Sleep -Milliseconds 300
+        }
+        throw "GUI element not found: $($condition.Value)"
+    }
+    function Window([string]$name, [int]$seconds = 20) {
+        Find (All (Cond $A::ControlTypeProperty $CT::Window) (Cond $A::NameProperty $name)) $seconds
+    }
+    function Click($element) { $element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
+    function Button($window, [string]$pattern, [int]$seconds = 20) {
+        $deadline = (Get-Date).AddSeconds($seconds)
+        while ((Get-Date) -lt $deadline) {
+            try {
+                $found = @($window.FindAll('Descendants', (All (Cond $A::ControlTypeProperty $CT::Button) (Cond $A::IsEnabledProperty $true))) |
+                    Where-Object { $_.Current.Name -match $pattern })
+                if ($found) { return $found[0] }
+            } catch { }
+            Start-Sleep -Milliseconds 300
+        }
+        throw "no enabled button matching '$pattern' in '$($window.Current.Name)'"
+    }
+    function Texts($window) {
+        @($window.FindAll('Descendants', (Cond $A::ControlTypeProperty $CT::Text)) | ForEach-Object { $_.Current.Name } |
+            Where-Object { $_ }) -join ' / '
+    }
+    function Set-Check($name, [bool]$on) {
+        $box = Find (Cond $A::NameProperty $name)
+        $toggle = $box.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+        if (($toggle.Current.ToggleState -eq 'On') -ne $on) { $toggle.Toggle() }
+    }
+    function Open-Menu([string]$menu, [string]$item) {
+        $top = Find (All (Cond $A::ControlTypeProperty $CT::MenuItem) (Cond $A::NameProperty $menu))
+        $top.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        Start-Sleep -Milliseconds 500
+        Click (Find (All (Cond $A::ControlTypeProperty $CT::MenuItem) (Cond $A::NameProperty $item)))
+    }
+    try {
+        $null = Window 'Avel'
+        Start-Sleep -Seconds 2
+        $null = Find (Cond $A::ControlTypeProperty $CT::Edit)
+        $search = $A::RootElement.FindAll('Descendants', (All $inApp (Cond $A::ControlTypeProperty $CT::Edit))) |
+            Where-Object { -not $_.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.IsReadOnly } |
+            Select-Object -First 1
+        $search.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('Contoso Fixture')
+        Start-Sleep -Milliseconds 800
+        $row = Find (All (Cond $A::NameProperty 'Contoso Fixture') (Cond $A::IsSelectionItemPatternAvailableProperty $true))
+        $row.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Start-Sleep -Milliseconds 500
+        Click (Find (All (Cond $A::ControlTypeProperty $CT::Button) (Cond $A::NameProperty 'Uninstall')))
+        Set-Check 'Uninstall silently where possible' $true
+        Set-Check 'Create a System Restore point first' $false
+        Set-Check 'Look for leftovers afterwards' $true
+        Set-Check 'Simulate only: show what would happen, change nothing' $false
+        $confirm = Window 'Uninstall Contoso Fixture'
+        Click (Button $confirm '^Uninstall$')
+
+        # The leftover dialog opens by itself once the scan is done.
+        $review = Window 'Leftovers of Contoso Fixture' 300
+        Start-Sleep -Seconds 1
+        Log "  leftover dialog: $(Texts $review)"
+        $items = @($review.FindAll('Descendants', (Cond $A::ControlTypeProperty $CT::TreeItem)))
+        Log "  tree rows: $($items.Count)"
+        $remove = Button $review '^Remove [0-9]+ item'
+        Log "  pressing '$($remove.Current.Name)'"
+        Click $remove
+
+        $removal = Window 'Removing leftovers' 60
+        $close = Button $removal '^Close$' 300
+        Log "  removal: $(Texts (Window 'Removing leftovers'))"
+        $after = Split-StateDump (Get-StateDump $specs)
+        foreach ($spec in Get-FixtureLeftoverSpecs) {
+            if ($after[$spec] -notmatch '^<missing>') { Fail "gui: not removed: $spec" }
+        }
+        foreach ($spec in Get-UntouchableSpecs) {
+            if ($after[$spec] -ne $script:guiBefore[$spec]) { Fail "gui: changed what must stay: $spec" }
+        }
+        Click $close
+        Start-Sleep -Seconds 1
+        Click (Button (Window 'Uninstalling') '^Close$')
+        Start-Sleep -Seconds 2
+
+        Open-Menu 'Tools' ('Undo Center' + [char]0x2026)  # 'Undo Center...' with an ellipsis character
+        $center = Window 'Undo Center'
+        Start-Sleep -Seconds 1
+        Log "  Undo Center: $(Texts $center)"
+        Click (Button $center '^Restore all$')
+        $restoring = Window 'Restoring' 60
+        $close = Button $restoring '^Close$' 300
+        Log "  restore: $(Texts (Window 'Restoring'))"
+        Click $close
+        Start-Sleep -Seconds 1
+        Click (Button (Window 'Undo Center') '^Close$')
+    } catch {
+        Fail "gui: $($_.Exception.Message)"
+    } finally {
+        Stop-Process -Id $gui.Id -ErrorAction SilentlyContinue
+    }
+}
+
 try {
-    Log "Avel Phase 3b removal scenario, $(Get-Date -Format s)"
+    Log "Avel Phase 3b/3c removal scenario, $(Get-Date -Format s)"
     Log "OS: $([Environment]::OSVersion.VersionString), user: $env:USERNAME"
     Log "avel-cli: $((& $cli version) -join ' ')"
 
@@ -167,7 +285,7 @@ try {
     Log "  programs: $($ids -join ', ')"
     $before = Split-StateDump (Get-StateDump $specs)
     foreach ($spec in Get-FixtureLeftoverSpecs) {
-        if ($before[$spec] -match '^<missing>') { Fail "fixture not installed: $spec" }
+        if (-not $before[$spec] -or $before[$spec] -match '^<missing>') { Fail "fixture not installed: $spec" }
     }
 
     # 2. Uninstall and remove the leftovers.
@@ -183,6 +301,9 @@ try {
     $after = Split-StateDump (Get-StateDump $specs)
     foreach ($spec in Get-UntouchableSpecs) {
         if ($after[$spec] -ne $before[$spec]) { Fail "round 1: changed what must stay: $spec" }
+    }
+    foreach ($spec in Get-FixtureLeftoverSpecs) {
+        if ($after[$spec] -notmatch '^<missing>') { Fail "round 1: not removed: $spec" }
     }
     if (@(Get-Inventory | Where-Object { $_.name -match '^Notepad\+\+$' })) { Fail "Notepad++'s sparse package is still registered" }
     else { Log "  OK: Notepad++'s sparse package is gone" }
@@ -229,6 +350,14 @@ try {
     $undo = Invoke-Cli @('undo', $set.id, '--json') 'undo-crash'
     Log "  undo: $($undo.json.state)"
     Compare-State $before (Split-StateDump (Get-StateDump $specs)) 'undo after a crash gave back exactly what was there'
+
+    # 5. The GUI: uninstall, remove the leftovers, restore them from the Undo Center.
+    Log ''
+    Log 'Round 3: the GUI - uninstall the fixture, remove its leftovers, restore them in the Undo Center'
+    Install-ContosoFixture
+    $script:guiBefore = Split-StateDump (Get-StateDump $specs)
+    Invoke-GuiRound
+    Compare-State $script:guiBefore (Split-StateDump (Get-StateDump $specs)) 'the Undo Center gave back exactly what was there'
 } catch {
     Fail "scenario error: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber)"
 } finally {

@@ -605,7 +605,7 @@ ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteO
 }
 
 RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vector<std::size_t>& only,
-                      const ExecuteOptions& options) {
+                      const ExecuteOptions& options, const ChangeEvents& events) {
     RestoreResult result;
     auto set = store.open_set(id);
     if (!set) {
@@ -625,6 +625,9 @@ RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vec
         if (removed(set->statuses()[index].state) && is_undoable(location) &&
             (only.empty() || std::find(only.begin(), only.end(), index) != only.end())) {
             result.items.emplace_back(index, run.restore(index, set->plan().items[index]));
+            if (events.item_finished) {
+                events.item_finished(index, result.items.back().second);
+            }
         }
     }
     std::size_t undoable = 0;

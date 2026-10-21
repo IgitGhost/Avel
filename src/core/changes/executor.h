@@ -62,9 +62,10 @@ struct RestoreResult {
 };
 
 // Undoes a set, in the reverse order of removal: all of its removed items, or only `only`. Nothing
-// that has appeared in an item's place since is ever replaced.
+// that has appeared in an item's place since is ever replaced. events.item_finished is called for
+// each item it tries.
 RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vector<std::size_t>& only = {},
-                      const ExecuteOptions& options = {});
+                      const ExecuteOptions& options = {}, const ChangeEvents& events = {});
 
 // Settles sets a crash left running: each item backed up but not finished is checked against the
 // system (still in place: untouched; gone: removed), items never reached are marked skipped.
