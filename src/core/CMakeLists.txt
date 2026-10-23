@@ -82,12 +82,17 @@ add_library(avel_core STATIC
     platform/elevation.h
     platform/file_ops.cpp
     platform/file_ops.h
+    platform/hash.h
     platform/known_folders.cpp
     platform/known_folders.h
+    platform/nt_registry.cpp
+    platform/nt_registry.h
     platform/paths.cpp
     platform/paths.h
     platform/processes.cpp
     platform/processes.h
+    platform/record_folders.cpp
+    platform/record_folders.h
     platform/registry.cpp
     platform/registry.h
     platform/registry_address.h
@@ -105,6 +110,8 @@ add_library(avel_core STATIC
     platform/volume_folders.cpp
     platform/volume_folders.h
     platform/version_info.h
+    tracker/trace.cpp
+    tracker/trace.h
     uninstall/batch.cpp
     uninstall/batch.h
     uninstall/installer_detection.cpp

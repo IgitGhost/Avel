@@ -39,8 +39,8 @@ LSTATUS read_class(HKEY key, std::wstring& class_name) {
     std::wstring buffer(256, L'\0');
     for (int attempt = 0; attempt < 4; ++attempt) {
         DWORD length = static_cast<DWORD>(buffer.size());
-        const LSTATUS status = ::RegQueryInfoKeyW(key, buffer.data(), &length, nullptr, nullptr, nullptr, nullptr,
-                                                  nullptr, nullptr, nullptr, nullptr, nullptr);
+        const LSTATUS status = ::RegQueryInfoKeyW(key, buffer.data(), &length, nullptr, nullptr, nullptr,
+                                                  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
         if (status == ERROR_SUCCESS) {
             class_name.assign(buffer.data(), length);
             return ERROR_SUCCESS;
@@ -53,84 +53,15 @@ LSTATUS read_class(HKEY key, std::wstring& class_name) {
     return ERROR_MORE_DATA;
 }
 
-// Values are read through the native API: RegEnumValueW and RegQueryValueExW may add a terminator
-// to a string stored without one and count it, depending on what follows in the caller's buffer.
-// A backup needs the bytes exactly as stored.
-struct KeyValueFullInformation {
-    ULONG title_index;
-    ULONG type;
-    ULONG data_offset;
-    ULONG data_length;
-    ULONG name_length;  // In bytes
-    WCHAR name[1];
-};
-
-struct KeyValuePartialInformation {
-    ULONG title_index;
-    ULONG type;
-    ULONG data_length;
-    UCHAR data[1];
-};
-
-struct CountedString {
-    USHORT length;
-    USHORT maximum_length;
-    PWSTR buffer;
-};
-
-constexpr LONG kStatusSuccess = 0;
-constexpr LONG kStatusBufferOverflow = static_cast<LONG>(0x80000005);
-constexpr LONG kStatusNoMoreEntries = static_cast<LONG>(0x8000001A);
-constexpr LONG kStatusBufferTooSmall = static_cast<LONG>(0xC0000023);
-constexpr int kKeyValueFullInformation = 1;
-constexpr int kKeyValuePartialInformation = 2;
-
-using NtEnumerateValueKeyFunction = LONG(NTAPI*)(HANDLE, ULONG, int, PVOID, ULONG, PULONG);
-using NtQueryValueKeyFunction = LONG(NTAPI*)(HANDLE, CountedString*, int, PVOID, ULONG, PULONG);
-using RtlNtStatusToDosErrorFunction = ULONG(NTAPI*)(LONG);
-
-template <typename Function>
-Function ntdll(const char* name) {
-    return reinterpret_cast<Function>(::GetProcAddress(::GetModuleHandleW(L"ntdll.dll"), name));
-}
-
-LSTATUS win32_error(LONG status) {
-    static const auto convert = ntdll<RtlNtStatusToDosErrorFunction>("RtlNtStatusToDosError");
-    return static_cast<LSTATUS>(convert(status));
-}
-
-// Unlike platform::RegistryKey, these fail on any error instead of returning what they could
-// read: a partial backup must never pass for a complete one.
-LSTATUS read_values(HKEY key, std::vector<ValueSnapshot>& values) {
-    static const auto enumerate = ntdll<NtEnumerateValueKeyFunction>("NtEnumerateValueKey");
-    std::vector<std::byte> buffer(1024);
-    for (ULONG index = 0;;) {
-        ULONG needed = 0;
-        const LONG status = enumerate(key, index, kKeyValueFullInformation, buffer.data(),
-                                      static_cast<ULONG>(buffer.size()), &needed);
-        if (status == kStatusNoMoreEntries) {
-            return ERROR_SUCCESS;
-        }
-        if (status == kStatusBufferOverflow || status == kStatusBufferTooSmall) {
-            buffer.resize(std::max<std::size_t>(needed, buffer.size() * 2));
-            continue;
-        }
-        if (status != kStatusSuccess) {
-            return win32_error(status);
-        }
-        const auto* info = reinterpret_cast<const KeyValueFullInformation*>(buffer.data());
-        const auto* data = buffer.data() + info->data_offset;
-        values.push_back({std::wstring(info->name, info->name_length / sizeof(wchar_t)), info->type,
-                          std::vector<std::byte>(data, data + info->data_length)});
-        ++index;
-    }
-}
-
+// Unlike platform::RegistryKey, this and platform::read_raw_values (which reads values byte for
+// byte) fail on any error instead of returning what they could read: a partial backup must never
+// pass for a complete one.
 LSTATUS read_subkey_names(HKEY key, std::vector<std::wstring>& names) {
     std::wstring name(256, L'\0');
     for (DWORD index = 0;;) {
         DWORD length = static_cast<DWORD>(name.size());
-        const LSTATUS status = ::RegEnumKeyExW(key, index, name.data(), &length, nullptr, nullptr, nullptr, nullptr);
+        const LSTATUS status =
+            ::RegEnumKeyExW(key, index, name.data(), &length, nullptr, nullptr, nullptr, nullptr);
         if (status == ERROR_NO_MORE_ITEMS) {
             return ERROR_SUCCESS;
         }
@@ -147,42 +78,38 @@ LSTATUS read_subkey_names(HKEY key, std::vector<std::wstring>& names) {
 }
 
 bool iequals_ordinal(std::wstring_view a, std::wstring_view b) {
-    return ::CompareStringOrdinal(a.data(), static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()), TRUE) ==
-           CSTR_EQUAL;
+    return ::CompareStringOrdinal(a.data(), static_cast<int>(a.size()), b.data(), static_cast<int>(b.size()),
+                                  TRUE) == CSTR_EQUAL;
 }
 
-bool is_link(HKEY key) {
-    DWORD type = REG_NONE;
-    return ::RegQueryValueExW(key, L"SymbolicLinkValue", nullptr, &type, nullptr, nullptr) == ERROR_SUCCESS &&
-           type == REG_LINK;
-}
-
-LSTATUS capture(HKEY parent, std::wstring_view name, KeySnapshot& snapshot, int depth, REGSAM access = kCaptureAccess,
-                const std::vector<std::wstring>* skip = nullptr) {
+LSTATUS capture(HKEY parent, std::wstring_view name, KeySnapshot& snapshot, int depth,
+                REGSAM access = kCaptureAccess, const std::vector<std::wstring>* skip = nullptr) {
     if (depth > kMaxDepth) {
         return ERROR_INVALID_DATA;
     }
     HKEY raw = nullptr;
-    if (const LSTATUS status = ::RegOpenKeyExW(parent, std::wstring(name).c_str(), REG_OPTION_OPEN_LINK, access, &raw);
+    if (const LSTATUS status =
+            ::RegOpenKeyExW(parent, std::wstring(name).c_str(), REG_OPTION_OPEN_LINK, access, &raw);
         status != ERROR_SUCCESS) {
         return status;
     }
     const wil::unique_hkey key(raw);
-    if (is_link(key.get())) {
+    if (platform::is_registry_link(key.get())) {
         return ERROR_CANT_ACCESS_FILE;
     }
     snapshot.name = name;
     std::vector<std::wstring> subkeys;
     for (const LSTATUS status :
          {read_class(key.get(), snapshot.class_name), read_security(key.get(), snapshot.security),
-          read_values(key.get(), snapshot.values), read_subkey_names(key.get(), subkeys)}) {
+          platform::read_raw_values(key.get(), snapshot.values), read_subkey_names(key.get(), subkeys)}) {
         if (status != ERROR_SUCCESS) {
             return status;
         }
     }
     if (skip) {
         std::erase_if(subkeys, [&](const std::wstring& subkey) {
-            return std::any_of(skip->begin(), skip->end(), [&](const auto& name) { return iequals_ordinal(name, subkey); });
+            return std::any_of(skip->begin(), skip->end(),
+                               [&](const auto& name) { return iequals_ordinal(name, subkey); });
         });
     }
     snapshot.subkeys.resize(subkeys.size());
@@ -214,7 +141,8 @@ void apply_security(HKEY key, const std::vector<std::byte>& stored) {
     SECURITY_DESCRIPTOR_CONTROL control = 0;
     DWORD revision = 0;
     std::vector<std::byte> dacl = stored;
-    if (::GetSecurityDescriptorControl(descriptor, &control, &revision) && (control & SE_DACL_AUTO_INHERITED)) {
+    if (::GetSecurityDescriptorControl(descriptor, &control, &revision) &&
+        (control & SE_DACL_AUTO_INHERITED)) {
         ::SetSecurityDescriptorControl(dacl.data(), SE_DACL_AUTO_INHERIT_REQ, SE_DACL_AUTO_INHERIT_REQ);
     }
     ::RegSetKeySecurity(key, DACL_SECURITY_INFORMATION, dacl.data());
@@ -241,19 +169,6 @@ void apply_security(HKEY key, const std::vector<std::byte>& stored) {
     }
 }
 
-// Through the native API too: RegSetValueExW stretches a string value by a terminator when one
-// happens to follow the data in memory.
-LSTATUS set_value(HKEY key, const ValueSnapshot& value) {
-    using NtSetValueKeyFunction = LONG(NTAPI*)(HANDLE, CountedString*, ULONG, ULONG, PVOID, ULONG);
-    static const auto set = ntdll<NtSetValueKeyFunction>("NtSetValueKey");
-    std::wstring name = value.name;
-    CountedString counted{static_cast<USHORT>(name.size() * sizeof(wchar_t)),
-                          static_cast<USHORT>(name.size() * sizeof(wchar_t)), name.data()};
-    const LONG status = set(key, &counted, 0, value.type, const_cast<std::byte*>(value.data.data()),
-                            static_cast<ULONG>(value.data.size()));
-    return status == kStatusSuccess ? ERROR_SUCCESS : win32_error(status);
-}
-
 LSTATUS create(HKEY parent, const KeySnapshot& snapshot, bool top, int depth) {
     if (depth > kMaxDepth) {
         return ERROR_INVALID_DATA;
@@ -262,8 +177,9 @@ LSTATUS create(HKEY parent, const KeySnapshot& snapshot, bool top, int depth) {
     HKEY raw = nullptr;
     DWORD disposition = 0;
     const auto create_key = [&](DWORD options) {
-        return ::RegCreateKeyExW(parent, snapshot.name.c_str(), 0, class_name.empty() ? nullptr : class_name.data(),
-                                 options, KEY_ALL_ACCESS | KEY_WOW64_64KEY, nullptr, &raw, &disposition);
+        return ::RegCreateKeyExW(parent, snapshot.name.c_str(), 0,
+                                 class_name.empty() ? nullptr : class_name.data(), options,
+                                 KEY_ALL_ACCESS | KEY_WOW64_64KEY, nullptr, &raw, &disposition);
     };
     LSTATUS status = create_key(REG_OPTION_NON_VOLATILE);
     if (status == ERROR_CHILD_MUST_BE_VOLATILE) {
@@ -277,7 +193,7 @@ LSTATUS create(HKEY parent, const KeySnapshot& snapshot, bool top, int depth) {
         return ERROR_ALREADY_EXISTS;
     }
     for (const auto& value : snapshot.values) {
-        if (status = set_value(key.get(), value); status != ERROR_SUCCESS) {
+        if (status = platform::set_raw_value(key.get(), value); status != ERROR_SUCCESS) {
             return status;
         }
     }
@@ -365,8 +281,8 @@ LSTATUS delete_key(HKEY parent, std::wstring_view name) {
 
 LSTATUS restore_key(HKEY parent, const KeySnapshot& snapshot) {
     HKEY existing = nullptr;
-    if (::RegOpenKeyExW(parent, snapshot.name.c_str(), REG_OPTION_OPEN_LINK, KEY_READ | KEY_WOW64_64KEY, &existing) ==
-        ERROR_SUCCESS) {
+    if (::RegOpenKeyExW(parent, snapshot.name.c_str(), REG_OPTION_OPEN_LINK, KEY_READ | KEY_WOW64_64KEY,
+                        &existing) == ERROR_SUCCESS) {
         ::RegCloseKey(existing);
         return ERROR_ALREADY_EXISTS;
     }
@@ -375,17 +291,18 @@ LSTATUS restore_key(HKEY parent, const KeySnapshot& snapshot) {
 
 LSTATUS merge_key(HKEY parent, const KeySnapshot& snapshot) {
     HKEY raw = nullptr;
-    if (::RegOpenKeyExW(parent, snapshot.name.c_str(), REG_OPTION_OPEN_LINK, KEY_ALL_ACCESS | KEY_WOW64_64KEY, &raw) !=
-        ERROR_SUCCESS) {
+    if (::RegOpenKeyExW(parent, snapshot.name.c_str(), REG_OPTION_OPEN_LINK, KEY_ALL_ACCESS | KEY_WOW64_64KEY,
+                        &raw) != ERROR_SUCCESS) {
         return create(parent, snapshot, false, 0);  // Missing altogether: recreate it whole
     }
     const wil::unique_hkey key(raw);
-    if (is_link(key.get())) {
+    if (platform::is_registry_link(key.get())) {
         return ERROR_CANT_ACCESS_FILE;
     }
     for (const auto& value : snapshot.values) {
-        if (::RegQueryValueExW(key.get(), value.name.c_str(), nullptr, nullptr, nullptr, nullptr) == ERROR_FILE_NOT_FOUND) {
-            if (const LSTATUS status = set_value(key.get(), value); status != ERROR_SUCCESS) {
+        if (::RegQueryValueExW(key.get(), value.name.c_str(), nullptr, nullptr, nullptr, nullptr) ==
+            ERROR_FILE_NOT_FOUND) {
+            if (const LSTATUS status = platform::set_raw_value(key.get(), value); status != ERROR_SUCCESS) {
                 return status;
             }
         }
@@ -399,36 +316,14 @@ LSTATUS merge_key(HKEY parent, const KeySnapshot& snapshot) {
 }
 
 LSTATUS capture_value(HKEY key, std::wstring_view name, ValueSnapshot& snapshot) {
-    static const auto query = ntdll<NtQueryValueKeyFunction>("NtQueryValueKey");
-    snapshot = {std::wstring(name), REG_NONE, {}};
-    CountedString counted{static_cast<USHORT>(snapshot.name.size() * sizeof(wchar_t)),
-                          static_cast<USHORT>(snapshot.name.size() * sizeof(wchar_t)), snapshot.name.data()};
-    std::vector<std::byte> buffer(256);
-    for (int attempt = 0; attempt < 8; ++attempt) {
-        ULONG needed = 0;
-        const LONG status = query(key, &counted, kKeyValuePartialInformation, buffer.data(),
-                                  static_cast<ULONG>(buffer.size()), &needed);
-        if (status == kStatusBufferOverflow || status == kStatusBufferTooSmall) {
-            buffer.resize(std::max<std::size_t>(needed, buffer.size() * 2));
-            continue;
-        }
-        if (status != kStatusSuccess) {
-            return win32_error(status);
-        }
-        const auto* info = reinterpret_cast<const KeyValuePartialInformation*>(buffer.data());
-        snapshot.type = info->type;
-        snapshot.data.assign(reinterpret_cast<const std::byte*>(info->data),
-                             reinterpret_cast<const std::byte*>(info->data) + info->data_length);
-        return ERROR_SUCCESS;
-    }
-    return ERROR_MORE_DATA;
+    return platform::query_raw_value(key, name, snapshot);
 }
 
 LSTATUS restore_value(HKEY key, const ValueSnapshot& snapshot) {
     if (::RegQueryValueExW(key, snapshot.name.c_str(), nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
         return ERROR_ALREADY_EXISTS;
     }
-    return set_value(key, snapshot);
+    return platform::set_raw_value(key, snapshot);
 }
 
 std::wstring to_reg_text(std::wstring_view path, const KeySnapshot& snapshot) {

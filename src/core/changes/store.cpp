@@ -1,36 +1,27 @@
 #include "core/changes/store.h"
 
-#include <objbase.h>
-#include <shlobj.h>
-
 #include <algorithm>
 #include <format>
 
 #include "core/changes/serialization.h"
 #include "core/platform/file_ops.h"
 #include "core/platform/paths.h"
+#include "core/platform/record_folders.h"
 #include "core/platform/text.h"
 
 namespace avel::changes {
 
 namespace {
 
+using platform::from_unix;
+using platform::iso_time;
+using platform::unix_seconds;
+
 constexpr int kSchemaVersion = 1;
 constexpr wchar_t kQuarantineFolder[] = L"$Avel.Quarantine";
 
-std::int64_t unix_seconds(std::chrono::system_clock::time_point time) {
-    return std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
-}
-
-std::chrono::system_clock::time_point from_unix(std::int64_t seconds) {
-    return std::chrono::system_clock::time_point(std::chrono::seconds(seconds));
-}
-
-std::string iso_time(std::chrono::system_clock::time_point time) {
-    return std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(time));
-}
-
-Json plan_to_json(const ChangePlan& plan, const std::wstring& id, std::chrono::system_clock::time_point created) {
+Json plan_to_json(const ChangePlan& plan, const std::wstring& id,
+                  std::chrono::system_clock::time_point created) {
     Json json;
     json["schema_version"] = kSchemaVersion;
     json["id"] = platform::to_utf8(id);
@@ -85,9 +76,9 @@ bool plan_from_json(const Json& json, ChangePlan& plan, std::chrono::system_cloc
             }
         }
         const std::string confidence = entry.value("confidence", std::string());
-        for (const auto candidate : {leftovers::Confidence::Unknown, leftovers::Confidence::Bad,
-                                     leftovers::Confidence::Questionable, leftovers::Confidence::Good,
-                                     leftovers::Confidence::VeryGood}) {
+        for (const auto candidate :
+             {leftovers::Confidence::Unknown, leftovers::Confidence::Bad, leftovers::Confidence::Questionable,
+              leftovers::Confidence::Good, leftovers::Confidence::VeryGood}) {
             if (leftovers::to_string(candidate) == confidence) {
                 item.confidence = candidate;
             }
@@ -98,23 +89,10 @@ bool plan_from_json(const Json& json, ChangePlan& plan, std::chrono::system_cloc
     return true;
 }
 
-std::wstring random_suffix() {
-    GUID guid{};
-    ::CoCreateGuid(&guid);
-    return std::format(L"{:08x}", guid.Data1);
-}
-
-// Holds the set's lock file open, exclusively, for as long as the set is in use. It deletes
-// itself when closed, also when the process is killed.
-wil::unique_hfile take_lock(const std::wstring& folder) {
-    return wil::unique_hfile(::CreateFileW(platform::extended(folder + L"\\lock").c_str(), GENERIC_WRITE, 0, nullptr,
-                                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, nullptr));
-}
-
 wil::unique_hfile open_journal(const std::wstring& folder) {
     wil::unique_hfile journal(::CreateFileW(platform::extended(folder + L"\\journal.jsonl").c_str(),
-                                            FILE_APPEND_DATA | FILE_READ_DATA | SYNCHRONIZE, FILE_SHARE_READ, nullptr,
-                                            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+                                            FILE_APPEND_DATA | FILE_READ_DATA | SYNCHRONIZE, FILE_SHARE_READ,
+                                            nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
     if (!journal) {
         return journal;
     }
@@ -159,32 +137,11 @@ std::optional<SetSummary> read_summary(const std::wstring& folder) {
     return summary;
 }
 
-std::vector<std::wstring> set_folders(const std::wstring& root) {
-    std::vector<std::wstring> names;
-    WIN32_FIND_DATAW data{};
-    wil::unique_hfind find(::FindFirstFileExW(platform::extended(root + L"\\*").c_str(), FindExInfoBasic, &data,
-                                              FindExSearchLimitToDirectories, nullptr, 0));
-    if (!find) {
-        return names;
-    }
-    do {
-        const std::wstring_view name = data.cFileName;
-        if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && !(data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
-            name != L"." && name != L"..") {
-            names.emplace_back(name);
-        }
-    } while (::FindNextFileW(find.get(), &data));
-    return names;
-}
-
 }  // namespace
 
 StoreOptions default_store_options() {
     StoreOptions options;
-    wil::unique_cotaskmem_string program_data;
-    if (SUCCEEDED(::SHGetKnownFolderPath(FOLDERID_ProgramData, KF_FLAG_DEFAULT, nullptr, &program_data))) {
-        options.root = std::wstring(program_data.get()) + LR"(\Avel\Changes)";
-    }
+    options.root = platform::program_data_folder(L"Changes");
     return options;
 }
 
@@ -223,7 +180,7 @@ std::unique_ptr<ChangeSet> ChangeStore::create(const ChangePlan& plan) {
     const auto now = options_.clock();
     std::unique_ptr<ChangeSet> set(new ChangeSet());
     set->store_ = this;
-    set->id_ = std::format(L"{:%Y%m%d-%H%M%S}-", std::chrono::floor<std::chrono::seconds>(now)) + random_suffix();
+    set->id_ = platform::new_record_id(now);
     set->folder_ = options_.root + L"\\" + set->id_;
     set->plan_ = plan;
     set->created_ = now;
@@ -231,7 +188,7 @@ std::unique_ptr<ChangeSet> ChangeStore::create(const ChangePlan& plan) {
     if (!::CreateDirectoryW(platform::extended(set->folder_).c_str(), nullptr)) {
         return nullptr;
     }
-    set->lock_ = take_lock(set->folder_);
+    set->lock_ = platform::take_folder_lock(set->folder_);
     if (!set->lock_ ||
         !write_file_durably(set->folder_ + L"\\plan.json", plan_to_json(plan, set->id_, now).dump(1, '\t'))) {
         return nullptr;
@@ -244,7 +201,7 @@ std::unique_ptr<ChangeSet> ChangeStore::create(const ChangePlan& plan) {
 }
 
 std::unique_ptr<ChangeSet> ChangeStore::open_set(const std::wstring& id) {
-    if (id.empty() || id.find_first_of(L"\\/:") != std::wstring::npos || id == L"." || id == L"..") {
+    if (!platform::is_safe_record_id(id)) {
         return nullptr;
     }
     std::unique_ptr<ChangeSet> set(new ChangeSet());
@@ -256,7 +213,7 @@ std::unique_ptr<ChangeSet> ChangeStore::open_set(const std::wstring& id) {
         status != platform::FolderStatus::ForeignOwner && status != platform::FolderStatus::Ok) {
         return nullptr;
     }
-    set->lock_ = take_lock(set->folder_);
+    set->lock_ = platform::take_folder_lock(set->folder_);
     if (!set->lock_ || !set->load()) {
         return nullptr;  // A live run holds it, or it's not a readable set
     }
@@ -266,7 +223,7 @@ std::unique_ptr<ChangeSet> ChangeStore::open_set(const std::wstring& id) {
 
 std::vector<SetSummary> ChangeStore::list() const {
     std::vector<SetSummary> sets;
-    for (const auto& name : set_folders(options_.root)) {
+    for (const auto& name : platform::record_folders(options_.root)) {
         const std::wstring folder = options_.root + L"\\" + name;
         if (auto summary = read_summary(folder)) {
             summary->id = name;

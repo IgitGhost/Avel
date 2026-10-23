@@ -26,6 +26,7 @@ add_executable(avel_core_tests
     unit/file_quarantine_test.cpp
     unit/file_tree.h
     unit/force_test.cpp
+    unit/hash_test.cpp
     unit/inventory_test.cpp
     unit/known_folders_test.cpp
     unit/leftover_scan_test.cpp
@@ -34,11 +35,13 @@ add_executable(avel_core_tests
     unit/msi_codes_test.cpp
     unit/msi_scanner_test.cpp
     unit/name_matching_test.cpp
+    unit/nt_registry_test.cpp
     unit/orphans_test.cpp
     unit/paths_test.cpp
     unit/process_runner_test.cpp
     unit/product_name_test.cpp
     unit/protection_test.cpp
+    unit/record_folders_test.cpp
     unit/registry_backup_test.cpp
     unit/registry_dump.h
     unit/registry_source_test.cpp

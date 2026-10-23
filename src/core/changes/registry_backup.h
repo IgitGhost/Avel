@@ -7,13 +7,12 @@
 #include <string_view>
 #include <vector>
 
+#include "core/platform/nt_registry.h"
+
 namespace avel::changes {
 
-struct ValueSnapshot {
-    std::wstring name;  // Empty for the default value; may hold unpaired surrogates
-    DWORD type = REG_NONE;
-    std::vector<std::byte> data;
-};
+// A value as raw bytes of its exact type and length.
+using ValueSnapshot = platform::RawValue;
 
 // A registry key and everything below it, exactly enough to recreate it: names, classes, values
 // as raw bytes of their exact type and length (a missing default value stays missing, an empty one
