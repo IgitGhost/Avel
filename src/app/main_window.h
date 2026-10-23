@@ -4,10 +4,14 @@
 #include <QStringList>
 #include <QThreadPool>
 
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "core/leftovers/scan.h"
+#include "force_flow.h"
+#include "hunter_target.h"
 #include "leftover_model.h"
 
 class QAction;
@@ -60,10 +64,22 @@ private:
     void onSelectionChanged();
     void updateActions();
     std::vector<const inventory::Program*> selectedPrograms() const;
+    bool selectProgram(const std::wstring& id);
     void uninstallSelected();
+    void forceSelected();
+    void forceFolder();
+    void startForce(ForceFlow::Request request);
     void previewLeftovers();
     void onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> scan,
-                           std::vector<LeftoverModel::Program> programs);
+                           std::vector<LeftoverModel::Program> programs,
+                           std::vector<leftovers::ScanTarget> targets);
+    void findOrphans();
+    void onOrphansFound(std::shared_ptr<const leftovers::ScanResult> scan);
+    void onWindowHovered(const HunterTarget::Window& window);
+    void onWindowPicked(const HunterTarget::Window& window, QPoint position);
+    struct Hunt;
+    void onHuntFinished(const std::shared_ptr<const Hunt>& hunt);
+    void endProcess(std::uint32_t pid, const QString& name);
     void openUndoCenter();
     void onMaintenanceFinished(const QStringList& settled);
     void openInstallLocation();
@@ -90,8 +106,11 @@ private:
     QMenu* helpMenu_ = nullptr;
     QAction* refreshAction_ = nullptr;
     QAction* uninstallAction_ = nullptr;
+    QAction* forceAction_ = nullptr;
+    QAction* forceFolderAction_ = nullptr;
     QAction* openLocationAction_ = nullptr;
     QAction* previewLeftoversAction_ = nullptr;
+    QAction* orphansAction_ = nullptr;
     QAction* undoCenterAction_ = nullptr;
     QAction* findAction_ = nullptr;
     QAction* exitAction_ = nullptr;
@@ -103,6 +122,7 @@ private:
     QToolBar* toolBar_ = nullptr;
     QLineEdit* searchEdit_ = nullptr;
     QComboBox* categoryCombo_ = nullptr;
+    HunterTarget* hunter_ = nullptr;
     QSplitter* splitter_ = nullptr;
     QTableView* table_ = nullptr;
     DetailsView* details_ = nullptr;
@@ -112,9 +132,11 @@ private:
     QLabel* warningLabel_ = nullptr;
     QLabel* elevationLabel_ = nullptr;
 
-    bool previewRunning_ = false;
-    // Declared last so it's destroyed first: its destructor waits for a running preview scan.
-    QThreadPool previewPool_;
+    ForceFlow* forceFlow_ = nullptr;  // The one running, if any; it deletes itself
+    // A leftover preview, the orphan finder or a Hunter lookup runs on the worker pool.
+    bool busy_ = false;
+    // Declared last so it's destroyed first: its destructor waits for a running task.
+    QThreadPool workers_;
 };
 
 }  // namespace avel::app

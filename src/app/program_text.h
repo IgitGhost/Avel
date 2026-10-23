@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QString>
+#include <QStringList>
 
 #include <cstdint>
 #include <string>
@@ -30,6 +31,8 @@ public:
     // "All users" or the owning account.
     static QString scopeLabel(const inventory::Program& program);
     static QString diagnosticText(const inventory::Diagnostic& diagnostic);
+    // Why the entry can't be uninstalled the normal way (see inventory::is_broken), one line each.
+    static QStringList brokenReasons(const inventory::Program& program);
 
     // How a plan will uninstall, e.g. "Silently (Inno Setup)"; `requested` tells whether quiet
     // mode was asked for, to explain a fallback to the uninstaller's window.

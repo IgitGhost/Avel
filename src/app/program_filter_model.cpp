@@ -65,6 +65,8 @@ bool ProgramFilterModel::inCategory(int sourceRow) const {
             return !listed && !program->is_update;
         case Category::Everything:
             return true;
+        case Category::Broken:
+            return inventory::is_broken(*program);
     }
     return false;
 }

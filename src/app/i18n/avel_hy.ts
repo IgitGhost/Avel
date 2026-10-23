@@ -56,6 +56,10 @@
         <translation>Ծառայություն</translation>
     </message>
     <message>
+        <source>Driver (shown only)</source>
+        <translation>Դրայվեր (միայն ցուցադրվում է)</translation>
+    </message>
+    <message>
         <source>Scheduled task</source>
         <translation>Պլանավորված առաջադրանք</translation>
     </message>
@@ -96,6 +100,10 @@
         <translation>Ծրագրի հեռացման գրառումը</translation>
     </message>
     <message>
+        <source>Windows Installer&apos;s registration of the program</source>
+        <translation>Ծրագրի գրանցումը Windows Installer-ում</translation>
+    </message>
+    <message>
         <source>Named in the program&apos;s registration</source>
         <translation>Նշված է ծրագրի գրանցման մեջ</translation>
     </message>
@@ -128,6 +136,10 @@
         <translation>Անվանված է ճիշտ ծրագրի պես</translation>
     </message>
     <message>
+        <source>No installed program owns it</source>
+        <translation>Ոչ մի տեղադրված ծրագրի չի պատկանում</translation>
+    </message>
+    <message>
         <source>At the top of a common location</source>
         <translation>Ընդհանուր տեղադրության վերին մակարդակում</translation>
     </message>
@@ -145,6 +157,10 @@
     <message>
         <source>Its name only resembles the program&apos;s</source>
         <translation>Անունը միայն նման է ծրագրի անվանը</translation>
+    </message>
+    <message>
+        <source>Found by the disk search, away from where programs keep their files</source>
+        <translation>Գտնվել է սկավառակի որոնմամբ՝ այն վայրերից հեռու, որտեղ ծրագրերը պահում են իրենց ֆայլերը</translation>
     </message>
     <message>
         <source>Named after the publisher, whose other programs may use it</source>
@@ -237,6 +253,10 @@
     <message>
         <source>The registry of user %1 couldn&apos;t be opened (error %2); their entries weren&apos;t checked.</source>
         <translation>Չհաջողվեց բացել %1 օգտատիրոջ ռեեստրը (սխալ %2)․ նրա գրառումները չեն ստուգվել։</translation>
+    </message>
+    <message>
+        <source>Drive %1 couldn&apos;t be searched (error %2).</source>
+        <translation>Չհաջողվեց որոնել %1 սկավառակում (սխալ %2)։</translation>
     </message>
     <message>
         <source>Waiting</source>
@@ -438,6 +458,18 @@
         <translation>Չհաջողվեց ստանալ Store հավելվածների ցանկը (սխալ %1)։</translation>
     </message>
     <message>
+        <source>Its uninstaller is missing.</source>
+        <translation>Հեռացնող ծրագիրը բացակայում է։</translation>
+    </message>
+    <message>
+        <source>Windows Installer&apos;s copy of its package is missing.</source>
+        <translation>Փաթեթի՝ Windows Installer-ի պահած պատճենը բացակայում է։</translation>
+    </message>
+    <message>
+        <source>Windows Installer doesn&apos;t list it.</source>
+        <translation>Windows Installer-ի ցանկում այն չկա։</translation>
+    </message>
+    <message>
         <source>Windows package, removed for the current user</source>
         <translation>Windows փաթեթ, հեռացվում է ընթացիկ օգտատիրոջ համար</translation>
     </message>
@@ -484,6 +516,14 @@
     <message>
         <source>Can&apos;t uninstall: its uninstall command isn&apos;t a program Avel can run</source>
         <translation>Հնարավոր չէ հեռացնել․ հեռացման հրամանը ծրագիր չէ, որը Avel-ը կարող է գործարկել</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: its uninstaller is missing</source>
+        <translation>Հնարավոր չէ հեռացնել․ հեռացնող ծրագիրը բացակայում է</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: Windows Installer can&apos;t find its package</source>
+        <translation>Հնարավոր չէ հեռացնել․ Windows Installer-ը չի գտնում դրա փաթեթը</translation>
     </message>
     <message>
         <source>Removed; files remain in its folder</source>
@@ -736,6 +776,14 @@
         <translation>Հարթակ, որն օգտագործում են այլ հավելվածներ։</translation>
     </message>
     <message>
+        <source>Uninstaller is missing: the file its uninstall command runs is gone, so it can&apos;t uninstall itself. Force uninstall removes it without the uninstaller.</source>
+        <translation>Հեռացնող ծրագիրը բացակայում է․ ֆայլը, որը գործարկում է հեռացման հրամանը, այլևս չկա, ուստի ծրագիրը չի կարող ինքն իրեն հեռացնել։ Ստիպողական հեռացումը այն հեռացնում է առանց հեռացնողի։</translation>
+    </message>
+    <message>
+        <source>Windows Installer&apos;s copy of the package is missing, so Windows Installer can&apos;t remove it. Force uninstall removes it together with its Windows Installer registration.</source>
+        <translation>Փաթեթի՝ Windows Installer-ի պահած պատճենը բացակայում է, ուստի Windows Installer-ը չի կարող հեռացնել ծրագիրը։ Ստիպողական հեռացումը այն հեռացնում է Windows Installer-ի գրանցման հետ միասին։</translation>
+    </message>
+    <message>
         <source>Windows Installer doesn&apos;t list this product for this computer or the current user. It may belong to another user or be left over from an incomplete removal.</source>
         <translation>Windows Installer-ը այս արտադրանքը չի ցուցակում ո՛չ այս համակարգչի, ո՛չ ընթացիկ օգտատիրոջ համար։ Հնարավոր է՝ այն պատկանում է այլ օգտատիրոջ կամ մնացել է թերի հեռացումից։</translation>
     </message>
@@ -746,6 +794,60 @@
     <message>
         <source>(no name)</source>
         <translation>(անանուն)</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::ForceFlow</name>
+    <message>
+        <source>Looking for everything that belongs to the program…</source>
+        <translation>Որոնվում է այն ամենը, ինչ պատկանում է ծրագրին…</translation>
+    </message>
+    <message>
+        <source>(no name)</source>
+        <translation>(անանուն)</translation>
+    </message>
+    <message>
+        <source>Force uninstall</source>
+        <translation>Ստիպողական հեռացում</translation>
+    </message>
+    <message>
+        <source>Avel can&apos;t remove %1: %2.</source>
+        <translation>Avel-ը չի կարող հեռացնել %1․ %2։</translation>
+    </message>
+    <message>
+        <source>The selected programs are no longer installed.</source>
+        <translation>Ընտրված ծրագրերն այլևս տեղադրված չեն։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n program(s)</source>
+        <translation>
+            <numerusform>%n ծրագիր</numerusform>
+            <numerusform>%n ծրագիր</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Forced removal</source>
+        <translation>Ստիպողական հեռացում</translation>
+    </message>
+    <message>
+        <source>it isn&apos;t a full path</source>
+        <translation>սա լրիվ ուղի չէ</translation>
+    </message>
+    <message>
+        <source>it doesn&apos;t exist</source>
+        <translation>այն գոյություն չունի</translation>
+    </message>
+    <message>
+        <source>it isn&apos;t a folder</source>
+        <translation>սա թղթապանակ չէ</translation>
+    </message>
+    <message>
+        <source>it is a link to another place, which may not be the program&apos;s</source>
+        <translation>սա հղում է այլ տեղ, որը կարող է ծրագրինը չլինել</translation>
+    </message>
+    <message>
+        <source>Windows or other programs need it</source>
+        <translation>այն անհրաժեշտ է Windows-ին կամ այլ ծրագրերի</translation>
     </message>
 </context>
 <context>
@@ -802,8 +904,32 @@
         <translation>Համընկնումներ, որոնց դեմ ավելի շատ փաստարկ կա, քան օգտին, օրինակ՝ թղթապանակներ, որոնք դեռ օգտագործում են այլ ծրագրեր։ Դրանք ինքնաբերաբար երբեք չեն նշվում։</translation>
     </message>
     <message>
+        <source>Forced removal of %1</source>
+        <translation>Ստիպողական հեռացում՝ %1</translation>
+    </message>
+    <message>
+        <source>Avel doesn&apos;t run the program&apos;s uninstaller. It removes what belongs to the program instead: its folder, its registry entries and what it left elsewhere. Checked items will be removed. Avel backs up each one first, so Undo can put it back for 30 days.</source>
+        <translation>Avel-ը չի գործարկում ծրագրի հեռացնողը։ Փոխարենը այն հեռացնում է այն ամենը, ինչ պատկանում է ծրագրին՝ նրա թղթապանակը, ռեեստրի գրառումները և այն, ինչ նա թողել է այլ տեղերում։ Նշված տարրերը կհեռացվեն։ Avel-ը նախ պահուստավորում է յուրաքանչյուրը, ուստի 30 օրվա ընթացքում դրանք կարելի է վերադարձնել։</translation>
+    </message>
+    <message>
+        <source>Orphaned folders</source>
+        <translation>Անտեր թղթապանակներ</translation>
+    </message>
+    <message>
+        <source>No installed program owns these folders. Programs removed long ago may have left them, but portable programs and data that programs keep on their own look the same, so none is checked by itself. Avel backs up what you remove, so Undo can put it back for 30 days.</source>
+        <translation>Այս թղթապանակները ոչ մի տեղադրված ծրագրի չեն պատկանում։ Դրանք կարող էին մնալ վաղուց հեռացված ծրագրերից, բայց շարժական ծրագրերը և այն տվյալները, որոնք ծրագրերը պահում են ինքնուրույն, նույն տեսքն ունեն, ուստի դրանցից ոչ մեկը ինքնաբերաբար նշված չէ։ Avel-ը պահուստավորում է հեռացվողը, ուստի 30 օրվա ընթացքում այն կարելի է վերադարձնել։</translation>
+    </message>
+    <message>
         <source>&amp;Copy</source>
         <translation>&amp;Պատճենել</translation>
+    </message>
+    <message>
+        <source>Search the whole disk</source>
+        <translation>Որոնել ամբողջ սկավառակում</translation>
+    </message>
+    <message>
+        <source>Also look for folders named after the program anywhere on the fixed drives. Takes a few seconds. What only this search finds is never checked by itself.</source>
+        <translation>Ծրագրի անունով թղթապանակներ որոնել նաև տեղային սկավառակների ցանկացած վայրում։ Տևում է մի քանի վայրկյան։ Այն, ինչ գտնում է միայն այս որոնումը, երբեք ինքնաբերաբար չի նշվում։</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -861,6 +987,14 @@
             <numerusform>Հեռացնել %n տարր</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Searching the whole disk…</source>
+        <translation>Որոնում ամբողջ սկավառակում…</translation>
+    </message>
+    <message>
+        <source>Whole disk searched</source>
+        <translation>Սկավառակը որոնված է</translation>
+    </message>
 </context>
 <context>
     <name>avel::app::LeftoverModel</name>
@@ -871,6 +1005,10 @@
     <message>
         <source>COM classes and shell extensions</source>
         <translation>COM դասեր և կեղևի ընդլայնումներ</translation>
+    </message>
+    <message>
+        <source>Windows Installer registration</source>
+        <translation>Windows Installer-ի գրանցում</translation>
     </message>
     <message>
         <source>%1 (%2)</source>
@@ -922,6 +1060,22 @@ Left by %2</source>
         <translation>Հեռացնել ընտրված ծրագրերը (Del)</translation>
     </message>
     <message>
+        <source>&amp;Force uninstall…</source>
+        <translation>&amp;Ստիպողաբար հեռացնել…</translation>
+    </message>
+    <message>
+        <source>Remove the selected programs without their uninstallers, for when they are missing or broken (Shift+Del)</source>
+        <translation>Հեռացնել ընտրված ծրագրերն առանց դրանց հեռացնողների, երբ դրանք բացակայում են կամ վնասված են (Shift+Del)</translation>
+    </message>
+    <message>
+        <source>Force uninstall a fol&amp;der…</source>
+        <translation>Ստիպողաբար հեռացնել թղթա&amp;պանակ…</translation>
+    </message>
+    <message>
+        <source>Remove a program&apos;s folder that no entry in the list describes</source>
+        <translation>Հեռացնել ծրագրի թղթապանակ, որը ցանկում չկա</translation>
+    </message>
+    <message>
         <source>&amp;Open install folder</source>
         <translation>&amp;Բացել տեղադրման թղթապանակը</translation>
     </message>
@@ -940,6 +1094,22 @@ Left by %2</source>
     <message>
         <source>&amp;Tools</source>
         <translation>&amp;Գործիքներ</translation>
+    </message>
+    <message>
+        <source>Find &amp;orphaned folders…</source>
+        <translation>Գտնել &amp;անտեր թղթապանակներ…</translation>
+    </message>
+    <message>
+        <source>Look for folders in Program Files, ProgramData and the users&apos; program folders that no installed program owns</source>
+        <translation>Program Files-ում, ProgramData-ում և օգտատերերի ծրագրերի թղթապանակներում որոնել թղթապանակներ, որոնք ոչ մի տեղադրված ծրագրի չեն պատկանում</translation>
+    </message>
+    <message>
+        <source>Hunter: drag the crosshair onto a program&apos;s window and let go to find the program it belongs to</source>
+        <translation>Որսորդ․ քաշեք նշանակետը ծրագրի պատուհանի վրա և բաց թողեք՝ գտնելու այն ծրագիրը, որին պատկանում է պատուհանը</translation>
+    </message>
+    <message>
+        <source>Hunter</source>
+        <translation>Որսորդ</translation>
     </message>
     <message>
         <source>&amp;Undo Center…</source>
@@ -1006,8 +1176,12 @@ Left by %2</source>
         <translation>Բոլորը</translation>
     </message>
     <message>
-        <source>Which programs to show. &quot;Apps&quot; matches Settings &gt; Apps.</source>
-        <translation>Ո՞ր ծրագրերը ցուցադրել։ «Հավելվածները» համապատասխանում են Կարգավորումներ → Հավելվածներ բաժնին։</translation>
+        <source>Broken</source>
+        <translation>Անսարք</translation>
+    </message>
+    <message>
+        <source>Which programs to show. &quot;Apps&quot; matches Settings &gt; Apps. &quot;Broken&quot; lists the ones that can&apos;t uninstall themselves.</source>
+        <translation>Ո՞ր ծրագրերը ցուցադրել։ «Հավելվածները» համապատասխանում են Կարգավորումներ → Հավելվածներ բաժնին։ «Անսարք»-ը ցույց է տալիս այն ծրագրերը, որոնք չեն կարող ինքնուրույն հեռանալ։</translation>
     </message>
     <message>
         <source>Running as administrator</source>
@@ -1026,12 +1200,100 @@ Left by %2</source>
         <translation>Որոնումը տևեց %1 մվ</translation>
     </message>
     <message>
+        <source>Force uninstall a folder</source>
+        <translation>Թղթապանակի ստիպողական հեռացում</translation>
+    </message>
+    <message>
         <source>(no name)</source>
         <translation>(անանուն)</translation>
     </message>
     <message>
         <source>Looking for leftovers…</source>
         <translation>Մնացորդների որոնում…</translation>
+    </message>
+    <message>
+        <source>Looking for orphaned folders…</source>
+        <translation>Անտեր թղթապանակների որոնում…</translation>
+    </message>
+    <message>
+        <source>Orphaned folders</source>
+        <translation>Անտեր թղթապանակներ</translation>
+    </message>
+    <message>
+        <source>Removing orphaned folders</source>
+        <translation>Անտեր թղթապանակների հեռացում</translation>
+    </message>
+    <message>
+        <source>Drag onto a program&apos;s window and let go.</source>
+        <translation>Քաշեք ծրագրի պատուհանի վրա և բաց թողեք։</translation>
+    </message>
+    <message>
+        <source>process %1</source>
+        <translation>պրոցես %1</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>Looking for the program of %1…</source>
+        <translation>%1-ի ծրագրի որոնում…</translation>
+    </message>
+    <message>
+        <source>%1 (no longer listed; refresh with F5)</source>
+        <translation>%1 (այլևս ցանկում չէ․ թարմացրեք F5-ով)</translation>
+    </message>
+    <message>
+        <source>Windows doesn&apos;t tell Avel which program %1 is</source>
+        <translation>Windows-ը չի հայտնում Avel-ին, թե ինչ ծրագիր է %1-ը</translation>
+    </message>
+    <message>
+        <source>No installed program owns %1</source>
+        <translation>%1-ը ոչ մի տեղադրված ծրագրի չի պատկանում</translation>
+    </message>
+    <message>
+        <source>Force uninstall the folder %1…</source>
+        <translation>Ստիպողաբար հեռացնել %1 թղթապանակը…</translation>
+    </message>
+    <message>
+        <source>Force uninstall the folder %1 (Windows or other programs need it)</source>
+        <translation>Ստիպողաբար հեռացնել %1 թղթապանակը (այն անհրաժեշտ է Windows-ին կամ այլ ծրագրերի)</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>Բացել թղթապանակը</translation>
+    </message>
+    <message>
+        <source>End process %1</source>
+        <translation>Ավարտել %1 պրոցեսը</translation>
+    </message>
+    <message>
+        <source>End process %1 (Windows needs it)</source>
+        <translation>Ավարտել %1 պրոցեսը (այն անհրաժեշտ է Windows-ին)</translation>
+    </message>
+    <message>
+        <source>End process %1 (it runs a service)</source>
+        <translation>Ավարտել %1 պրոցեսը (դրանում ծառայություն է աշխատում)</translation>
+    </message>
+    <message>
+        <source>End process</source>
+        <translation>Ավարտել պրոցեսը</translation>
+    </message>
+    <message>
+        <source>End %1 (process %2)?</source>
+        <translation>Ավարտե՞լ %1-ը (պրոցես %2)</translation>
+    </message>
+    <message>
+        <source>Avel asks it to close first, then ends it. Unsaved work in it is lost.</source>
+        <translation>Avel-ը նախ կխնդրի այն փակվել, ապա կավարտի։ Դրանում չպահպանված աշխատանքը կկորչի։</translation>
+    </message>
+    <message>
+        <source>Ending %1…</source>
+        <translation>%1-ի ավարտում…</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1․ %2</translation>
     </message>
     <message>
         <source>Interrupted removal</source>
@@ -1107,6 +1369,83 @@ Left by %2</source>
     <message>
         <source>Type</source>
         <translation>Տեսակ</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::RunningProcessesDialog</name>
+    <message>
+        <source>Running programs</source>
+        <translation>Աշխատող ծրագրեր</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n program(s) run from the folders of %1. Avel ends them before it removes anything; unsaved work in them is lost.</source>
+        <translation>
+            <numerusform>%1-ի թղթապանակներից աշխատում է %n ծրագիր։ Avel-ը կավարտի դրանք, նախքան որևէ բան հեռացնելը․ դրանցում չպահպանված աշխատանքը կկորչի։</numerusform>
+            <numerusform>%1-ի թղթապանակներից աշխատում է %n ծրագիր։ Avel-ը կավարտի դրանք, նախքան որևէ բան հեռացնելը․ դրանցում չպահպանված աշխատանքը կկորչի։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Program</source>
+        <translation>Ծրագիր</translation>
+    </message>
+    <message>
+        <source>Process ID</source>
+        <translation>Պրոցեսի ID</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Վիճակ</translation>
+    </message>
+    <message>
+        <source>Path</source>
+        <translation>Ուղի</translation>
+    </message>
+    <message>
+        <source>Running</source>
+        <translation>Աշխատում է</translation>
+    </message>
+    <message>
+        <source>End processes</source>
+        <translation>Ավարտել պրոցեսները</translation>
+    </message>
+    <message>
+        <source>Closed</source>
+        <translation>Փակվեց</translation>
+    </message>
+    <message>
+        <source>Ended</source>
+        <translation>Ավարտվեց</translation>
+    </message>
+    <message>
+        <source>Had already exited</source>
+        <translation>Արդեն ավարտվել էր</translation>
+    </message>
+    <message>
+        <source>Windows denied access</source>
+        <translation>Windows-ը մերժեց մուտքը</translation>
+    </message>
+    <message>
+        <source>Still running: %1</source>
+        <translation>Դեռ աշխատում է․ %1</translation>
+    </message>
+    <message>
+        <source>Still running</source>
+        <translation>Դեռ աշխատում է</translation>
+    </message>
+    <message>
+        <source>Asking the programs to close…</source>
+        <translation>Ծրագրերին խնդրում ենք փակվել…</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n process(es) couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</source>
+        <translation>
+            <numerusform>Չհաջողվեց ավարտել %n պրոցես։ Դրանց օգտագործած ֆայլերը կմնան տեղում․ մնացածը դեռ կարելի է հեռացնել։</numerusform>
+            <numerusform>Չհաջողվեց ավարտել %n պրոցես։ Դրանց օգտագործած ֆայլերը կմնան տեղում․ մնացածը դեռ կարելի է հեռացնել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Շարունակել</translation>
     </message>
 </context>
 <context>
@@ -1260,6 +1599,14 @@ Left by %2</source>
         <translation>Միայն նմանակում․ ցույց տալ, թե ինչ կլինի, առանց որևէ բան փոխելու</translation>
     </message>
     <message>
+        <source>Force uninstall…</source>
+        <translation>Ստիպողաբար հեռացնել…</translation>
+    </message>
+    <message>
+        <source>Remove the programs that can&apos;t uninstall themselves with Avel Force: without their uninstaller, backed up so Undo can put them back</source>
+        <translation>Avel Force-ով հեռացնել այն ծրագրերը, որոնք չեն կարող ինքնուրույն հեռանալ՝ առանց դրանց հեռացնողի և պահուստավորելով, որպեսզի «Հետարկել»-ը կարողանա դրանք վերադարձնել</translation>
+    </message>
+    <message>
         <source>Avel: uninstall %1</source>
         <translation>Avel․ հեռացում՝ %1</translation>
     </message>
@@ -1269,6 +1616,10 @@ Left by %2</source>
             <numerusform>Avel․ %n ծրագրի հեռացում</numerusform>
             <numerusform>Avel․ %n ծրագրի հեռացում</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>%1. Force uninstall can remove it.</source>
+        <translation>%1։ Այն կարելի է հեռացնել ստիպողաբար։</translation>
     </message>
     <message>
         <source>Simulate</source>
@@ -1316,6 +1667,14 @@ Left by %2</source>
     <message>
         <source>Review what the uninstallers left behind</source>
         <translation>Դիտել, թե ինչ են թողել հեռացնողները</translation>
+    </message>
+    <message>
+        <source>Force removal…</source>
+        <translation>Ստիպողաբար հեռացնել…</translation>
+    </message>
+    <message>
+        <source>Remove the programs that are still installed with Avel Force, without their uninstaller</source>
+        <translation>Avel Force-ով հեռացնել դեռ տեղադրված ծրագրերը՝ առանց դրանց հեռացնողի</translation>
     </message>
     <message>
         <source>Creating a System Restore point. This can take a minute…</source>

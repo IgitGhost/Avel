@@ -63,8 +63,8 @@ ROGFontInstaller
   so an entry that records `C:\Program Files` as its location can't claim every program there.
   With no owner, the target is the file's folder. If the file's version resource names a
   product, it is the highest folder above the file named after that product, stopping below
-  protected folders and never climbing into the publisher's folder. The GUI's Hunter (4c) uses
-  this for a window's process.
+  protected folders and never climbing into the publisher's folder. The GUI's Hunter uses this
+  for a window's process.
 
 ## Processes (`platform/processes.h`)
 
@@ -233,6 +233,94 @@ avel-cli force --exe "C:\Program Files\Contoso\app.exe" --end-processes
 avel-cli force --folder "D:\Tools\Old thing" --name "Old Thing"
 ```
 
+## The GUI (`src/app`)
+
+**ForceFlow** (`force_flow.h`) runs Avel Force for programs or a folder. It never runs a program's
+uninstaller:
+
+1. On a worker thread it reads the installed programs afresh, since the request may come from a
+   list older than an uninstall that just failed. It builds the targets, as the CLI does, and
+   scans. Packaged apps are left out. A folder that `folder_target` refuses ends the flow with
+   the reason ("Windows or other programs need it").
+2. The leftover dialog shows the result in its Force mode, titled "Forced removal of X". It
+   says no uninstaller runs, and that what goes is backed up for Undo.
+3. When the user presses Remove, the processes running from the targets' folders are listed
+   again on a worker, since the review may have taken a while. If any run, the **Running
+   programs** dialog (`running_processes_dialog.h`) names them. "End processes" asks each one to
+   close, then ends it, on a worker thread. If all are gone, the flow goes on by itself.
+   Otherwise the dialog says which processes stayed, and "Continue" removes the rest, leaving
+   their open files in place.
+4. `ChangeSetProgressDialog` ("Forced removal") runs the ChangeSet. The Undo Center lists it as
+   "Forced removal of X".
+
+The processes are ended only after the review, not before as first planned. That way nothing is
+closed for a removal the user then cancels, and the list is current when they agree.
+
+**Entry points:**
+
+- **File > Force uninstall… (Shift+Del)** and the list's context menu: the selected programs.
+  The action is off when the selection holds a packaged app.
+- **File > Force uninstall a folder…**: a folder picked in a file dialog.
+- **The uninstall dialog:** programs whose plan fails for a reason Force handles get "Force
+  uninstall can remove it" next to the error, and a **Force uninstall…** button. The reasons are
+  `no-uninstaller`, `unsupported-command`, `uninstaller-missing` and `msi-package-missing`
+  (`forceCanHelp`). The button closes the dialog and forces those programs; the others can
+  still be uninstalled normally.
+- **The uninstall progress dialog:** after the batch, **Force removal…** offers the programs
+  whose uninstaller failed, left them installed, or couldn't run for one of those reasons.
+  Cancelled ones are left out.
+- **The Hunter:** see below.
+
+**The program list:**
+
+- A **Broken** category lists the entries `inventory::is_broken` flags.
+- Broken rows get Windows' warning icon as a badge on their icon, and a tooltip with the
+  reasons.
+- The details pane explains a missing uninstaller or a missing Windows Installer package, and
+  points to Force uninstall.
+
+**The Hunter** (`hunter_target.h`) is a crosshair on the toolbar. An elevated window can't take
+drag-and-drop from Explorer, so this is how a running program is picked:
+
+1. Press it and drag. The mouse is grabbed with a cross cursor, and the status bar names the
+   window under the pointer and its process.
+2. On release, `WindowFromPoint` → `GetAncestor(GA_ROOT)` → `GetWindowThreadProcessId` gives
+   the process. A Store app's frame belongs to `ApplicationFrameHost.exe`, so the child window
+   of another process inside it is taken instead. Avel's own windows are ignored. Esc or the
+   right button cancels.
+3. A worker reads the process's image path, whether it is critical or hosts a service, and its
+   owner (`force::owner_of`).
+4. If an installed program owns it, that program is selected. The search box is cleared, or
+   the category becomes Everything, if that is what hides it. A menu then offers Uninstall,
+   Force uninstall, Preview leftovers, Open install folder and End process.
+5. Otherwise the menu offers to force the folder `owner_of` chose (disabled, with the reason,
+   when it is protected), to open it, and End process.
+
+End process asks first, then uses `stop_process` on a worker. It is disabled for critical
+processes and service hosts.
+
+Popup menus show copies of the window's actions, not the actions themselves. Qt's accessibility
+keeps one interface per action, made for the first menu that shows it. When that menu is a
+popup, it is gone once it closes, and UI Automation (and so screen readers) no longer saw those
+items in the File menu. The table's context menu had the same problem before.
+
+**The leftover dialog:**
+
+- **Search the whole disk** reruns the scan with `ScanOptions::deep` on a worker. It is in the
+  Review, Force and Preview modes; Preview leftovers and the uninstall batch pass the targets
+  they scanned. The dialog can't be closed while the search runs. The checks then start over
+  from the preset; what only the deep search finds is Questionable, so it stays unchecked.
+- A **Windows Installer registration** group holds what `Scanner::MsiRegistration` found,
+  apart from the rest of the registry.
+- Drivers show as "Driver (shown only)", without a check box.
+- **Tools > Find orphaned folders…** runs `find_orphans` and opens the dialog in its Orphans
+  mode, with every folder under one "Orphaned folders" heading. Nothing is checked, since
+  orphans are Questionable at best.
+- "Why it matched" now lists evidence worth no points (`NoOwner`) as well, since for an
+  orphan it is the whole reason.
+
+All the new text is translated to Russian and Armenian.
+
 ## Testing
 
 - **Unit tests:**
@@ -252,7 +340,15 @@ avel-cli force --folder "D:\Tools\Old thing" --name "Old Thing"
   - `DeepScanTest`: a made-up volume with matches in and out of the publisher's folder, and
     every kind of folder the search skips;
   - `OrphansTest`: a temporary tree with a folder of each kind of owner, and orphans
-    machine-wide, per user and another user's.
+    machine-wide, per user and another user's;
+  - `LeftoverModelTest`: the Windows Installer registration group, drivers shown but never
+    checked or planned, and evidence worth no points explaining an orphan.
+- **Host GUI check** (unelevated, through `__COMPAT_LAYER=RunAsInvoker`, so nothing can be
+  removed): the Hunter was dragged with synthetic mouse input onto 7-Zip's window, which
+  selected 7-Zip and offered its menu, and onto a copy of 7-Zip in a folder no program owns,
+  which offered to force that folder. Screenshots were taken in English, Russian and Armenian:
+  the forced-removal review before and after the deep search, the orphan finder and the Broken
+  category.
 - **Windows Sandbox, scenario `force`** ([tests/sandbox/README.md](../tests/sandbox/README.md)):
   - Contoso Fixture with its uninstall script deleted and its app running;
   - 7-Zip's MSI with its package and Windows Installer's cached copy deleted;
@@ -260,7 +356,14 @@ avel-cli force --folder "D:\Tools\Old thing" --name "Old Thing"
   - a dead entry: `list --broken`, then `force` removing its key alone;
   - `C:\Tools\Contoso Fixture`, found by `scan --deep` only, and the elevated volume test;
   - `orphans`: a folder nobody owns is listed, the installed programs' and Windows' folders
-    aren't.
+    aren't;
+  - the GUI, through UI Automation:
+    - the fixture is forced from the uninstall dialog's button, with its app running;
+    - the whole-disk search lists `C:\Tools\Contoso Fixture`;
+    - Remove asks to end the app, then ends it;
+    - everything is removed except what stays unchecked;
+    - the Undo Center's "Restore all" gives it back exactly;
+    - Tools > Find orphaned folders lists the folder nobody owns.
 
   Each round checks the removal against `avel_state_dump` dumps, and that undo gives them back
   exactly.

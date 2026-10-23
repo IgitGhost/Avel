@@ -64,6 +64,16 @@
     </message>
 </context>
 <context>
+    <name>avel::app::ForceFlow</name>
+    <message numerus="yes">
+        <source>%n program(s)</source>
+        <translation>
+            <numerusform>%n program</numerusform>
+            <numerusform>%n programs</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>avel::app::LeftoverDialog</name>
     <message numerus="yes">
         <source>%n program(s)</source>
@@ -129,6 +139,23 @@
         <translation>
             <numerusform>%n warning</numerusform>
             <numerusform>%n warnings</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::RunningProcessesDialog</name>
+    <message numerus="yes">
+        <source>%n program(s) run from the folders of %1. Avel ends them before it removes anything; unsaved work in them is lost.</source>
+        <translation>
+            <numerusform>%n program runs from the folders of %1. Avel ends it before it removes anything; unsaved work in it is lost.</numerusform>
+            <numerusform>%n programs run from the folders of %1. Avel ends them before it removes anything; unsaved work in them is lost.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n process(es) couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</source>
+        <translation>
+            <numerusform>%n process couldn&apos;t be ended. Files it uses stay in place; the rest can still be removed.</numerusform>
+            <numerusform>%n processes couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</numerusform>
         </translation>
     </message>
 </context>

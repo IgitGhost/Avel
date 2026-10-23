@@ -17,6 +17,7 @@
 #include "change_set_progress_dialog.h"
 #include "change_store_access.h"
 #include "core/leftovers/post_uninstall.h"
+#include "force_flow.h"
 #include "leftover_dialog.h"
 #include "program_text.h"
 
@@ -68,6 +69,15 @@ UninstallProgressDialog::UninstallProgressDialog(std::shared_ptr<const inventory
     leftoversButton_->setToolTip(tr("Review what the uninstallers left behind"));
     leftoversButton_->hide();
     connect(leftoversButton_, &QPushButton::clicked, this, &UninstallProgressDialog::showLeftovers);
+    forceButton_ = buttons->addButton(tr("Force removal…"), QDialogButtonBox::ActionRole);
+    forceButton_->setToolTip(
+        tr("Remove the programs that are still installed with Avel Force, without "
+           "their uninstaller"));
+    forceButton_->hide();
+    connect(forceButton_, &QPushButton::clicked, this, [this] {
+        Q_EMIT forceRequested(forceIds_);
+        accept();
+    });
     closeButton_ = buttons->addButton(QDialogButtonBox::Close);
     closeButton_->setEnabled(false);
     connect(stopButton_, &QPushButton::clicked, this, &UninstallProgressDialog::requestStop);
@@ -126,13 +136,12 @@ void UninstallProgressDialog::start() {
     // The worker only touches the batch data; everything visible happens on the GUI thread.
     worker_ = std::thread([this] {
         // What the scan needs about each program has to be read before its uninstaller runs.
-        std::vector<leftovers::ScanTarget> targets;
         if (scanLeftovers_) {
             std::vector<const inventory::Program*> programs;
             for (const auto& item : items_) {
                 programs.push_back(item.program);
             }
-            targets = leftovers::capture_targets(programs);
+            targets_ = leftovers::capture_targets(programs);
         }
         uninstall::BatchEvents events;
         events.restore_point_done = [this](uninstall::RestorePointStatus status, std::uint32_t error) {
@@ -158,7 +167,7 @@ void UninstallProgressDialog::start() {
         if (scanLeftovers_) {
             QMetaObject::invokeMethod(this, [this] { onScanStarted(); }, Qt::QueuedConnection);
             scan = std::make_shared<const leftovers::ScanResult>(
-                leftovers::scan_after_uninstall(targets, batch.results));
+                leftovers::scan_after_uninstall(targets_, batch.results));
         }
         QMetaObject::invokeMethod(this, [this, scan] { onBatchFinished(scan); }, Qt::QueuedConnection);
     });
@@ -254,6 +263,17 @@ void UninstallProgressDialog::onBatchFinished(std::shared_ptr<const leftovers::S
     if (count({Outcome::RebootRequired}) > 0) {
         summary += u' ' + tr("Restart Windows to finish.");
     }
+    // What the uninstaller couldn't remove, Avel Force can; never what the user cancelled.
+    for (std::size_t i = 0; i < items_.size(); ++i) {
+        const auto& result = results_[i];
+        const bool forceable = result.outcome == Outcome::Failed ||
+                               result.outcome == Outcome::StillInstalled ||
+                               (result.outcome == Outcome::NotPossible && forceCanHelp(result.plan_error));
+        if (forceable && items_[i].program->source != inventory::Source::Appx) {
+            forceIds_.push_back(items_[i].program->id);
+        }
+    }
+    forceButton_->setVisible(!forceIds_.empty());
     // Nothing was scanned if no uninstall succeeded.
     scan_ = removed > 0 ? std::move(scan) : nullptr;
     if (scan_) {
@@ -296,6 +316,9 @@ void UninstallProgressDialog::showLeftovers() {
     auto* review = new LeftoverDialog(scan_, std::move(programs), LeftoverDialog::Mode::Review,
                                       stores_->store() ? QString() : stores_->unavailableReason(), this);
     review->setAttribute(Qt::WA_DeleteOnClose);
+    review->setRescan([targets = targets_, results = results_](const leftovers::ScanOptions& options) {
+        return leftovers::scan_after_uninstall(targets, results, options);
+    });
     connect(review, &QDialog::accepted, this, [this, review] {
         auto* removal =
             new ChangeSetProgressDialog(stores_->store(), review->plan(), review->allowIrreversible(), this);

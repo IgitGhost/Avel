@@ -2,6 +2,7 @@
 
 #include <QDialog>
 
+#include <string>
 #include <vector>
 
 #include "core/inventory/program.h"
@@ -16,7 +17,8 @@ class QTreeWidget;
 namespace avel::app {
 
 // Confirms an uninstall: shows how each selected program will be removed and offers silent mode,
-// a System Restore point, a leftover scan afterwards and a dry run.
+// a System Restore point, a leftover scan afterwards and a dry run. Programs that can't uninstall
+// themselves (their uninstaller is missing, say) can go to Avel Force from here instead.
 class UninstallDialog : public QDialog {
     Q_OBJECT
 
@@ -32,11 +34,17 @@ public:
 
     void accept() override;
 
+Q_SIGNALS:
+    // "Force uninstall…": the ids of the programs Avel Force should remove. The dialog closes
+    // (rejected) right after.
+    void forceRequested(const std::vector<std::wstring>& programIds);
+
 private:
     void updatePlans();
 
     std::vector<const inventory::Program*> programs_;
     std::vector<uninstall::BatchItem> items_;
+    std::vector<std::wstring> forceIds_;  // The programs that can't be planned, but forced
     uninstall::PlanContext context_;
 
     QLabel* intro_ = nullptr;
@@ -46,6 +54,7 @@ private:
     QCheckBox* leftoverScanBox_ = nullptr;
     QCheckBox* simulateBox_ = nullptr;
     QPushButton* okButton_ = nullptr;
+    QPushButton* forceButton_ = nullptr;
 };
 
 }  // namespace avel::app

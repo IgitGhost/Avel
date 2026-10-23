@@ -79,6 +79,16 @@ Leftover firewall_rule(std::wstring id) {
     return leftover;
 }
 
+Leftover service(std::wstring name, bool driver) {
+    Leftover leftover;
+    leftover.location = leftovers::ServiceLocation{std::move(name), driver};
+    leftover.records = records_for(Confidence::VeryGood);
+    leftover.owner_ids = {L"a"};
+    leftover.category = Category::Services;
+    leftover.found_by = leftovers::Scanner::Services;
+    return leftover;
+}
+
 class LeftoverModelTest : public ::testing::Test {
 protected:
     void load(std::vector<Leftover> items, Model::Preset preset = Model::Preset::Moderate) {
@@ -260,6 +270,42 @@ TEST_F(LeftoverModelTest, GroupChecksCoverTheirItemsButNotReportOnlyOnes) {
     EXPECT_EQ(state(program), Qt::Unchecked);
 }
 
+TEST_F(LeftoverModelTest, WindowsInstallerRegistrationHasAGroupOfItsOwn) {
+    load({
+        key(LR"(SOFTWARE\Contoso)", Confidence::Good),
+        key(LR"(SOFTWARE\Classes\Installer\Products\96F071321C0420726200000010000000)", Confidence::VeryGood,
+            leftovers::Scanner::MsiRegistration),
+        key(LR"(SOFTWARE\Classes\CLSID\{1})", Confidence::Good, leftovers::Scanner::ComClasses),
+    });
+    const QModelIndex program = model.index(0, 0);
+    ASSERT_EQ(model.rowCount(program), 3);
+    EXPECT_EQ(model.index(0, 0, program).data().toString(), QStringLiteral("Registry (1)"));
+    EXPECT_EQ(model.index(1, 0, program).data().toString(),
+              QStringLiteral("COM classes and shell extensions (1)"));
+    const QModelIndex installer = model.index(2, 0, program);
+    EXPECT_EQ(installer.data().toString(), QStringLiteral("Windows Installer registration (1)"));
+    EXPECT_EQ(state(installer), Qt::Checked);
+    EXPECT_EQ(model.plan(L"x").items.size(), 3u);
+}
+
+TEST_F(LeftoverModelTest, DriversAreShownButNeverRemoved) {
+    load({service(L"ContosoService", false), service(L"ContosoFilter", true)});
+    const QModelIndex services = model.index(0, 0, model.index(0, 0));
+    ASSERT_EQ(model.rowCount(services), 2);
+    const QModelIndex driver = find(QStringLiteral("ContosoFilter"));
+    ASSERT_TRUE(driver.isValid());
+    EXPECT_EQ(model.index(driver.row(), Model::TypeColumn, driver.parent()).data().toString(),
+              QStringLiteral("Driver (shown only)"));
+    EXPECT_EQ(model.index(0, Model::TypeColumn, services).data().toString(), QStringLiteral("Service"));
+    EXPECT_FALSE(driver.flags().testFlag(Qt::ItemIsUserCheckable));
+    EXPECT_FALSE(driver.data(Qt::CheckStateRole).isValid());
+    EXPECT_EQ(model.checkedCount(), 1);
+
+    model.applyPreset(Model::Preset::Advanced);
+    set(services, Qt::Checked);
+    EXPECT_EQ(planned(), (std::vector<std::wstring>{L"ContosoService"}));
+}
+
 TEST_F(LeftoverModelTest, PlanNamesTheProgramsAndKeepsScanOrder) {
     auto shared = folder(LR"(C:\ProgramData\Shared)", Confidence::Good, L"b");
     shared.owner_ids = {L"b", L"a"};
@@ -300,6 +346,17 @@ TEST_F(LeftoverModelTest, ExplainsWhyItMatched) {
         model.index(row.row(), Model::ReasonColumn, row.parent()).data(Qt::ToolTipRole).toString();
     EXPECT_TRUE(details.contains(QStringLiteral("HKLM\\x")));
     EXPECT_TRUE(details.contains(QStringLiteral("Score +5: Very likely")));
+}
+
+TEST_F(LeftoverModelTest, EvidenceWorthNoPointsStillExplainsTheItem) {
+    auto orphan = folder(LR"(C:\ProgramData\Northwind)", Confidence::Questionable);
+    orphan.records = {{Evidence::NoOwner}, {Evidence::Depth, 1}};
+    orphan.found_by = leftovers::Scanner::Orphans;
+    load({orphan});
+    const QModelIndex row = find(QStringLiteral(R"(C:\ProgramData\Northwind)"));
+    ASSERT_TRUE(row.isValid());
+    EXPECT_EQ(model.index(row.row(), Model::ReasonColumn, row.parent()).data().toString(),
+              QStringLiteral("No installed program owns it"));
 }
 
 TEST_F(LeftoverModelTest, EmptyScanHasNoRows) {

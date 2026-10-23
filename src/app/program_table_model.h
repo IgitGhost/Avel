@@ -56,13 +56,19 @@ private:
         QString publisher;
         QString version;
         QString iconSource;
+        bool broken = false;
     };
+
+    // The row's icon with a warning badge, for entries that can't uninstall themselves.
+    QIcon brokenIcon(const QString& source) const;
 
     std::shared_ptr<const inventory::Inventory> inventory_;
     std::vector<Row> rows_;
     QHash<QString, QIcon> icons_;
+    mutable QHash<QString, QIcon> brokenIcons_;  // By icon source, made when first shown
     QHash<QString, QList<int>> rowsByIconSource_;
     QIcon defaultIcon_;
+    QImage warningBadge_;
 };
 
 }  // namespace avel::app

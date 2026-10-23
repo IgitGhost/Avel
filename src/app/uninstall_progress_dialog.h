@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -23,7 +24,8 @@ class ChangeStoreAccess;
 
 // Runs an uninstall batch on a worker thread and shows its progress. Can't be closed while an
 // uninstaller runs; "Stop" ends the batch after the current program, or terminates it. Then it
-// looks for leftovers, if asked to, and opens the leftover review when it finds some.
+// looks for leftovers, if asked to, and opens the leftover review when it finds some. Programs
+// that failed to uninstall, or couldn't, are offered to Avel Force.
 class UninstallProgressDialog : public QDialog {
     Q_OBJECT
 
@@ -38,6 +40,11 @@ public:
     bool changedAnything() const { return changedAnything_; }
 
     void reject() override;
+
+Q_SIGNALS:
+    // "Force removal…": the ids of the programs Avel Force should remove. The dialog closes
+    // right after.
+    void forceRequested(const std::vector<std::wstring>& programIds);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -60,7 +67,10 @@ private:
     uninstall::BatchOptions options_;
     bool scanLeftovers_ = false;
     ChangeStoreAccess* stores_ = nullptr;
+    // Captured by the worker before the batch runs; read here once it's done.
+    std::vector<leftovers::ScanTarget> targets_;
     std::shared_ptr<const leftovers::ScanResult> scan_;
+    std::vector<std::wstring> forceIds_;
     uninstall::Cancellation cancellation_;
     std::thread worker_;
     bool started_ = false;
@@ -73,6 +83,7 @@ private:
     QTableWidget* table_ = nullptr;
     QPushButton* stopButton_ = nullptr;
     QPushButton* leftoversButton_ = nullptr;
+    QPushButton* forceButton_ = nullptr;
     QPushButton* closeButton_ = nullptr;
 };
 

@@ -14,6 +14,7 @@
 #include "core/platform/elevation.h"
 #include "core/platform/user_profiles.h"
 #include "core/uninstall/installer_detection.h"
+#include "force_flow.h"
 #include "program_text.h"
 
 using namespace Qt::StringLiterals;
@@ -71,8 +72,16 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     okButton_ = buttons->button(QDialogButtonBox::Ok);
+    forceButton_ = buttons->addButton(tr("Force uninstall…"), QDialogButtonBox::ActionRole);
+    forceButton_->setToolTip(
+        tr("Remove the programs that can't uninstall themselves with Avel Force: without their "
+           "uninstaller, backed up so Undo can put them back"));
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(forceButton_, &QPushButton::clicked, this, [this] {
+        Q_EMIT forceRequested(forceIds_);
+        reject();
+    });
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(intro_);
@@ -118,12 +127,19 @@ void UninstallDialog::accept() {
 void UninstallDialog::updatePlans() {
     const auto mode = quietBox_->isChecked() ? uninstall::Mode::Quiet : uninstall::Mode::Interactive;
     items_.clear();
+    forceIds_.clear();
     int possible = 0;
     for (int i = 0; i < static_cast<int>(programs_.size()); ++i) {
         const auto* program = programs_[static_cast<size_t>(i)];
         uninstall::BatchItem item{program, uninstall::make_uninstall_plan(*program, mode, context_)};
         QTreeWidgetItem* row = list_->topLevelItem(i);
-        row->setText(1, ProgramText::planText(item.plan, mode));
+        QString text = ProgramText::planText(item.plan, mode);
+        if (!item.plan.possible() && forceCanHelp(item.plan.error) &&
+            program->source != inventory::Source::Appx) {
+            forceIds_.push_back(program->id);
+            text = tr("%1. Force uninstall can remove it.").arg(text);
+        }
+        row->setText(1, text);
         const QString command = toQString(item.plan.command_line());
         row->setToolTip(1, command.isEmpty() ? toQString(item.plan.package_full_name) : command);
         row->setForeground(1, item.plan.possible() ? palette().text() : QBrush(QColor(0xC0, 0x40, 0x30)));
@@ -134,6 +150,10 @@ void UninstallDialog::updatePlans() {
     // A simulated run removes nothing, so there would be nothing to find.
     leftoverScanBox_->setEnabled(!simulateBox_->isChecked());
     okButton_->setEnabled(possible > 0);
+    forceButton_->setVisible(!forceIds_.empty());
+    if (possible == 0 && !forceIds_.empty()) {
+        forceButton_->setDefault(true);
+    }
 }
 
 }  // namespace avel::app

@@ -75,7 +75,7 @@ QString LeftoverText::kindLabel(const leftovers::Location& location, leftovers::
             } else if constexpr (std::is_same_v<T, leftovers::RegistryValueLocation>) {
                 return tr("Registry value");
             } else if constexpr (std::is_same_v<T, leftovers::ServiceLocation>) {
-                return tr("Service");
+                return item.driver ? tr("Driver (shown only)") : tr("Service");
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
                 return tr("Scheduled task");
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
@@ -196,10 +196,11 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
 }
 
 QString LeftoverText::evidenceSummary(std::span<const leftovers::Record> records) {
-    // Depth only fine-tunes the score; the list shows what actually matched.
+    // Depth only fine-tunes the score; the list shows what actually matched. Evidence worth no
+    // points still says why the item is listed (an orphaned folder: no program owns it).
     std::vector<const leftovers::Record*> sorted;
     for (const auto& record : records) {
-        if (record.evidence != Evidence::Depth && leftovers::points(record) != 0) {
+        if (record.evidence != Evidence::Depth) {
             sorted.push_back(&record);
         }
     }
@@ -209,7 +210,7 @@ QString LeftoverText::evidenceSummary(std::span<const leftovers::Record> records
     QStringList for_it;
     QStringList against;
     for (const auto* record : sorted) {
-        (leftovers::points(*record) > 0 ? for_it : against) << evidenceText(*record);
+        (leftovers::points(*record) >= 0 ? for_it : against) << evidenceText(*record);
     }
     const QString separator = u"; "_s;
     if (against.isEmpty()) {

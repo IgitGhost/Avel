@@ -99,6 +99,20 @@ QString ProgramText::diagnosticText(const inventory::Diagnostic& diagnostic) {
     return {};
 }
 
+QStringList ProgramText::brokenReasons(const inventory::Program& program) {
+    QStringList reasons;
+    if (program.uninstaller_missing) {
+        reasons << tr("Its uninstaller is missing.");
+    }
+    if (program.msi_package_missing) {
+        reasons << tr("Windows Installer's copy of its package is missing.");
+    }
+    if (program.msi_product_unregistered) {
+        reasons << tr("Windows Installer doesn't list it.");
+    }
+    return reasons;
+}
+
 QString ProgramText::planText(const uninstall::UninstallPlan& plan, uninstall::Mode requested) {
     using uninstall::Method;
     if (!plan.possible()) {

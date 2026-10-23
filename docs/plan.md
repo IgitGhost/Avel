@@ -312,7 +312,7 @@ D:\Avel\
       - Qt ships no Armenian catalog, so Avel carries its own `src/app/i18n/qtbase_hy.ts`: 51 strings in 6 Qt contexts (standard buttons, the edit and scroll bar menus, message boxes). The source texts are taken from Qt's own catalog.
       - The Undo Center's short columns fit their headers in every language.
       - Retranslating open dialogs isn't needed: every dialog is window-modal, so the language menu can't be reached while one is open.
-- **Phase 4 (Avel Force): in progress, in three sub-phases like Phase 3.** Plan approved 2026-10-21. Details in [force.md](force.md).
+- **Phase 4 (Avel Force): done and verified in Windows Sandbox, in three sub-phases like Phase 3.** Plan approved 2026-10-21. Details in [force.md](force.md).
   - **User decisions (2026-10-21):**
     - running processes are listed and ended only after confirmation;
     - broken MSI products: Windows Installer's registry registration is removed with undo, and the cached package in `C:\Windows\Installer` stays;
@@ -345,4 +345,29 @@ D:\Avel\
       - A dead entry is listed by `list --broken`, and `force` removes its key alone; undo gives it back exactly.
       - The volume reading tests pass elevated; `C:\Tools\Contoso Fixture` is found by `scan --deep` only, at Questionable. The Sandbox's volume was read in 16 ms.
       - `orphans` lists a folder nobody owns, and none of the installed programs' or Windows' folders. A folder named after the fixture's publisher ("Contoso Orphan", publisher "Contoso Ltd") is owned. The first run listed it, because BCU's `trim_publisher` keeps "Ltd"; orphans now drop legal forms themselves.
-  - **Next:** 4c (GUI: Force flow, Hunter, deep search button, orphan finder, Broken category, RU/HY).
+  - **4c (GUI, Hunter, translations): done.** Details in [force.md](force.md), section "The GUI".
+    - **Force flow:**
+      - **Entry points:** File > Force uninstall… (Shift+Del), the list's context menu, and File > Force uninstall a folder…. The uninstall dialog offers it for a missing uninstaller or MSI package, and the uninstall progress dialog for uninstallers that failed.
+      - **Steps:** it scans on a worker, then shows the review ("Forced removal of X"). After Remove it lists the processes running from the program's folders and ends them once the user agrees. Then it runs the ChangeSet.
+      - The processes are ended after the review rather than before, so nothing is closed for a removal the user cancels.
+    - **Hunter:** a crosshair on the toolbar. Dragged onto a window, it selects the window's program and offers Uninstall, Force uninstall, Preview leftovers, Open install folder and End process. For a program file no entry owns, it offers to force its folder.
+    - **Program list:** a Broken category, a warning badge on broken rows, and notes in the details pane.
+    - **Leftover dialog:**
+      - "Search the whole disk" reruns the scan with the deep search;
+      - Windows Installer's registration has its own group;
+      - drivers are shown only.
+    - **Orphans:** Tools > Find orphaned folders… opens the review with nothing checked.
+    - **Fixes found on the way:**
+      - Popup menus now show copies of the window's actions. Qt's accessibility lost the File menu's items for UI Automation, and so for screen readers, once a popup had shown them first. The old table context menu had this too.
+      - "Why it matched" now lists evidence worth no points, so orphans say why they're listed.
+    - **Translations:** 87 new strings each in Russian and Armenian.
+    - **Tests:** 173 unit tests pass.
+    - **Host check:** unelevated, so nothing could be removed.
+      - The Hunter was dragged with synthetic mouse input onto 7-Zip and onto a copy of 7-Zip in a folder no program owns.
+      - Screenshots in English, Russian and Armenian.
+    - **Windows Sandbox,** scenario `force` with a new GUI round: **RESULT: PASS** (2026-10-23 20:57).
+      - The fixture was forced from the uninstall dialog with its app running.
+      - The whole-disk search listed `C:\Tools\Contoso Fixture`, unchecked.
+      - Remove ended the app and removed 14 items, and the Undo Center gave back identical dumps.
+      - The orphan finder listed the folder nobody owns.
+- **Next:** Phase 5 (Avel Trace).

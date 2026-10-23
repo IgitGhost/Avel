@@ -183,7 +183,8 @@ plus the protected matches dropped, the time taken and diagnostics (`not-elevate
   - Removing a folder or key takes everything inside it, so checking an item checks everything
     below it. Unchecking an item unchecks the items it is inside of. Their other contents stay
     checked and are still removed one by one.
-  - Firewall rules are shown without a checkbox (report only).
+  - Firewall rules and drivers ("Driver (shown only)") are shown without a checkbox (report
+    only).
 - **Presets** (remembered): *Safe* checks Very likely items only, *Moderate* (the default) Likely
   ones too, and *Advanced* Uncertain ones too. Unlikely items (Bad) are hidden unless
   "Show unlikely matches" is on, and never checked by a preset. Hidden items are never removed.
@@ -193,6 +194,8 @@ plus the protected matches dropped, the time taken and diagnostics (`not-elevate
   - its type;
   - the confidence, as a color and a label (Very likely, Likely, Uncertain, Unlikely);
   - *Why it matched*: the evidence for it, strongest first, then what speaks against it.
+    Evidence worth no points is listed with what's for it ("No installed program owns it" for
+    an orphan); only the depth is left to the tooltip.
 
   The tooltip lists every record with its points and what matched (the referencing value, for
   instance), plus the score.
@@ -201,6 +204,10 @@ plus the protected matches dropped, the time taken and diagnostics (`not-elevate
 - **Preview leftovers** (File menu, or the program's context menu) runs the same scan for
   installed programs and shows the dialog read-only: what would remain if their uninstallers
   removed nothing. It works without administrator rights, with the `not-elevated` note.
+- **Search the whole disk** (Review, Force and Preview modes) scans again with the deep search
+  (see [force.md](force.md)), then starts the checks over from the preset.
+- **Groups:** Windows Installer's registration of a forced MSI program has a group of its own,
+  like COM classes.
 - **Translations:** `LeftoverText` holds the categories, kinds, confidence levels, evidence,
   reference kinds and diagnostics, translated to Russian and Armenian.
 

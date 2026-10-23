@@ -56,6 +56,10 @@
         <translation>Служба</translation>
     </message>
     <message>
+        <source>Driver (shown only)</source>
+        <translation>Драйвер (только показ)</translation>
+    </message>
+    <message>
         <source>Scheduled task</source>
         <translation>Задача планировщика</translation>
     </message>
@@ -96,6 +100,10 @@
         <translation>Запись удаления программы</translation>
     </message>
     <message>
+        <source>Windows Installer&apos;s registration of the program</source>
+        <translation>Регистрация программы в Windows Installer</translation>
+    </message>
+    <message>
         <source>Named in the program&apos;s registration</source>
         <translation>Указан в регистрации программы</translation>
     </message>
@@ -128,6 +136,10 @@
         <translation>Называется точно как программа</translation>
     </message>
     <message>
+        <source>No installed program owns it</source>
+        <translation>Не принадлежит ни одной установленной программе</translation>
+    </message>
+    <message>
         <source>At the top of a common location</source>
         <translation>На верхнем уровне общего расположения</translation>
     </message>
@@ -146,6 +158,10 @@
     <message>
         <source>Its name only resembles the program&apos;s</source>
         <translation>Имя лишь похоже на имя программы</translation>
+    </message>
+    <message>
+        <source>Found by the disk search, away from where programs keep their files</source>
+        <translation>Найдено поиском по диску, вдали от мест, где программы хранят файлы</translation>
     </message>
     <message>
         <source>Named after the publisher, whose other programs may use it</source>
@@ -238,6 +254,10 @@
     <message>
         <source>The registry of user %1 couldn&apos;t be opened (error %2); their entries weren&apos;t checked.</source>
         <translation>Не удалось открыть реестр пользователя %1 (ошибка %2): его записи не проверены.</translation>
+    </message>
+    <message>
+        <source>Drive %1 couldn&apos;t be searched (error %2).</source>
+        <translation>Не удалось выполнить поиск на диске %1 (ошибка %2).</translation>
     </message>
     <message>
         <source>Waiting</source>
@@ -439,6 +459,18 @@
         <translation>Не удалось получить список приложений Store (ошибка %1).</translation>
     </message>
     <message>
+        <source>Its uninstaller is missing.</source>
+        <translation>Деинсталлятор отсутствует.</translation>
+    </message>
+    <message>
+        <source>Windows Installer&apos;s copy of its package is missing.</source>
+        <translation>Копия пакета, которую хранит Windows Installer, отсутствует.</translation>
+    </message>
+    <message>
+        <source>Windows Installer doesn&apos;t list it.</source>
+        <translation>Windows Installer не знает этот продукт.</translation>
+    </message>
+    <message>
         <source>Windows package, removed for the current user</source>
         <translation>Пакет Windows, удаляется для текущего пользователя</translation>
     </message>
@@ -485,6 +517,14 @@
     <message>
         <source>Can&apos;t uninstall: its uninstall command isn&apos;t a program Avel can run</source>
         <translation>Удаление невозможно: команда удаления — не программа, которую Avel может запустить</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: its uninstaller is missing</source>
+        <translation>Удаление невозможно: деинсталлятор отсутствует</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: Windows Installer can&apos;t find its package</source>
+        <translation>Удаление невозможно: Windows Installer не находит пакет программы</translation>
     </message>
     <message>
         <source>Removed; files remain in its folder</source>
@@ -744,6 +784,14 @@
         <translation>Платформа, которую используют другие приложения.</translation>
     </message>
     <message>
+        <source>Uninstaller is missing: the file its uninstall command runs is gone, so it can&apos;t uninstall itself. Force uninstall removes it without the uninstaller.</source>
+        <translation>Деинсталлятор отсутствует: файла, который запускает команда удаления, больше нет, поэтому программа не может удалить себя сама. Принудительное удаление убирает её без деинсталлятора.</translation>
+    </message>
+    <message>
+        <source>Windows Installer&apos;s copy of the package is missing, so Windows Installer can&apos;t remove it. Force uninstall removes it together with its Windows Installer registration.</source>
+        <translation>Копия пакета, которую хранит Windows Installer, отсутствует, поэтому Windows Installer не может удалить программу. Принудительное удаление убирает её вместе с регистрацией в Windows Installer.</translation>
+    </message>
+    <message>
         <source>Windows Installer doesn&apos;t list this product for this computer or the current user. It may belong to another user or be left over from an incomplete removal.</source>
         <translation>Windows Installer не числит этот продукт ни за компьютером, ни за текущим пользователем. Возможно, он установлен для другого пользователя или остался после неполного удаления.</translation>
     </message>
@@ -754,6 +802,61 @@
     <message>
         <source>(no name)</source>
         <translation>(без имени)</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::ForceFlow</name>
+    <message>
+        <source>Looking for everything that belongs to the program…</source>
+        <translation>Поиск всего, что принадлежит программе…</translation>
+    </message>
+    <message>
+        <source>(no name)</source>
+        <translation>(без имени)</translation>
+    </message>
+    <message>
+        <source>Force uninstall</source>
+        <translation>Принудительное удаление</translation>
+    </message>
+    <message>
+        <source>Avel can&apos;t remove %1: %2.</source>
+        <translation>Avel не может удалить %1: %2.</translation>
+    </message>
+    <message>
+        <source>The selected programs are no longer installed.</source>
+        <translation>Выбранные программы уже не установлены.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n program(s)</source>
+        <translation>
+            <numerusform>%n программа</numerusform>
+            <numerusform>%n программы</numerusform>
+            <numerusform>%n программ</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Forced removal</source>
+        <translation>Принудительное удаление</translation>
+    </message>
+    <message>
+        <source>it isn&apos;t a full path</source>
+        <translation>это не полный путь</translation>
+    </message>
+    <message>
+        <source>it doesn&apos;t exist</source>
+        <translation>такой папки нет</translation>
+    </message>
+    <message>
+        <source>it isn&apos;t a folder</source>
+        <translation>это не папка</translation>
+    </message>
+    <message>
+        <source>it is a link to another place, which may not be the program&apos;s</source>
+        <translation>это ссылка на другое место, которое может не принадлежать программе</translation>
+    </message>
+    <message>
+        <source>Windows or other programs need it</source>
+        <translation>она нужна Windows или другим программам</translation>
     </message>
 </context>
 <context>
@@ -811,8 +914,32 @@
         <translation>Совпадения, против которых говорит больше признаков, чем за, например папки, которыми ещё пользуются другие программы. Сами они никогда не отмечаются.</translation>
     </message>
     <message>
+        <source>Forced removal of %1</source>
+        <translation>Принудительное удаление: %1</translation>
+    </message>
+    <message>
+        <source>Avel doesn&apos;t run the program&apos;s uninstaller. It removes what belongs to the program instead: its folder, its registry entries and what it left elsewhere. Checked items will be removed. Avel backs up each one first, so Undo can put it back for 30 days.</source>
+        <translation>Avel не запускает деинсталлятор программы. Вместо этого он удаляет всё, что ей принадлежит: её папку, записи в реестре и то, что она оставила в других местах. Отмеченные элементы будут удалены. Avel сначала сохраняет каждый в резервную копию, так что в течение 30 дней всё можно вернуть.</translation>
+    </message>
+    <message>
+        <source>Orphaned folders</source>
+        <translation>Бесхозные папки</translation>
+    </message>
+    <message>
+        <source>No installed program owns these folders. Programs removed long ago may have left them, but portable programs and data that programs keep on their own look the same, so none is checked by itself. Avel backs up what you remove, so Undo can put it back for 30 days.</source>
+        <translation>Эти папки не принадлежат ни одной установленной программе. Их могли оставить давно удалённые программы, но портативные программы и данные, которые программы хранят сами по себе, выглядят так же, поэтому ни одна не отмечена заранее. Avel сохраняет удаляемое в резервную копию, так что в течение 30 дней всё можно вернуть.</translation>
+    </message>
+    <message>
         <source>&amp;Copy</source>
         <translation>&amp;Копировать</translation>
+    </message>
+    <message>
+        <source>Search the whole disk</source>
+        <translation>Искать по всему диску</translation>
+    </message>
+    <message>
+        <source>Also look for folders named after the program anywhere on the fixed drives. Takes a few seconds. What only this search finds is never checked by itself.</source>
+        <translation>Искать также папки с именем программы в любом месте локальных дисков. Занимает несколько секунд. То, что найдено только этим поиском, никогда не отмечается заранее.</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -874,6 +1001,14 @@
             <numerusform>Удалить %n элементов</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Searching the whole disk…</source>
+        <translation>Поиск по всему диску…</translation>
+    </message>
+    <message>
+        <source>Whole disk searched</source>
+        <translation>Поиск по диску выполнен</translation>
+    </message>
 </context>
 <context>
     <name>avel::app::LeftoverModel</name>
@@ -884,6 +1019,10 @@
     <message>
         <source>COM classes and shell extensions</source>
         <translation>Классы COM и расширения оболочки</translation>
+    </message>
+    <message>
+        <source>Windows Installer registration</source>
+        <translation>Регистрация в Windows Installer</translation>
     </message>
     <message>
         <source>%1 (%2)</source>
@@ -935,6 +1074,22 @@ Left by %2</source>
         <translation>Удалить выбранные программы (Del)</translation>
     </message>
     <message>
+        <source>&amp;Force uninstall…</source>
+        <translation>Удалить при&amp;нудительно…</translation>
+    </message>
+    <message>
+        <source>Remove the selected programs without their uninstallers, for when they are missing or broken (Shift+Del)</source>
+        <translation>Удалить выбранные программы без их деинсталляторов, если те отсутствуют или повреждены (Shift+Del)</translation>
+    </message>
+    <message>
+        <source>Force uninstall a fol&amp;der…</source>
+        <translation>Принудительно удалить пап&amp;ку…</translation>
+    </message>
+    <message>
+        <source>Remove a program&apos;s folder that no entry in the list describes</source>
+        <translation>Удалить папку программы, которой нет в списке</translation>
+    </message>
+    <message>
         <source>&amp;Open install folder</source>
         <translation>&amp;Открыть папку установки</translation>
     </message>
@@ -953,6 +1108,22 @@ Left by %2</source>
     <message>
         <source>&amp;Tools</source>
         <translation>С&amp;ервис</translation>
+    </message>
+    <message>
+        <source>Find &amp;orphaned folders…</source>
+        <translation>Найти &amp;бесхозные папки…</translation>
+    </message>
+    <message>
+        <source>Look for folders in Program Files, ProgramData and the users&apos; program folders that no installed program owns</source>
+        <translation>Найти в Program Files, ProgramData и папках программ пользователей папки, которые не принадлежат ни одной установленной программе</translation>
+    </message>
+    <message>
+        <source>Hunter: drag the crosshair onto a program&apos;s window and let go to find the program it belongs to</source>
+        <translation>Охотник: перетащите прицел на окно программы и отпустите, чтобы найти программу, которой оно принадлежит</translation>
+    </message>
+    <message>
+        <source>Hunter</source>
+        <translation>Охотник</translation>
     </message>
     <message>
         <source>&amp;Undo Center…</source>
@@ -1019,8 +1190,12 @@ Left by %2</source>
         <translation>Всё</translation>
     </message>
     <message>
-        <source>Which programs to show. &quot;Apps&quot; matches Settings &gt; Apps.</source>
-        <translation>Какие программы показывать. «Приложения» — то же, что в «Параметры → Приложения».</translation>
+        <source>Broken</source>
+        <translation>Неисправные</translation>
+    </message>
+    <message>
+        <source>Which programs to show. &quot;Apps&quot; matches Settings &gt; Apps. &quot;Broken&quot; lists the ones that can&apos;t uninstall themselves.</source>
+        <translation>Какие программы показывать. «Приложения» — то же, что в «Параметры → Приложения». «Неисправные» — программы, которые не могут удалить себя сами.</translation>
     </message>
     <message>
         <source>Running as administrator</source>
@@ -1039,12 +1214,100 @@ Left by %2</source>
         <translation>Найдено за %1 мс</translation>
     </message>
     <message>
+        <source>Force uninstall a folder</source>
+        <translation>Принудительное удаление папки</translation>
+    </message>
+    <message>
         <source>(no name)</source>
         <translation>(без имени)</translation>
     </message>
     <message>
         <source>Looking for leftovers…</source>
         <translation>Поиск остатков…</translation>
+    </message>
+    <message>
+        <source>Looking for orphaned folders…</source>
+        <translation>Поиск бесхозных папок…</translation>
+    </message>
+    <message>
+        <source>Orphaned folders</source>
+        <translation>Бесхозные папки</translation>
+    </message>
+    <message>
+        <source>Removing orphaned folders</source>
+        <translation>Удаление бесхозных папок</translation>
+    </message>
+    <message>
+        <source>Drag onto a program&apos;s window and let go.</source>
+        <translation>Перетащите на окно программы и отпустите.</translation>
+    </message>
+    <message>
+        <source>process %1</source>
+        <translation>процесс %1</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message>
+        <source>Looking for the program of %1…</source>
+        <translation>Поиск программы для %1…</translation>
+    </message>
+    <message>
+        <source>%1 (no longer listed; refresh with F5)</source>
+        <translation>%1 (больше нет в списке; обновите по F5)</translation>
+    </message>
+    <message>
+        <source>Windows doesn&apos;t tell Avel which program %1 is</source>
+        <translation>Windows не сообщает Avel, что за программа %1</translation>
+    </message>
+    <message>
+        <source>No installed program owns %1</source>
+        <translation>%1 не принадлежит ни одной установленной программе</translation>
+    </message>
+    <message>
+        <source>Force uninstall the folder %1…</source>
+        <translation>Принудительно удалить папку %1…</translation>
+    </message>
+    <message>
+        <source>Force uninstall the folder %1 (Windows or other programs need it)</source>
+        <translation>Принудительно удалить папку %1 (она нужна Windows или другим программам)</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>Открыть папку</translation>
+    </message>
+    <message>
+        <source>End process %1</source>
+        <translation>Завершить процесс %1</translation>
+    </message>
+    <message>
+        <source>End process %1 (Windows needs it)</source>
+        <translation>Завершить процесс %1 (он нужен Windows)</translation>
+    </message>
+    <message>
+        <source>End process %1 (it runs a service)</source>
+        <translation>Завершить процесс %1 (в нём работает служба)</translation>
+    </message>
+    <message>
+        <source>End process</source>
+        <translation>Завершить процесс</translation>
+    </message>
+    <message>
+        <source>End %1 (process %2)?</source>
+        <translation>Завершить %1 (процесс %2)?</translation>
+    </message>
+    <message>
+        <source>Avel asks it to close first, then ends it. Unsaved work in it is lost.</source>
+        <translation>Avel сначала попросит его закрыться, затем завершит. Несохранённые данные в нём будут потеряны.</translation>
+    </message>
+    <message>
+        <source>Ending %1…</source>
+        <translation>Завершение %1…</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
     </message>
     <message>
         <source>Interrupted removal</source>
@@ -1124,6 +1387,85 @@ Left by %2</source>
     <message>
         <source>Type</source>
         <translation>Тип</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::RunningProcessesDialog</name>
+    <message>
+        <source>Running programs</source>
+        <translation>Запущенные программы</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n program(s) run from the folders of %1. Avel ends them before it removes anything; unsaved work in them is lost.</source>
+        <translation>
+            <numerusform>%n программа запущена из папок %1. Avel завершит её, прежде чем что-либо удалять; несохранённые данные в ней будут потеряны.</numerusform>
+            <numerusform>%n программы запущены из папок %1. Avel завершит их, прежде чем что-либо удалять; несохранённые данные в них будут потеряны.</numerusform>
+            <numerusform>%n программ запущено из папок %1. Avel завершит их, прежде чем что-либо удалять; несохранённые данные в них будут потеряны.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Program</source>
+        <translation>Программа</translation>
+    </message>
+    <message>
+        <source>Process ID</source>
+        <translation>ИД процесса</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Состояние</translation>
+    </message>
+    <message>
+        <source>Path</source>
+        <translation>Путь</translation>
+    </message>
+    <message>
+        <source>Running</source>
+        <translation>Работает</translation>
+    </message>
+    <message>
+        <source>End processes</source>
+        <translation>Завершить процессы</translation>
+    </message>
+    <message>
+        <source>Closed</source>
+        <translation>Закрыт</translation>
+    </message>
+    <message>
+        <source>Ended</source>
+        <translation>Завершён</translation>
+    </message>
+    <message>
+        <source>Had already exited</source>
+        <translation>Уже завершился</translation>
+    </message>
+    <message>
+        <source>Windows denied access</source>
+        <translation>Windows отказала в доступе</translation>
+    </message>
+    <message>
+        <source>Still running: %1</source>
+        <translation>Всё ещё работает: %1</translation>
+    </message>
+    <message>
+        <source>Still running</source>
+        <translation>Всё ещё работает</translation>
+    </message>
+    <message>
+        <source>Asking the programs to close…</source>
+        <translation>Просим программы закрыться…</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n process(es) couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</source>
+        <translation>
+            <numerusform>%n процесс не удалось завершить. Файлы, которые он использует, останутся на месте; остальное всё равно можно удалить.</numerusform>
+            <numerusform>%n процесса не удалось завершить. Файлы, которые они используют, останутся на месте; остальное всё равно можно удалить.</numerusform>
+            <numerusform>%n процессов не удалось завершить. Файлы, которые они используют, останутся на месте; остальное всё равно можно удалить.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Продолжить</translation>
     </message>
 </context>
 <context>
@@ -1280,6 +1622,14 @@ Left by %2</source>
         <translation>Только симуляция: показать, что произойдёт, ничего не меняя</translation>
     </message>
     <message>
+        <source>Force uninstall…</source>
+        <translation>Удалить принудительно…</translation>
+    </message>
+    <message>
+        <source>Remove the programs that can&apos;t uninstall themselves with Avel Force: without their uninstaller, backed up so Undo can put them back</source>
+        <translation>Удалить программы, которые не могут удалить себя сами, с помощью Avel Force: без их деинсталлятора и с резервной копией, чтобы «Отменить» могла всё вернуть</translation>
+    </message>
+    <message>
         <source>Avel: uninstall %1</source>
         <translation>Avel: удаление %1</translation>
     </message>
@@ -1290,6 +1640,10 @@ Left by %2</source>
             <numerusform>Avel: удаление %n программ</numerusform>
             <numerusform>Avel: удаление %n программ</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>%1. Force uninstall can remove it.</source>
+        <translation>%1. Её можно удалить принудительно.</translation>
     </message>
     <message>
         <source>Simulate</source>
@@ -1337,6 +1691,14 @@ Left by %2</source>
     <message>
         <source>Review what the uninstallers left behind</source>
         <translation>Просмотреть, что оставили деинсталляторы</translation>
+    </message>
+    <message>
+        <source>Force removal…</source>
+        <translation>Удалить принудительно…</translation>
+    </message>
+    <message>
+        <source>Remove the programs that are still installed with Avel Force, without their uninstaller</source>
+        <translation>Удалить с помощью Avel Force программы, которые остались установленными, без их деинсталлятора</translation>
     </message>
     <message>
         <source>Creating a System Restore point. This can take a minute…</source>

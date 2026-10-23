@@ -41,8 +41,11 @@ LeftoverModel::Group groupOf(const leftovers::Leftover& leftover) {
         case Category::Shortcuts:
             return Group::Shortcuts;
         case Category::Registry:
-            return leftover.found_by == leftovers::Scanner::ComClasses ? Group::ComRegistrations
-                                                                       : Group::Registry;
+            if (leftover.found_by == leftovers::Scanner::ComClasses) {
+                return Group::ComRegistrations;
+            }
+            return leftover.found_by == leftovers::Scanner::MsiRegistration ? Group::InstallerRegistration
+                                                                            : Group::Registry;
         case Category::Services:
             return Group::Services;
         case Category::Tasks:
@@ -399,6 +402,8 @@ QString LeftoverModel::groupLabel(Group group) {
             return LeftoverText::categoryLabel(Category::Registry);
         case Group::ComRegistrations:
             return tr("COM classes and shell extensions");
+        case Group::InstallerRegistration:
+            return tr("Windows Installer registration");
         case Group::Services:
             return LeftoverText::categoryLabel(Category::Services);
         case Group::Tasks:

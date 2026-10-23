@@ -123,6 +123,17 @@ void DetailsView::render() {
     if (p.is_framework) {
         notes << tr("A framework used by other apps.");
     }
+    if (p.uninstaller_missing) {
+        notes << tr(
+            "Uninstaller is missing: the file its uninstall command runs is gone, so it can't "
+            "uninstall itself. Force uninstall removes it without the uninstaller.");
+    }
+    if (p.msi_package_missing) {
+        notes << tr(
+            "Windows Installer's copy of the package is missing, so Windows Installer can't "
+            "remove it. Force uninstall removes it together with its Windows Installer "
+            "registration.");
+    }
     if (p.msi_product_unregistered) {
         notes << tr(
             "Windows Installer doesn't list this product for this computer or the current user. It may "

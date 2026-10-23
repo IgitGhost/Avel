@@ -3,7 +3,7 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phase 4: Avel Force).** Avel lists installed programs, runs their
+> **Status: pre-alpha (Phases 0-4 done; next: Avel Trace).** Avel lists installed programs, runs their
 > uninstallers silently or in batches, then finds what they left behind and removes it with a
 > backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed
 > by force. See [docs/plan.md](docs/plan.md) for the roadmap.
@@ -14,7 +14,7 @@
 - **Matches Settings > Apps.** By default Avel shows what Settings shows: on the development machine every Settings entry is identical, including name, version, publisher and date. The remaining differences are explained in [docs/inventory.md](docs/inventory.md).
 - **Fast.** A full scan takes about 0.1 s.
 - **GUI (`avel.exe`):**
-  - a program table with icons, search (Ctrl+F) and categories (Apps, Desktop apps, Store apps, Updates, System components, Everything);
+  - a program table with icons, search (Ctrl+F) and categories (Apps, Desktop apps, Store apps, Updates, System components, Broken, Everything);
   - a details pane with uninstall commands, registry key, product code and notes;
   - refresh with F5;
   - English, Russian and Armenian UI.
@@ -41,14 +41,22 @@
   **Undo** right after the removal, or **Tools > Undo Center** later (30 days), puts it back
   exactly. A removal that a crash or a power cut interrupted is settled at the next start. See
   [docs/changes.md](docs/changes.md).
-- **Forced removal (CLI for now).** For programs whose uninstaller is gone, or whose MSI package
-  Windows Installer can't find, Avel never runs the uninstaller. It ends the program's running
-  processes once you agree, then removes its folder, its Uninstall entry, Windows Installer's
-  registration and its leftovers, with the same backup and undo. It also works for a folder no
-  entry describes, or the program a file belongs to. `list --broken` shows the entries that can't
-  uninstall themselves, `--deep` searches every fixed drive for a program's folders (read from
-  the master file table), and `orphans` lists folders no installed program owns. See
-  [docs/force.md](docs/force.md).
+- **Forced removal (Avel Force).** For programs whose uninstaller is gone, or whose MSI package
+  Windows Installer can't find, Avel never runs the uninstaller. It removes the program's
+  folder, its Uninstall entry, Windows Installer's registration and its leftovers, with the same
+  backup and undo, and ends the program's running processes once you agree. It also works for a
+  folder no entry describes, or the program a file belongs to.
+  - **In the GUI:**
+    - **File > Force uninstall…** (Shift+Del), or the uninstall dialogs, which offer it when
+      an uninstaller is missing or fails;
+    - the **Broken** category lists the entries that can't uninstall themselves;
+    - the **Hunter**: drag the crosshair on the toolbar onto any window to find its program;
+    - **Search the whole disk** in the leftover review looks for the program's folders on every
+      fixed drive, read from the master file table;
+    - **Tools > Find orphaned folders…** lists folders no installed program owns.
+  - **In the CLI:** `force`, `list --broken`, `--deep` and `orphans` do the same.
+
+  See [docs/force.md](docs/force.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell

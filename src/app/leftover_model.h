@@ -37,12 +37,14 @@ public:
     };
 
     // The groups under a program: the scan's categories, with COM registrations, of which a
-    // program can leave thousands, apart from the rest of the registry.
+    // program can leave thousands, and Windows Installer's registration apart from the rest of the
+    // registry.
     enum class Group : std::uint8_t {
         Files,
         Shortcuts,
         Registry,
         ComRegistrations,
+        InstallerRegistration,
         Services,
         Tasks,
         Packages,

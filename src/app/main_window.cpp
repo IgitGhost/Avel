@@ -8,6 +8,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
+#include <QFileDialog>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -27,11 +28,15 @@
 #include <algorithm>
 #include <cmath>
 
+#include "change_set_progress_dialog.h"
 #include "change_store_access.h"
+#include "core/force/force.h"
 #include "core/inventory/inventory.h"
 #include "core/leftovers/environment.h"
+#include "core/leftovers/orphans.h"
 #include "core/leftovers/post_uninstall.h"
 #include "core/platform/elevation.h"
+#include "core/platform/processes.h"
 #include "core/uninstall/registration.h"
 #include "details_view.h"
 #include "icon_loader.h"
@@ -41,6 +46,7 @@
 #include "program_filter_model.h"
 #include "program_table_model.h"
 #include "program_text.h"
+#include "running_processes_dialog.h"
 #include "undo_center_dialog.h"
 #include "uninstall_dialog.h"
 #include "uninstall_progress_dialog.h"
@@ -60,7 +66,33 @@ constexpr auto kSplitterKey = "window/splitter"_L1;
 constexpr auto kHeaderKey = "window/programHeader"_L1;
 constexpr auto kCategoryKey = "window/category"_L1;
 
+// The orphan finder's items all go under one heading: their own owner ids name each folder.
+constexpr wchar_t kOrphansId[] = L"orphans";
+
+// Popup menus show the window's actions through copies. Qt's accessibility keeps one interface
+// per action, made for the first menu that shows it; if that is a popup, which is gone once it
+// closes, screen readers and UI Automation no longer see the action in the menu bar.
+void addCopy(QMenu& menu, QAction* action) {
+    QAction* copy = menu.addAction(action->icon(), action->text());
+    copy->setEnabled(action->isEnabled());
+    copy->setShortcut(action->shortcut());
+    copy->setToolTip(action->toolTip());
+    QObject::connect(copy, &QAction::triggered, action, &QAction::trigger);
+}
+
 }  // namespace
+
+// What the Hunter found about a window, read on the worker pool.
+struct MainWindow::Hunt {
+    HunterTarget::Window window;
+    QPoint position;
+    std::shared_ptr<const inventory::Inventory> inventory;  // Keeps owner.program alive
+    std::wstring image;      // The process's executable; empty when Windows won't tell
+    bool critical = false;   // Ending it would stop Windows
+    bool service = false;    // It hosts a running service
+    force::FileOwner owner;  // The installed program, or the folder to force
+    leftovers::ProtectionReason folderProtection = leftovers::ProtectionReason::None;
+};
 
 MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     : QMainWindow(parent), languages_(languages), elevated_(platform::is_process_elevated()) {
@@ -73,7 +105,7 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     loader_ = new InventoryLoader(this);
     iconLoader_ = new IconLoader(static_cast<int>(std::ceil(kIconSize * devicePixelRatioF())), this);
     stores_ = new ChangeStoreAccess(this);
-    previewPool_.setMaxThreadCount(1);
+    workers_.setMaxThreadCount(1);
 
     createActions();
     createMenus();
@@ -107,6 +139,14 @@ void MainWindow::createActions() {
     uninstallAction_->setEnabled(false);
     connect(uninstallAction_, &QAction::triggered, this, &MainWindow::uninstallSelected);
 
+    forceAction_ = new QAction(this);
+    forceAction_->setShortcut(Qt::SHIFT | Qt::Key_Delete);
+    forceAction_->setEnabled(false);
+    connect(forceAction_, &QAction::triggered, this, &MainWindow::forceSelected);
+
+    forceFolderAction_ = new QAction(this);
+    connect(forceFolderAction_, &QAction::triggered, this, &MainWindow::forceFolder);
+
     openLocationAction_ = new QAction(style()->standardIcon(QStyle::SP_DirOpenIcon), QString(), this);
     openLocationAction_->setEnabled(false);
     connect(openLocationAction_, &QAction::triggered, this, &MainWindow::openInstallLocation);
@@ -114,6 +154,10 @@ void MainWindow::createActions() {
     previewLeftoversAction_ = new QAction(this);
     previewLeftoversAction_->setEnabled(false);
     connect(previewLeftoversAction_, &QAction::triggered, this, &MainWindow::previewLeftovers);
+
+    orphansAction_ = new QAction(this);
+    orphansAction_->setEnabled(false);
+    connect(orphansAction_, &QAction::triggered, this, &MainWindow::findOrphans);
 
     undoCenterAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowBack), QString(), this);
     connect(undoCenterAction_, &QAction::triggered, this, &MainWindow::openUndoCenter);
@@ -161,6 +205,9 @@ void MainWindow::createMenus() {
     fileMenu_->addAction(refreshAction_);
     fileMenu_->addSeparator();
     fileMenu_->addAction(uninstallAction_);
+    fileMenu_->addAction(forceAction_);
+    fileMenu_->addAction(forceFolderAction_);
+    fileMenu_->addSeparator();
     fileMenu_->addAction(openLocationAction_);
     fileMenu_->addAction(previewLeftoversAction_);
     fileMenu_->addSeparator();
@@ -177,6 +224,7 @@ void MainWindow::createMenus() {
     }
 
     toolsMenu_ = menuBar()->addMenu(QString());
+    toolsMenu_->addAction(orphansAction_);
     toolsMenu_->addAction(undoCenterAction_);
 
     helpMenu_ = menuBar()->addMenu(QString());
@@ -191,6 +239,13 @@ void MainWindow::createToolBar() {
     toolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     toolBar_->addAction(refreshAction_);
     toolBar_->addAction(uninstallAction_);
+    hunter_ = new HunterTarget(toolBar_);
+    hunter_->setObjectName(u"hunter"_s);
+    hunter_->setEnabled(false);
+    connect(hunter_, &HunterTarget::hovering, this, &MainWindow::onWindowHovered);
+    connect(hunter_, &HunterTarget::picked, this, &MainWindow::onWindowPicked);
+    connect(hunter_, &HunterTarget::cancelled, this, [this] { statusBar()->clearMessage(); });
+    toolBar_->addWidget(hunter_);
     toolBar_->addSeparator();
 
     searchEdit_ = new QLineEdit(toolBar_);
@@ -201,8 +256,11 @@ void MainWindow::createToolBar() {
 
     categoryCombo_ = new QComboBox(toolBar_);
     categoryCombo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    for (int i = 0; i <= static_cast<int>(ProgramFilterModel::Category::Everything); ++i) {
-        categoryCombo_->addItem(QString(), i);
+    using Category = ProgramFilterModel::Category;
+    for (const Category category :
+         {Category::Apps, Category::DesktopApps, Category::StoreApps, Category::Updates,
+          Category::SystemComponents, Category::Broken, Category::Everything}) {
+        categoryCombo_->addItem(QString(), static_cast<int>(category));
     }
     connect(categoryCombo_, &QComboBox::currentIndexChanged, this, [this](int index) {
         filter_->setCategory(
@@ -289,12 +347,25 @@ void MainWindow::retranslateUi() {
     refreshAction_->setToolTip(tr("Scan installed programs again (F5)"));
     uninstallAction_->setText(tr("&Uninstall…"));
     uninstallAction_->setToolTip(tr("Uninstall the selected programs (Del)"));
+    forceAction_->setText(tr("&Force uninstall…"));
+    forceAction_->setToolTip(
+        tr("Remove the selected programs without their uninstallers, for when they are missing or broken "
+           "(Shift+Del)"));
+    forceFolderAction_->setText(tr("Force uninstall a fol&der…"));
+    forceFolderAction_->setToolTip(tr("Remove a program's folder that no entry in the list describes"));
     openLocationAction_->setText(tr("&Open install folder"));
     previewLeftoversAction_->setText(tr("&Preview leftovers…"));
     previewLeftoversAction_->setToolTip(
         tr("Show what the leftover scan finds for the selected programs, without removing anything"));
     exitAction_->setText(tr("E&xit"));
     toolsMenu_->setTitle(tr("&Tools"));
+    orphansAction_->setText(tr("Find &orphaned folders…"));
+    orphansAction_->setToolTip(
+        tr("Look for folders in Program Files, ProgramData and the users' program folders that no installed "
+           "program owns"));
+    hunter_->setToolTip(tr(
+        "Hunter: drag the crosshair onto a program's window and let go to find the program it belongs to"));
+    hunter_->setAccessibleName(tr("Hunter"));
     undoCenterAction_->setText(tr("&Undo Center…"));
     undoCenterAction_->setToolTip(tr("Put back leftovers Avel removed in the last 30 days"));
     viewMenu_->setTitle(tr("&View"));
@@ -321,6 +392,8 @@ void MainWindow::retranslateUi() {
                 return tr("System components");
             case Category::Everything:
                 return tr("Everything");
+            case Category::Broken:
+                return tr("Broken");
         }
         return QString();
     };
@@ -328,7 +401,9 @@ void MainWindow::retranslateUi() {
         categoryCombo_->setItemText(
             i, category_name(static_cast<Category>(categoryCombo_->itemData(i).toInt())));
     }
-    categoryCombo_->setToolTip(tr("Which programs to show. \"Apps\" matches Settings > Apps."));
+    categoryCombo_->setToolTip(
+        tr("Which programs to show. \"Apps\" matches Settings > Apps. \"Broken\" lists the ones that can't "
+           "uninstall themselves."));
 
     elevationLabel_->setText(elevated_ ? tr("Running as administrator")
                                        : tr("No administrator rights: some features are unavailable"));
@@ -353,8 +428,8 @@ void MainWindow::restoreLayout() {
     splitter_->restoreState(settings.value(kSplitterKey).toByteArray());
     table_->horizontalHeader()->restoreState(settings.value(kHeaderKey).toByteArray());
     table_->horizontalHeader()->setSectionResizeMode(ProgramTableModel::NameColumn, QHeaderView::Stretch);
-    const int category = settings.value(kCategoryKey, 0).toInt();
-    if (category >= 0 && category < categoryCombo_->count()) {
+    const int category = categoryCombo_->findData(settings.value(kCategoryKey, 0).toInt());
+    if (category >= 0) {
         categoryCombo_->setCurrentIndex(category);
     }
 }
@@ -365,7 +440,7 @@ void MainWindow::saveLayout() const {
     settings.setValue(kStateKey, saveState());
     settings.setValue(kSplitterKey, splitter_->saveState());
     settings.setValue(kHeaderKey, table_->horizontalHeader()->saveState());
-    settings.setValue(kCategoryKey, categoryCombo_->currentIndex());
+    settings.setValue(kCategoryKey, categoryCombo_->currentData().toInt());
 }
 
 void MainWindow::onScanStarted() {
@@ -417,9 +492,42 @@ void MainWindow::onSelectionChanged() {
 void MainWindow::updateActions() {
     const auto programs = selectedPrograms();
     uninstallAction_->setEnabled(!programs.empty());
+    // Packaged apps are Windows' to remove; Force is for classic programs.
+    forceAction_->setEnabled(!programs.empty() && forceFlow_ == nullptr &&
+                             std::none_of(programs.begin(), programs.end(), [](const auto* program) {
+                                 return program->source == inventory::Source::Appx;
+                             }));
+    forceFolderAction_->setEnabled(forceFlow_ == nullptr);
     openLocationAction_->setEnabled(programs.size() == 1 &&
                                     uninstall::install_location_exists(*programs.front()));
-    previewLeftoversAction_->setEnabled(!programs.empty() && !previewRunning_);
+    previewLeftoversAction_->setEnabled(!programs.empty() && !busy_);
+    orphansAction_->setEnabled(inventory_ != nullptr && !busy_);
+    hunter_->setEnabled(inventory_ != nullptr && !busy_);
+}
+
+bool MainWindow::selectProgram(const std::wstring& id) {
+    int row = 0;
+    while (model_->programAt(row) != nullptr && model_->programAt(row)->id != id) {
+        ++row;
+    }
+    if (model_->programAt(row) == nullptr) {
+        return false;
+    }
+    QModelIndex index = filter_->mapFromSource(model_->index(row, 0));
+    if (!index.isValid()) {
+        // Hidden by the search or the category: show everything.
+        searchEdit_->clear();
+        index = filter_->mapFromSource(model_->index(row, 0));
+    }
+    if (!index.isValid()) {
+        categoryCombo_->setCurrentIndex(
+            categoryCombo_->findData(static_cast<int>(ProgramFilterModel::Category::Everything)));
+        index = filter_->mapFromSource(model_->index(row, 0));
+    }
+    table_->selectionModel()->setCurrentIndex(
+        index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    table_->scrollTo(index);
+    return true;
 }
 
 std::vector<const inventory::Program*> MainWindow::selectedPrograms() const {
@@ -455,14 +563,58 @@ void MainWindow::uninstallSelected() {
                 loader_->start();
             }
         });
+        connect(progress, &UninstallProgressDialog::forceRequested, this,
+                [this](const std::vector<std::wstring>& ids) { startForce({.programIds = ids}); });
         progress->open();
     });
+    connect(confirmation, &UninstallDialog::forceRequested, this,
+            [this](const std::vector<std::wstring>& ids) { startForce({.programIds = ids}); });
     confirmation->open();
+}
+
+void MainWindow::forceSelected() {
+    ForceFlow::Request request;
+    for (const auto* program : selectedPrograms()) {
+        request.programIds.push_back(program->id);
+    }
+    if (!request.programIds.empty()) {
+        startForce(std::move(request));
+    }
+}
+
+void MainWindow::forceFolder() {
+    auto* dialog = new QFileDialog(this, tr("Force uninstall a folder"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setFileMode(QFileDialog::Directory);
+    dialog->setOption(QFileDialog::ShowDirsOnly);
+    connect(dialog, &QFileDialog::fileSelected, this, [this](const QString& folder) {
+        startForce({.folder = QDir::toNativeSeparators(folder).toStdWString()});
+    });
+    dialog->open();
+}
+
+void MainWindow::startForce(ForceFlow::Request request) {
+    if (forceFlow_ != nullptr) {
+        return;
+    }
+    forceFlow_ = new ForceFlow(std::move(request), stores_, this);
+    connect(forceFlow_, &ForceFlow::progress, this, [this](const QString& message) {
+        message.isEmpty() ? statusBar()->clearMessage() : statusBar()->showMessage(message);
+    });
+    connect(forceFlow_, &ForceFlow::finished, this, [this](bool changedAnything) {
+        forceFlow_ = nullptr;
+        updateActions();
+        if (changedAnything) {
+            loader_->start();
+        }
+    });
+    updateActions();
+    forceFlow_->start();
 }
 
 void MainWindow::previewLeftovers() {
     const auto programs = selectedPrograms();
-    if (programs.empty() || !inventory_ || previewRunning_) {
+    if (programs.empty() || !inventory_ || busy_) {
         return;
     }
     std::vector<LeftoverModel::Program> names;
@@ -470,30 +622,214 @@ void MainWindow::previewLeftovers() {
         names.push_back({program->id,
                          program->display_name.empty() ? tr("(no name)") : toQString(program->display_name)});
     }
-    previewRunning_ = true;
+    busy_ = true;
     updateActions();
     statusBar()->showMessage(tr("Looking for leftovers…"));
     // The inventory copy keeps the programs alive while the scan reads them.
-    previewPool_.start([this, inventory = inventory_, programs, names = std::move(names)] {
-        const auto targets = leftovers::capture_targets(programs);
+    workers_.start([this, inventory = inventory_, programs, names = std::move(names)] {
+        auto targets = leftovers::capture_targets(programs);
         const leftovers::LiveEnvironment environment;
         auto scan = std::make_shared<const leftovers::ScanResult>(
             leftovers::scan_leftovers(environment.environment(), targets, inventory->programs));
         QMetaObject::invokeMethod(
-            this, [this, scan = std::move(scan), names] { onPreviewFinished(scan, names); },
+            this,
+            [this, scan = std::move(scan), names, targets = std::move(targets)] {
+                onPreviewFinished(scan, names, targets);
+            },
             Qt::QueuedConnection);
     });
 }
 
 void MainWindow::onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> scan,
-                                   std::vector<LeftoverModel::Program> programs) {
-    previewRunning_ = false;
+                                   std::vector<LeftoverModel::Program> programs,
+                                   std::vector<leftovers::ScanTarget> targets) {
+    busy_ = false;
     updateActions();
     statusBar()->clearMessage();
     auto* preview = new LeftoverDialog(std::move(scan), std::move(programs), LeftoverDialog::Mode::Preview,
                                        QString(), this);
     preview->setAttribute(Qt::WA_DeleteOnClose);
+    preview->setRescan([inventory = inventory_,
+                        targets = std::move(targets)](const leftovers::ScanOptions& options) {
+        const leftovers::LiveEnvironment environment;
+        return leftovers::scan_leftovers(environment.environment(), targets, inventory->programs, options);
+    });
     preview->open();
+}
+
+void MainWindow::findOrphans() {
+    if (!inventory_ || busy_) {
+        return;
+    }
+    busy_ = true;
+    updateActions();
+    statusBar()->showMessage(tr("Looking for orphaned folders…"));
+    workers_.start([this, inventory = inventory_] {
+        const leftovers::LiveEnvironment environment;
+        auto result = leftovers::find_orphans(environment.environment(), inventory->programs);
+        for (auto& leftover : result.leftovers) {
+            leftover.owner_ids = {kOrphansId};
+        }
+        auto scan = std::make_shared<const leftovers::ScanResult>(std::move(result));
+        QMetaObject::invokeMethod(
+            this, [this, scan = std::move(scan)] { onOrphansFound(scan); }, Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::onOrphansFound(std::shared_ptr<const leftovers::ScanResult> scan) {
+    busy_ = false;
+    updateActions();
+    statusBar()->clearMessage();
+    const auto store = stores_->store();
+    auto* review = new LeftoverDialog(std::move(scan), {{kOrphansId, tr("Orphaned folders")}},
+                                      LeftoverDialog::Mode::Orphans,
+                                      store ? QString() : stores_->unavailableReason(), this);
+    review->setAttribute(Qt::WA_DeleteOnClose);
+    connect(review, &QDialog::accepted, this, [this, review] {
+        auto* removal =
+            new ChangeSetProgressDialog(stores_->store(), review->plan(), review->allowIrreversible(), this);
+        removal->setAttribute(Qt::WA_DeleteOnClose);
+        removal->setWindowTitle(tr("Removing orphaned folders"));
+        removal->open();
+    });
+    review->open();
+}
+
+void MainWindow::onWindowHovered(const HunterTarget::Window& window) {
+    if (window.pid == 0) {
+        statusBar()->showMessage(tr("Drag onto a program's window and let go."));
+        return;
+    }
+    const QString process =
+        window.processName.isEmpty() ? tr("process %1").arg(window.pid) : window.processName;
+    statusBar()->showMessage(window.title.isEmpty() ? process : tr("%1 (%2)").arg(window.title, process));
+}
+
+void MainWindow::onWindowPicked(const HunterTarget::Window& window, QPoint position) {
+    if (!inventory_ || busy_) {
+        return;
+    }
+    busy_ = true;
+    updateActions();
+    statusBar()->showMessage(tr("Looking for the program of %1…")
+                                 .arg(window.processName.isEmpty() ? window.title : window.processName));
+    workers_.start([this, window, position, inventory = inventory_] {
+        auto hunt = std::make_shared<Hunt>();
+        hunt->window = window;
+        hunt->position = position;
+        hunt->inventory = inventory;
+        for (const auto& process : platform::running_processes()) {
+            if (process.pid == window.pid) {
+                hunt->image = process.image;
+                hunt->critical = process.critical;
+            }
+        }
+        const auto services = platform::service_process_ids();
+        hunt->service = std::find(services.begin(), services.end(), window.pid) != services.end();
+        if (!hunt->image.empty()) {
+            const leftovers::LiveEnvironment live;
+            hunt->owner = force::owner_of(live.environment(), inventory->programs, hunt->image);
+            if (!hunt->owner.program) {
+                hunt->folderProtection = force::folder_protection(live.environment(), hunt->owner.folder);
+            }
+        }
+        QMetaObject::invokeMethod(
+            this, [this, hunt = std::shared_ptr<const Hunt>(std::move(hunt))] { onHuntFinished(hunt); },
+            Qt::QueuedConnection);
+    });
+}
+
+void MainWindow::onHuntFinished(const std::shared_ptr<const Hunt>& hunt) {
+    busy_ = false;
+    updateActions();
+    statusBar()->clearMessage();
+    const auto& window = hunt->window;
+    const QString processName =
+        window.processName.isEmpty() ? tr("process %1").arg(window.pid) : window.processName;
+
+    QMenu menu(this);
+    const auto* program = hunt->owner.program;
+    QString heading;
+    if (program != nullptr) {
+        heading = program->display_name.empty() ? tr("(no name)") : toQString(program->display_name);
+        // The menu's program actions work on the selection.
+        if (!selectProgram(program->id)) {
+            heading = tr("%1 (no longer listed; refresh with F5)").arg(heading);
+        }
+    } else if (hunt->image.empty()) {
+        heading = tr("Windows doesn't tell Avel which program %1 is").arg(processName);
+    } else {
+        heading = tr("No installed program owns %1").arg(QDir::toNativeSeparators(toQString(hunt->image)));
+    }
+    menu.addAction(heading)->setEnabled(false);
+    menu.addSeparator();
+
+    QAction* forceFolder = nullptr;
+    QAction* openFolder = nullptr;
+    if (program != nullptr && selectedPrograms().size() == 1 &&
+        selectedPrograms().front()->id == program->id) {
+        addCopy(menu, uninstallAction_);
+        addCopy(menu, forceAction_);
+        addCopy(menu, previewLeftoversAction_);
+        addCopy(menu, openLocationAction_);
+    } else if (program == nullptr && !hunt->owner.folder.empty()) {
+        const QString folder = QDir::toNativeSeparators(toQString(hunt->owner.folder));
+        forceFolder = menu.addAction(tr("Force uninstall the folder %1…").arg(folder));
+        const bool isProtected = hunt->folderProtection != leftovers::ProtectionReason::None;
+        forceFolder->setEnabled(!isProtected && forceFlow_ == nullptr);
+        if (isProtected) {
+            forceFolder->setText(
+                tr("Force uninstall the folder %1 (Windows or other programs need it)").arg(folder));
+        }
+        openFolder = menu.addAction(tr("Open folder"));
+    }
+    menu.addSeparator();
+    QAction* end = menu.addAction(tr("End process %1").arg(processName));
+    if (hunt->critical || hunt->service) {
+        end->setEnabled(false);
+        end->setText(hunt->critical ? tr("End process %1 (Windows needs it)").arg(processName)
+                                    : tr("End process %1 (it runs a service)").arg(processName));
+    }
+
+    QAction* chosen = menu.exec(hunt->position);
+    if (chosen == nullptr) {
+        return;
+    }
+    if (chosen == forceFolder) {
+        startForce(
+            {.folder = hunt->owner.folder, .name = hunt->owner.name, .publisher = hunt->owner.publisher});
+    } else if (chosen == openFolder) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(toQString(hunt->owner.folder)));
+    } else if (chosen == end) {
+        endProcess(window.pid, processName);
+    }
+}
+
+void MainWindow::endProcess(std::uint32_t pid, const QString& name) {
+    auto* box = new QMessageBox(QMessageBox::Question, tr("End process"),
+                                tr("End %1 (process %2)?").arg(name).arg(pid), QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setInformativeText(tr("Avel asks it to close first, then ends it. Unsaved work in it is lost."));
+    QPushButton* end = box->addButton(tr("End process"), QMessageBox::DestructiveRole);
+    box->addButton(QMessageBox::Cancel);
+    box->setDefaultButton(QMessageBox::Cancel);
+    connect(box, &QMessageBox::buttonClicked, this, [this, end, pid, name](QAbstractButton* clicked) {
+        if (clicked != end) {
+            return;
+        }
+        statusBar()->showMessage(tr("Ending %1…").arg(name));
+        workers_.start([this, pid, name] {
+            const auto result = platform::stop_process(pid);
+            QMetaObject::invokeMethod(
+                this,
+                [this, name, result] {
+                    statusBar()->showMessage(
+                        tr("%1: %2").arg(name, RunningProcessesDialog::outcomeText(result)), 10000);
+                },
+                Qt::QueuedConnection);
+        });
+    });
+    box->open();
 }
 
 void MainWindow::openUndoCenter() {
@@ -542,9 +878,11 @@ void MainWindow::showTableMenu(const QPoint& position) {
         return;
     }
     QMenu menu(this);
-    menu.addAction(uninstallAction_);
-    menu.addAction(openLocationAction_);
-    menu.addAction(previewLeftoversAction_);
+    addCopy(menu, uninstallAction_);
+    addCopy(menu, forceAction_);
+    menu.addSeparator();
+    addCopy(menu, openLocationAction_);
+    addCopy(menu, previewLeftoversAction_);
     menu.exec(table_->viewport()->mapToGlobal(position));
 }
 

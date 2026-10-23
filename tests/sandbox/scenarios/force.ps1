@@ -16,6 +16,11 @@
 #   5. C:\Tools\Contoso Fixture: only `scan --deep` may find it, at questionable; the volume reading
 #      unit tests, skipped unelevated on the host, must pass here;
 #   6. `orphans` must list a folder nobody owns and none of the installed programs' or Windows'.
+#   7. Phase 4c, the GUI (UI Automation) with the fixture's app running again: the uninstall dialog
+#      must offer "Force uninstall...", the review must list C:\Tools\Contoso Fixture once the
+#      whole disk is searched, "Remove" must ask to end the app, end it and remove the program and
+#      its leftovers but not what stays unchecked, and the Undo Center's "Restore all" must give
+#      back exactly what was there; Tools > Find orphaned folders must list the folder nobody owns.
 # Writes results\force.json (avel-cli's output), results\force.log and, last, results\force.txt.
 
 $ErrorActionPreference = 'Stop'
@@ -30,8 +35,9 @@ $scenario = 'force'
 . "$PSScriptRoot\samples.ps1"
 . "$PSScriptRoot\fixture.ps1"
 . "$PSScriptRoot\oracle.ps1"
+. "$PSScriptRoot\gui.ps1"
 
-$installer = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer'
+$installer ='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer'
 
 # Windows Installer's packed form of a product code (see src/core/inventory/msi_codes.h).
 function ConvertTo-PackedGuid([string]$guid) {
@@ -327,6 +333,78 @@ try {
         }
     }
     Check-Safe $orphans.json.leftovers 'round 6'
+
+    # 7. The GUI. The fixture is installed (undo in round 1), still without its uninstall script.
+    Log ''
+    Log 'Round 7: the GUI - force the fixture from the uninstall dialog with its app running, undo in the Undo Center'
+    $app = Start-Process "$fixtureRoot\app.exe" '/k' -WindowStyle Hidden -PassThru
+    Start-Sleep -Seconds 1
+    $guiSpecs = @(Get-FixtureLeftoverSpecs) + $programSpecs + @(Get-UntouchableSpecs) + @("file:$tool")
+    $before = Split-StateDump (Get-StateDump $guiSpecs)
+    $gui = Start-AvelGui
+    try {
+        Select-Program 'Contoso Fixture'
+        Click (Find (All (Cond $A::ControlTypeProperty $CT::Button) (Cond $A::NameProperty 'Uninstall')))
+        $confirm = Window 'Uninstall Contoso Fixture'
+        Log "  uninstall dialog: $((Tree-Items $confirm) -join ' / ')"
+        Click (Button $confirm ('^Force uninstall' + [char]0x2026 + '$'))
+
+        $review = Window 'Forced removal of Contoso Fixture' 120
+        Start-Sleep -Seconds 1
+        Log "  review: $(Texts $review)"
+        Click (Button $review '^Search the whole disk$')
+        $null = Button $review '^Whole disk searched$' 300 -Disabled
+        Start-Sleep -Seconds 1
+        if ((Tree-Items $review) -notcontains $tool) { Fail "gui: the whole-disk search doesn't list $tool" }
+        else { Log "  OK: the whole-disk search lists $tool" }
+        $remove = Button $review '^Remove [0-9]+ item'
+        Log "  pressing '$($remove.Current.Name)'"
+        Click $remove
+
+        $running = Window 'Running programs' 60
+        Log "  running programs: $((Tree-Items $running) -join ' / ')"
+        Click (Button $running '^End processes$')
+        $removal = Window 'Forced removal' 120
+        $close = Button $removal '^Close$' 300
+        Log "  removal: $(Texts (Window 'Forced removal'))"
+        if (-not $app.HasExited) { Fail 'gui: the app is still running' } else { Log '  OK: the app was ended' }
+        $after = Split-StateDump (Get-StateDump $guiSpecs)
+        foreach ($spec in @(Get-FixtureLeftoverSpecs) + $programSpecs) {
+            if ($after[$spec] -notmatch '^<missing>') { Fail "gui: not removed: $spec" }
+        }
+        foreach ($spec in @(Get-UntouchableSpecs) + @("file:$tool")) {
+            if ($after[$spec] -ne $before[$spec]) { Fail "gui: changed what must stay: $spec" }
+        }
+        Click $close
+        Start-Sleep -Seconds 2
+
+        Open-Menu 'Tools' ('Undo Center' + [char]0x2026)
+        $center = Window 'Undo Center'
+        Start-Sleep -Seconds 1
+        Log "  Undo Center: $(Texts $center)"
+        Click (Button $center '^Restore all$')
+        $restoring = Window 'Restoring' 60
+        $close = Button $restoring '^Close$' 300
+        Log "  restore: $(Texts (Window 'Restoring'))"
+        Click $close
+        Start-Sleep -Seconds 1
+        Click (Button (Window 'Undo Center') '^Close$')
+        Start-Sleep -Seconds 1
+
+        Open-Menu 'Tools' ('Find orphaned folders' + [char]0x2026)
+        $finder = Window 'Orphaned folders' 120
+        Start-Sleep -Seconds 1
+        $rows = Tree-Items $finder
+        if ($rows -notcontains $northwind) { Fail "gui: the orphan finder doesn't list $northwind" }
+        else { Log "  OK: the orphan finder lists $northwind ($($rows.Count) rows)" }
+        Click (Button $finder '^Keep all$')
+    } catch {
+        Fail "gui: $($_.Exception.Message)"
+    } finally {
+        Stop-Process -Id $gui.Id -ErrorAction SilentlyContinue
+        if (-not $app.HasExited) { Stop-Process -Id $app.Id -ErrorAction SilentlyContinue }
+    }
+    Compare-State $before (Split-StateDump (Get-StateDump $guiSpecs)) 'the Undo Center gave back the forced removal exactly'
 } catch {
     Fail "scenario error: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber)"
 } finally {

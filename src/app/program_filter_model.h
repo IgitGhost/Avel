@@ -19,6 +19,7 @@ public:
         Updates,           // Patches and hotfixes
         SystemComponents,  // Hidden entries: system components, frameworks, Windows Installer internals
         Everything,
+        Broken,  // Entries that can't uninstall themselves (inventory::is_broken), for Avel Force
     };
 
     explicit ProgramFilterModel(QObject* parent = nullptr);

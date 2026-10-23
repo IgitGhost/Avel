@@ -14,6 +14,10 @@ qt_add_executable(avel_app WIN32
     change_store_access.h
     details_view.cpp
     details_view.h
+    force_flow.cpp
+    force_flow.h
+    hunter_target.cpp
+    hunter_target.h
     icon_loader.cpp
     icon_loader.h
     inventory_loader.cpp
@@ -36,6 +40,8 @@ qt_add_executable(avel_app WIN32
     program_text.cpp
     program_text.h
     right_elide_delegate.h
+    running_processes_dialog.cpp
+    running_processes_dialog.h
     undo_center_dialog.cpp
     undo_center_dialog.h
     uninstall_dialog.cpp

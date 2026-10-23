@@ -2,6 +2,7 @@
 
 #include <QDate>
 #include <QLocale>
+#include <QPainter>
 #include <QPixmap>
 
 #include <windows.h>
@@ -13,16 +14,21 @@ namespace avel::app {
 
 namespace {
 
-// Windows' stock "application" icon, used until (or instead of) a program's own icon.
-QIcon stock_application_icon() {
+QImage stock_icon(SHSTOCKICONID id, UINT size) {
     SHSTOCKICONINFO info{};
     info.cbSize = sizeof(info);
-    if (FAILED(::SHGetStockIconInfo(SIID_APPLICATION, SHGSI_ICON | SHGSI_LARGEICON, &info)) || !info.hIcon) {
+    if (FAILED(::SHGetStockIconInfo(id, SHGSI_ICON | size, &info)) || !info.hIcon) {
         return {};
     }
-    const QIcon icon(QPixmap::fromImage(QImage::fromHICON(info.hIcon)));
+    QImage image = QImage::fromHICON(info.hIcon);
     ::DestroyIcon(info.hIcon);
-    return icon;
+    return image;
+}
+
+// Windows' stock "application" icon, used until (or instead of) a program's own icon.
+QIcon stock_application_icon() {
+    const QImage image = stock_icon(SIID_APPLICATION, SHGSI_LARGEICON);
+    return image.isNull() ? QIcon() : QIcon(QPixmap::fromImage(image));
 }
 
 QDate to_qdate(std::chrono::sys_days date) {
@@ -32,7 +38,9 @@ QDate to_qdate(std::chrono::sys_days date) {
 }  // namespace
 
 ProgramTableModel::ProgramTableModel(QObject* parent)
-    : QAbstractTableModel(parent), defaultIcon_(stock_application_icon()) {}
+    : QAbstractTableModel(parent),
+      defaultIcon_(stock_application_icon()),
+      warningBadge_(stock_icon(SIID_WARNING, SHGSI_LARGEICON)) {}
 
 void ProgramTableModel::setInventory(std::shared_ptr<const inventory::Inventory> inventory) {
     beginResetModel();
@@ -52,6 +60,7 @@ void ProgramTableModel::setInventory(std::shared_ptr<const inventory::Inventory>
             row.publisher = toQString(program.publisher);
             row.version = toQString(program.display_version);
             row.iconSource = toQString(program.display_icon);
+            row.broken = inventory::is_broken(program);
             if (!row.iconSource.isEmpty()) {
                 rowsByIconSource_[row.iconSource].append(static_cast<int>(rows_.size()));
             }
@@ -78,6 +87,7 @@ QStringList ProgramTableModel::iconSources() const {
 
 void ProgramTableModel::setIcon(const QString& source, const QImage& image) {
     icons_.insert(source, QIcon(QPixmap::fromImage(image)));
+    brokenIcons_.remove(source);
     for (const int row : rowsByIconSource_.value(source)) {
         const QModelIndex cell = index(row, NameColumn);
         Q_EMIT dataChanged(cell, cell, {Qt::DecorationRole});
@@ -107,8 +117,12 @@ QVariant ProgramTableModel::data(const QModelIndex& index, int role) const {
     const inventory::Program& program = *row.program;
 
     switch (role) {
-        case Qt::DisplayRole:
         case Qt::ToolTipRole:
+            if (index.column() == NameColumn && row.broken) {
+                return row.name + u'\n' + ProgramText::brokenReasons(program).join(u'\n');
+            }
+            [[fallthrough]];
+        case Qt::DisplayRole:
             switch (index.column()) {
                 case NameColumn:
                     return row.name;
@@ -139,7 +153,7 @@ QVariant ProgramTableModel::data(const QModelIndex& index, int role) const {
             }
         case Qt::DecorationRole:
             if (index.column() == NameColumn) {
-                return icons_.value(row.iconSource, defaultIcon_);
+                return row.broken ? brokenIcon(row.iconSource) : icons_.value(row.iconSource, defaultIcon_);
             }
             break;
         case Qt::TextAlignmentRole:
@@ -151,6 +165,28 @@ QVariant ProgramTableModel::data(const QModelIndex& index, int role) const {
             break;
     }
     return {};
+}
+
+QIcon ProgramTableModel::brokenIcon(const QString& source) const {
+    const auto cached = brokenIcons_.constFind(source);
+    if (cached != brokenIcons_.cend()) {
+        return *cached;
+    }
+    const QIcon base = icons_.value(source, defaultIcon_);
+    const QList<QSize> sizes = base.availableSizes();
+    QPixmap pixmap = base.pixmap(sizes.isEmpty() ? QSize(32, 32) : sizes.front());
+    if (!pixmap.isNull() && !warningBadge_.isNull()) {
+        // The badge covers the bottom right, like Explorer's overlay icons.
+        const QSize full = pixmap.size();
+        const QSize badge = full * 0.6;
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        painter.drawImage(QRect(QPoint(full.width() - badge.width(), full.height() - badge.height()), badge),
+                          warningBadge_);
+    }
+    const QIcon icon(pixmap);
+    brokenIcons_.insert(source, icon);
+    return icon;
 }
 
 QVariant ProgramTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
