@@ -13,6 +13,7 @@
 #include "core/uninstall/installer_detection.h"
 #include "core/uninstall/registration.h"
 #include "core/uninstall/uninstaller.h"
+#include "test_spawner.h"
 
 namespace avel::uninstall {
 namespace {
@@ -156,8 +157,7 @@ TEST(InstallerDetectionTest, ReadsTheManifestOfARealExecutable) {
     ASSERT_TRUE(manifest.has_value());
     EXPECT_NE(manifest->find("assembly"), std::string::npos);
     // Not this test binary: it contains the NSIS signature as a string literal.
-    std::wstring spawner = AVEL_TEST_SPAWNER;
-    std::replace(spawner.begin(), spawner.end(), L'/', L'\\');
+    const std::wstring spawner = testing::spawner_path();
     EXPECT_EQ(detect_installer_type(spawner), InstallerType::Unknown);
 
     EXPECT_FALSE(read_embedded_manifest(LR"(C:\Avel.Tests\does-not-exist.exe)").has_value());

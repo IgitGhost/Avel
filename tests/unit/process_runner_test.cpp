@@ -11,17 +11,14 @@
 #include <thread>
 
 #include "core/uninstall/process_runner.h"
+#include "test_spawner.h"
 
 namespace avel::uninstall {
 namespace {
 
 using namespace std::chrono_literals;
 
-std::wstring spawner_path() {
-    std::wstring path = AVEL_TEST_SPAWNER;
-    std::replace(path.begin(), path.end(), L'/', L'\\');
-    return path;
-}
+using testing::spawner_path;
 
 class ProcessRunnerTest : public ::testing::Test {
 protected:

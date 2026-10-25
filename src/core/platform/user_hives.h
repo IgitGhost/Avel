@@ -21,4 +21,10 @@ struct UserHive {
 // from opening or loading it.
 LSTATUS open_user_hive(const UserProfile& profile, REGSAM access, UserHive& result);
 
+// Opens `profile`'s classes hive, their HKEY_CURRENT_USER\Software\Classes: HKEY_USERS\<sid>_Classes
+// while the user is signed in, otherwise a private load of their
+// %LOCALAPPDATA%\Microsoft\Windows\UsrClass.dat, like open_user_hive. A hive file can be loaded
+// privately only once per process at a time: a second load fails with ERROR_SHARING_VIOLATION.
+LSTATUS open_user_classes_hive(const UserProfile& profile, REGSAM access, UserHive& result);
+
 }  // namespace avel::platform

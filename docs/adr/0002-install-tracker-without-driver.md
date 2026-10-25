@@ -1,6 +1,7 @@
 # ADR 0002: Install tracker without a kernel driver
 
-- **Status:** Accepted
+- **Status:** Accepted. Amended by [ADR 0006](0006-trace-folders-registry-snapshot.md): a hash per
+  value rather than per key, exact values for the known spots, and no fallback for non-NTFS volumes.
 - **Date:** 2026-10-18
 
 ## Context

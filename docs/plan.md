@@ -150,12 +150,12 @@ D:\Avel\
   - Clean up broken MSI registrations (the packed-GUID keys under `Installer\Products`, `UpgradeCodes` and `UserData`).
   - Repair or remove dead Add/Remove Programs entries.
 - **Install tracker (snapshot-diff, no driver):**
-  - **Start:** record each NTFS fixed volume's USN journal ID and next position. Take a registry snapshot of HKLM\SOFTWARE, the Services key and every user's HKCU\Software: for each key, its LastWriteTime plus a hash of its values.
+  - **Start:** record each NTFS fixed volume's USN journal ID and next position. Take a registry snapshot of HKLM\SOFTWARE, the Services key and every user's HKCU\Software: for each key, its LastWriteTime plus a hash of each value. Save the known spots' values (environment variables, SharedDLLs) exactly.
   - **Stop:**
     - Read the USN journal from the recorded position to get files created, modified or renamed. Check that the journal ID is unchanged and hasn't wrapped.
     - Re-walk the registry, reading values only for keys whose LastWriteTime changed.
     - Apply noise filters (Temp, Prefetch, logs, browser caches, Avel's own files).
-  - Save the TraceLog to SQLite and link it automatically to the inventory entry through the new Uninstall key that appears in the diff.
+  - Save the trace as a folder of JSON files under `%ProgramData%\Avel\Traces` (not SQLite; see [ADR 0006](adr/0006-trace-folders-registry-snapshot.md)) and link it automatically to the inventory entry through the new Uninstall key that appears in the diff.
   - Traced items get top confidence at uninstall time. Trace logs can be exported and imported.
 - **Avel Tools:**
   - **Startup manager:** Run keys, Startup folders, scheduled tasks and services. "Disable" works the way Task Manager does it, via the `StartupApproved` keys.
@@ -370,4 +370,40 @@ D:\Avel\
       - The whole-disk search listed `C:\Tools\Contoso Fixture`, unchecked.
       - Remove ended the app and removed 14 items, and the Undo Center gave back identical dumps.
       - The orphan finder listed the folder nobody owns.
-- **Next:** Phase 5 (Avel Trace).
+- **Phase 5 (Avel Trace): in progress, in three sub-phases.** Plan approved 2026-10-23. Details in [trace.md](trace.md) and [ADR 0006](adr/0006-trace-folders-registry-snapshot.md).
+  - **User decisions (2026-10-23):**
+    - both **Install and trace** (Avel launches the installer and stops by itself) and manual start and stop; a program the installer starts at the end ("Run X now") doesn't hold the trace;
+    - uninstall by trace in both modes: the program's uninstaller first, then the traced items join the leftover review; or through Avel Force, without the uninstaller;
+    - the known spots (environment variables, SharedDLLs) are saved exactly, and removal takes back only the installer's part; other edits to existing items are shown only;
+    - VeryGood only for items in the folders and keys the installer created that are tied to the program, so noise is never pre-checked;
+    - a trace survives a restart; each trace is a folder of JSON files, not SQLite;
+    - a missing USN journal is created (64 MB); existing ones are never resized;
+    - no background monitor; firewall rules stay report-only.
+  - **5a (tracker core and CLI) is done.** The Sandbox `trace` scenario passes (run 9, 2026-10-25 12:42; see below).
+    - **Refactors first** (behavior unchanged): the native registry helpers moved to `platform/nt_registry`, the one-folder-per-record mechanics to `platform/record_folders` (shared with the ChangeStore), and FNV-1a went into `platform/hash.h`.
+    - **Core** (`src/core/tracker`, `platform/usn_journal`):
+      - files from each fixed NTFS volume's USN journal: start positions, reading every 2 s while an Avel process drives the trace, checkpoints, net effects per file (replacements, roots only, moved-in folders, hard links, items open across the start) and incomplete volumes;
+      - a binary registry snapshot with a hash per value, taken on up to 8 threads, compared by reading values only where a key's LastWriteTime changed; created services, tasks and firewall rules come out as such;
+      - the known spots saved exactly;
+      - a noise filter whose rules are data;
+      - Install and trace: a job object, the installer's helpers, programs it starts, Windows Installer's mutex looked at but never taken, a quiet period and settling;
+      - the trace store: one open trace, resumed after a restart or a crash.
+    - **CLI:** `avel-cli trace start | stop | run [--timeout <s>] -- <installer> [<args>...] | list | show <id> [--all] | cancel | delete <id>`, with `--json`.
+    - **Speed:** on the dev machine (unelevated smoke test), about 500,000 keys and 790,000 values make a 48 MB snapshot, taken in 3.2 to 3.5 s and compared in 1.4 to 1.8 s.
+    - **Tests:** 311 unit tests; 306 pass on the host, and the 5 that need administrator rights run in the Sandbox.
+    - **Windows Sandbox,** scenario `trace`, checked against an independent oracle (`avel_capture`): an idle round, a container round (a system file deleted, another renamed), `Contoso Trace Fixture` between `trace start` and `trace stop`, 7-Zip, Notepad++ and Inno Setup through `trace run`, an app started at the end, a killed run and a replaced journal.
+      - **Tuning (2026-10-24), seven runs:** 20, 82, 84, 2 and 1 problems, then **RESULT: PASS** (run 6, 21:08).
+        - The Sandbox's system files are Windows Container Isolation placeholders that NTFS creates on first access; the tracker tells them from real changes by their records (see [trace.md](trace.md), "Windows containers").
+        - Other fixes: a console installer no longer writes into `--json` output; Code Integrity's extended attributes and other metadata-only changes are noise; deletions of files open since before the trace; noise rules for what the idle round found.
+      - **After the profile fix below (2026-10-24 and 25), runs 7 to 9:** 1 and 2 problems, then **RESULT: PASS** (run 9, 2026-10-25 12:42).
+        - Run 7, the oracle's error: Edge's component unpacker extracted files into a temporary folder while the oracle's first capture walked the disk, then moved the whole folder to `LocalState\EBWebView\hyphen-data` before the trace started. The trace was right to report nothing. The files had no records of their own: a folder moved as a whole takes its contents along, and neither the journal nor the oracle's name watch names them. The oracle now dates such lines by the folder's move.
+        - Run 8, a tracker bug: WMI renames `WmiApRpl_new.ini` over `WmiApRpl.ini`, and had kept the new file open since before the trace. Its leftover `FILE_CREATE` made it look created during the trace, so its old name was lost. An older file renamed over another is now reported as a replacement, and its old name as deleted.
+        - Run 8, the oracle: two `en-US` placeholder folders came and went only in the container's listings, with no journal record of either name. The oracle no longer counts such items against the trace.
+        - `leftovers`, `removal` and `force` pass with the profile fix, and again on the final code (2026-10-25, 12:49 to 12:55).
+    - **Fix found on the way (affects Phases 1-4):** `find_value(key.values(), ...)` inside an `if` kept a pointer into a temporary list that was already destroyed. As a result, every user's profile folder read as empty.
+      - **Effects:**
+        - the hard floor guarded only `C:\Users`, not each profile, its AppData, its packages' folders or OneDrive;
+        - signed-out users' hives weren't loaded;
+        - the trace's per-user noise rules missed.
+      - **Fix:** `find_value` no longer accepts a temporary list, so the compiler rejects the pattern. Unit tests now check the live hard floor for the current user's profile.
+  - **Next: 5b** (linking, uninstall by trace, value edits, export and import), then **5c** (GUI and RU/HY).

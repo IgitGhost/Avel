@@ -72,6 +72,81 @@ function Compare-State($expected, $actual, [string]$label) {
     if ($same) { Log "  OK: $label" }
 }
 
+# Oracle captures (avel_capture, tests/helpers/capture.cpp): files, folders, registry keys and
+# values listed with plain Win32 calls, independently of Avel. The diff of two captures tells what
+# really changed in between. See capture.cpp for the line format.
+
+# Captures `specs` into `path`. `skip`: patterns avel_capture leaves out (with everything below a
+# matching folder or key). Returns avel_capture's summary lines ("spec ...", "total: ...",
+# "excluded <count> <pattern>").
+function New-Capture([string]$path, [string[]]$specs, [string[]]$skip = @()) {
+    $exe = Join-Path (Split-Path $cli) 'avel_capture.exe'
+    New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+    $arguments = @('capture', $path) + $specs
+    if ($skip) {
+        [IO.File]::WriteAllLines("$path.exclude", [string[]]$skip, [Text.UTF8Encoding]::new($false))
+        $arguments += @('--exclude', "$path.exclude")
+    }
+    # stdout only: under 'Stop', Windows PowerShell turns a native program's stderr into an error.
+    $output = & $exe @arguments
+    if ($LASTEXITCODE -ne 0) { throw "avel_capture capture failed ($LASTEXITCODE): $($output -join ' ')" }
+    return $output
+}
+
+# One line of a capture diff: sign (+, - or ~), kind (D, F, K, V or !), path, attributes, text.
+function ConvertFrom-CaptureLine([string]$line) {
+    $rest = $line.Substring(4)
+    $tab = $rest.IndexOf("`t")
+    $path = if ($tab -ge 0) { $rest.Substring(0, $tab) } else { $rest }
+    $attributes = if ($tab -ge 0) { $rest.Substring($tab + 1) } else { '' }
+    return [pscustomobject]@{ sign = $line.Substring(0, 1); kind = $line.Substring(2, 1); path = $path
+                              attributes = $attributes; text = $line }
+}
+
+# The differences between two captures, parsed. Wrap calls in @(): one line comes back bare.
+function Get-CaptureDiff([string]$before, [string]$after) {
+    $exe = Join-Path (Split-Path $cli) 'avel_capture.exe'
+    $out = "$after.diff"
+    $null = & $exe diff $before $after $out
+    if ($LASTEXITCODE -gt 1) { throw "avel_capture diff failed ($LASTEXITCODE)" }
+    # ReadAllLines, not Get-Content: its strings carry note properties.
+    foreach ($line in [IO.File]::ReadAllLines($out, [Text.Encoding]::UTF8)) {
+        if ($line.Length -ge 4) { ConvertFrom-CaptureLine $line }
+    }
+}
+
+# The reason of the first `known` pattern (an ordered dictionary or hashtable of pattern = reason)
+# that `path` matches, or $null.
+function Get-KnownReason([string]$path, $known) {
+    if (-not $known) { return $null }
+    foreach ($entry in $known.GetEnumerator()) {
+        if ($path -match $entry.Key) { return $entry.Value }
+    }
+    return $null
+}
+
+# Compares two captures that should be the same. Every difference fails, except those whose path
+# matches an -Exclude pattern (counted) or a -Known pattern (logged as KNOWN with its reason).
+# Returns the differences left unexplained.
+function Compare-Capture([string]$before, [string]$after, [string]$label, $Known = @{}, [string[]]$Exclude = @()) {
+    $lines = @(Get-CaptureDiff $before $after)
+    $unexplained = [System.Collections.Generic.List[object]]::new()
+    $excluded = 0
+    foreach ($line in $lines) {
+        if (@($Exclude | Where-Object { $line.path -match $_ }).Count) { $excluded++; continue }
+        $reason = Get-KnownReason $line.path $Known
+        if ($reason) { Log "  KNOWN: $($reason): $($line.text)"; continue }
+        $unexplained.Add($line)
+    }
+    if ($unexplained.Count) {
+        Fail "$($label): $($unexplained.Count) unexplained difference(s)"
+        foreach ($line in $unexplained) { Log "      $($line.text)" }
+    } else {
+        Log "  OK: $label ($($lines.Count) difference(s), $excluded excluded)"
+    }
+    return $unexplained.ToArray()
+}
+
 # Writes results\<scenario>.json (avel-cli's raw output) and, last, results\<scenario>.txt.
 function Write-Report {
     Log ''

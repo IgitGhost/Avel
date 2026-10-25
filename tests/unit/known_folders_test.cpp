@@ -6,7 +6,9 @@
 #include <string>
 
 #include "core/platform/known_folders.h"
+#include "core/platform/paths.h"
 #include "core/platform/text.h"
+#include "core/platform/user_profiles.h"
 #include "scratch_registry.h"
 
 namespace avel::platform {
@@ -16,7 +18,8 @@ bool contains(const std::vector<std::wstring>& list, std::wstring_view path) {
     return std::any_of(list.begin(), list.end(), [&](const auto& item) { return iequals(item, path); });
 }
 
-constexpr wchar_t kShellFolders[] = LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders)";
+constexpr wchar_t kShellFolders[] =
+    LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders)";
 
 TEST(KnownFoldersTest, UserFoldersComeFromTheUsersHiveIncludingRedirection) {
     testing::ScratchKey hive;
@@ -44,6 +47,26 @@ TEST(KnownFoldersTest, UserFoldersWithoutAHiveUseDefaults) {
     const UserFolders folders = user_folders(nullptr, profile);
     EXPECT_EQ(folders.roaming_app_data, LR"(C:\Users\other\AppData\Roaming)");
     EXPECT_EQ(folders.desktop, LR"(C:\Users\other\Desktop)");
+}
+
+// Where Windows keeps the current user's profile, read from its ProfileList entry (once read through
+// a pointer into a list of values already gone, which left every profile's folder empty).
+TEST(UserProfilesTest, FindsTheCurrentUsersProfile) {
+    const std::wstring me = current_user_sid();
+    std::wstring home(MAX_PATH, L'\0');
+    home.resize(::GetEnvironmentVariableW(L"USERPROFILE", home.data(), MAX_PATH));
+    if (!istarts_with(me, L"S-1-5-21-") || home.empty()) {
+        GTEST_SKIP() << "the current user isn't a user with a profile of their own";
+    }
+    std::string profiles;
+    std::wstring mine;
+    for (const auto& profile : enumerate_user_profiles()) {
+        profiles += to_utf8(profile.sid) + " '" + to_utf8(profile.profile_path) + "'; ";
+        if (iequals(profile.sid, me)) {
+            mine = profile.profile_path;
+        }
+    }
+    EXPECT_TRUE(iequals(normalize_path(mine), normalize_path(home))) << profiles;
 }
 
 TEST(KnownFoldersTest, MachineFoldersOnThisSystem) {

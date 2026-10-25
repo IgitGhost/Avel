@@ -31,6 +31,9 @@ enum class NoiseReason : std::uint8_t {
     Temporary,       // Temp folders
     Avel,            // Avel's own files and keys
     Unresolved,      // Its path couldn't be determined
+    // Only an existing item's attributes, times, security or extended attributes changed (Code
+    // Integrity caches a signature check in an extended attribute of each file it checks)
+    MetadataOnly,
 };
 
 struct TraceChange {

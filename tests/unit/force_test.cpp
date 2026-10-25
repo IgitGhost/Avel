@@ -16,6 +16,7 @@
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/processes.h"
+#include "test_spawner.h"
 
 namespace avel::force {
 namespace {
@@ -140,8 +141,7 @@ TEST_F(ForceTest, ProcessesRunningFromTheTargetsFolders) {
 }
 
 TEST_F(ForceTest, FindsAndEndsARealProcess) {
-    std::wstring spawner = AVEL_TEST_SPAWNER;
-    std::replace(spawner.begin(), spawner.end(), L'/', L'\\');
+    const std::wstring spawner = testing::spawner_path();
     const std::wstring copy = path(LR"(Contoso\Fixture\bin\fixture-app.exe)");
     ASSERT_TRUE(::CopyFileW(spawner.c_str(), copy.c_str(), FALSE));
     std::wstring command = L"\"" + copy + L"\" child 60000 \"" + path(L"marker") + L"\"";

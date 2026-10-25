@@ -151,7 +151,8 @@ void add_onedrive_folders(HKEY hive, std::vector<std::pair<std::wstring, Protect
             if (platform::RegistryKey::open(accounts.get(), name, KEY_READ, account) != ERROR_SUCCESS) {
                 continue;
             }
-            if (const auto* folder = platform::find_value(account.values(), L"UserFolder")) {
+            const auto values = account.values();
+            if (const auto* folder = platform::find_value(values, L"UserFolder")) {
                 if (const auto path = folder->as_string(); path && platform::is_absolute_path(*path)) {
                     subtrees.emplace_back(platform::normalize_path(*path), ProtectionReason::CloudFolder);
                 }

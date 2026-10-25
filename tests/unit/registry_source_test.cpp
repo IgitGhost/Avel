@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "core/inventory/registry_source.h"
 #include "core/platform/registry.h"
@@ -147,6 +149,21 @@ TEST(RegistryValueTest, IntegersFromDwordQwordAndText) {
     value.data.resize((junk.size() + 1) * sizeof(wchar_t));
     std::memcpy(value.data.data(), junk.c_str(), value.data.size());
     EXPECT_FALSE(value.as_integer().has_value());
+}
+
+// find_value points into the list it searches, so it takes no list that goes away with the call:
+// RegistryKey::values() passed straight in once left every ProfileImagePath read empty.
+template <typename List>
+constexpr bool finds_in = requires(List list) { platform::find_value(std::forward<List>(list), L"Name"); };
+static_assert(finds_in<const std::vector<platform::RegistryValue>&>);
+static_assert(!finds_in<std::vector<platform::RegistryValue>>);
+
+TEST(RegistryValueTest, FindsValuesIgnoringCase) {
+    std::vector<platform::RegistryValue> values(2);
+    values[0].name = L"ProfileImagePath";
+    values[1].name = L"Flags";
+    EXPECT_EQ(platform::find_value(values, L"profileimagepath"), &values[0]);
+    EXPECT_EQ(platform::find_value(values, L"State"), nullptr);
 }
 
 }  // namespace

@@ -106,12 +106,34 @@ add_library(avel_core STATIC
     platform/user_hives.h
     platform/user_profiles.cpp
     platform/user_profiles.h
+    platform/usn_journal.cpp
+    platform/usn_journal.h
     platform/version_info.cpp
     platform/volume_folders.cpp
     platform/volume_folders.h
     platform/version_info.h
+    tracker/file_changes.cpp
+    tracker/file_changes.h
+    tracker/install_trace.cpp
+    tracker/install_trace.h
+    tracker/installer_watch.cpp
+    tracker/installer_watch.h
+    tracker/journal_trace.cpp
+    tracker/journal_trace.h
+    tracker/known_values.cpp
+    tracker/known_values.h
+    tracker/noise_filter.cpp
+    tracker/noise_filter.h
+    tracker/registry_snapshot.cpp
+    tracker/registry_snapshot.h
     tracker/trace.cpp
     tracker/trace.h
+    tracker/trace_record.cpp
+    tracker/trace_record.h
+    tracker/trace_session.cpp
+    tracker/trace_session.h
+    tracker/trace_store.cpp
+    tracker/trace_store.h
     uninstall/batch.cpp
     uninstall/batch.h
     uninstall/installer_detection.cpp

@@ -26,8 +26,11 @@ struct RegistryValue {
     std::optional<std::uint64_t> as_integer() const;
 };
 
-// Finds a value by name, ignoring case like the registry itself does.
+// Finds a value by name, ignoring case like the registry itself does. The pointer points into
+// `values`, so a list that goes away with the call (RegistryKey::values() passed straight in)
+// would leave it dangling: that doesn't compile.
 const RegistryValue* find_value(const std::vector<RegistryValue>& values, std::wstring_view name);
+const RegistryValue* find_value(std::vector<RegistryValue>&& values, std::wstring_view name) = delete;
 
 class RegistryKey {
 public:

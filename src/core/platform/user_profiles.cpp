@@ -74,7 +74,8 @@ std::vector<UserProfile> enumerate_user_profiles() {
         profile.sid = sid;
         RegistryKey profile_key;
         if (RegistryKey::open(profile_list.get(), sid, KEY_READ, profile_key) == ERROR_SUCCESS) {
-            if (const auto* path = find_value(profile_key.values(), L"ProfileImagePath")) {
+            const auto values = profile_key.values();
+            if (const auto* path = find_value(values, L"ProfileImagePath")) {
                 profile.profile_path = expand_environment(path->as_string().value_or(L""));
             }
         }

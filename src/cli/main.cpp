@@ -12,6 +12,7 @@
 #include "cli/list_command.h"
 #include "cli/orphans_command.h"
 #include "cli/scan_command.h"
+#include "cli/trace_command.h"
 #include "cli/undo_command.h"
 #include "cli/uninstall_command.h"
 #include "core/platform/com_security.h"
@@ -50,10 +51,13 @@ constexpr std::string_view kUsage =
     "  undo --list | --show <id> | <id> [--item <n>]... | --purge | --recover [--json]\n"
     "             List removals, or put back what one removed.\n"
     "             Run as administrator.\n"
+    "  trace start [--description <text>] | stop | list | show <id> [--all] | cancel | delete <id>\n"
+    "  trace run [--description <text>] [--timeout <seconds>] -- <installer> [<args>...]\n"
+    "             Record what an installer changes: between start and stop, or around an\n"
+    "             installer that run launches and waits for. --json for all but cancel\n"
+    "             and delete. Run as administrator.\n"
     "  version    Show version and environment information\n"
-    "  help       Show this help\n"
-    "\n"
-    "Planned: trace.\n";
+    "  help       Show this help\n";
 
 void print_version() {
     std::string text = "Avel (Ավել) ";
@@ -92,6 +96,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"undo") {
         return avel::cli::run_undo_command(arguments);
+    }
+    if (command == L"trace") {
+        return avel::cli::run_trace_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

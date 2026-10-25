@@ -3,10 +3,11 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-4 done; next: Avel Trace).** Avel lists installed programs, runs their
-> uninstallers silently or in batches, then finds what they left behind and removes it with a
-> backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed
-> by force. See [docs/plan.md](docs/plan.md) for the roadmap.
+> **Status: pre-alpha (Phases 0-4 done; Avel Trace in progress: 5a, core and CLI, done).** Avel lists
+> installed programs, runs their uninstallers silently or in batches, then finds what they left
+> behind and removes it with a backup that can be undone for 30 days. Programs that can't uninstall
+> themselves can be removed by force, and installations can be traced from the CLI. See
+> [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
 
@@ -57,6 +58,22 @@
   - **In the CLI:** `force`, `list --broken`, `--deep` and `orphans` do the same.
 
   See [docs/force.md](docs/force.md).
+- **Install tracing (Avel Trace), CLI only for now.** Avel records what an installer changes,
+  without a driver: files from the NTFS USN journal, the registry from a snapshot, and the exact
+  values of the environment variables and SharedDLLs counts it touches. Windows' own background
+  activity is set aside as noise. `trace run` launches the installer and stops by itself once the
+  installation is over; a trace survives a restart. Using a trace to uninstall comes next.
+
+  ```powershell
+  # Run as administrator.
+  avel-cli trace run -- C:\Installers\7z.msi /qn   # install and trace; stops by itself
+  avel-cli trace start                             # or trace by hand: start,
+  avel-cli trace stop                              # install the program, then stop
+  avel-cli trace list                              # every trace, newest first
+  avel-cli trace show <id>                         # what it recorded (--all: noise too)
+  ```
+
+  See [docs/trace.md](docs/trace.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -86,7 +103,7 @@
 | Module | What it does |
 |---|---|
 | **Avel Uninstall** | Lists every installed program (Win32, MSI, Store/MSIX, every user's per-user installs), runs its uninstaller (also silently or in batches), then finds leftovers and removes them with full backup and undo |
-| **Avel Trace** | Records what an installer changes (NTFS USN journal plus a registry snapshot, no kernel driver) so the program can later be removed exactly |
+| **Avel Trace** | Records what an installer changes (NTFS USN journal plus a registry snapshot, no kernel driver) so the program can later be removed exactly, including its edits to PATH and SharedDLLs |
 | **Avel Force** | Removes programs whose uninstaller is broken or missing; a crosshair "hunter" picks a program from any window |
 | **Avel Tools** | Startup manager, Windows apps (bloatware) removal, Windows features, stubborn browser extensions |
 
@@ -147,6 +164,8 @@ Avel deletes software, files and registry keys.
 - Leftovers are removed only after a backup, and only outside protected places: Windows, Program
   Files, the user profiles and the known folders, and the core registry keys. Every removal can be
   undone for 30 days.
+- Tracing changes nothing but its own files, except that it creates a USN journal (64 MB) on an
+  NTFS drive that has none.
 - Development tests of destructive features run only inside Windows Sandbox (`tests/sandbox`).
 
 ## License

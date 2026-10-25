@@ -60,7 +60,8 @@ std::vector<std::wstring> profile_folders() {
     for (const auto& sid : list.subkey_names()) {
         platform::RegistryKey profile;
         if (platform::RegistryKey::open(list.get(), sid, KEY_READ, profile) == ERROR_SUCCESS) {
-            if (const auto* path = platform::find_value(profile.values(), L"ProfileImagePath")) {
+            const auto values = profile.values();
+            if (const auto* path = platform::find_value(values, L"ProfileImagePath")) {
                 folders.push_back(platform::expand_environment(path->as_string().value_or(L"")));
             }
         }

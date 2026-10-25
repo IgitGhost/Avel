@@ -8,6 +8,7 @@
 #include "core/leftovers/protection.h"
 #include "core/platform/known_folders.h"
 #include "core/platform/text.h"
+#include "core/platform/user_profiles.h"
 
 namespace avel::leftovers {
 namespace {
@@ -140,6 +141,15 @@ TEST(HardFloorTest, LiveFloorGuardsThisMachine) {
     EXPECT_EQ(floor.check(folder(machine.program_files)), Reason::ProgramFiles);
     EXPECT_EQ(floor.check(folder(machine.users)), Reason::UserProfiles);
     EXPECT_EQ(floor.check(folder(machine.program_files + LR"(\Avel.Tests.Nonexistent)")), Reason::None);
+    // Every user's profile, from ProfileList: the current user's among them.
+    std::wstring home(MAX_PATH, L'\0');
+    home.resize(::GetEnvironmentVariableW(L"USERPROFILE", home.data(), MAX_PATH));
+    if (!home.empty() && platform::istarts_with(platform::current_user_sid(), L"S-1-5-21-")) {
+        EXPECT_EQ(floor.check(folder(home)), Reason::UserProfiles);
+        EXPECT_EQ(floor.check(folder(home + LR"(\AppData\Local)")), Reason::UserProfiles);
+        EXPECT_EQ(floor.check(folder(home + LR"(\AppData\Local\Packages\Contoso.App_1a2b3c4d5e6f)")),
+                  Reason::SystemArea);
+    }
 }
 
 TEST(ProtectedPolicyTest, GuardsKnownFoldersAndSharedNames) {

@@ -30,6 +30,8 @@ std::string_view to_string(NoiseReason reason) {
             return "avel";
         case NoiseReason::Unresolved:
             return "unresolved";
+        case NoiseReason::MetadataOnly:
+            return "metadata-only";
     }
     return "unknown";
 }
