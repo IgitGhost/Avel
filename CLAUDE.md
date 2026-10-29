@@ -132,7 +132,10 @@ Modules under `src/core`, in pipeline order:
   ADR.
 - Phases land on `main` as one commit each (`Phase 4c: ...`). Work in progress lives on a phase
   branch (e.g. `phase5a`) and is squashed in once the phase's Sandbox acceptance passes.
-- Pushing or creating the GitHub repo needs the maintainer's explicit go-ahead.
+- The public repo is `github.com/IgitGhost/Avel`; only `main` is pushed, and phase branches stay
+  local. Pushing needs the maintainer's explicit go-ahead.
+- Commits use this clone's own git identity (`.git/config`), not the global one. Don't change
+  git config.
 
 ## Pitfalls already hit in this codebase
 
@@ -152,3 +155,6 @@ Modules under `src/core`, in pipeline order:
     with a short-lived popup disappears from UIA in the menu bar.
 - PowerShell scripts in the repo must stay ASCII with CRLF line endings. Windows PowerShell 5.1
   reads a BOM-less file as ANSI. Build non-ASCII strings from code points (`[char]0x414`).
+- CI installs Qt with aqtinstall from its git master, pinned by commit (`aqtsource` in `ci.yml`).
+  Since Qt 6.11 Qt's online repository has a folder per architecture, which aqtinstall 3.3.0, its
+  latest release, can't read. Move back to a released version once one supports it.
