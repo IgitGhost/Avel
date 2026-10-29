@@ -13,7 +13,7 @@ jobs:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-cache
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -21,6 +21,9 @@ jobs:
           version: '6.12.0'
           arch: 'win64_msvc2022_64'
           cache: true
+          # Since Qt 6.11 the online repository has a folder per architecture, which aqtinstall 3.3.0
+          # (its latest release) can't read. Its master supports it (miurahr/aqtinstall#1000).
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
 
       - name: Set up MSVC developer environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -28,7 +31,7 @@ jobs:
           arch: x64
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
