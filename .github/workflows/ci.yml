@@ -31,7 +31,8 @@ jobs:
           arch: x64
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v6
+        id: vcpkg-cache
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
@@ -47,5 +48,34 @@ jobs:
       - name: Build
         run: cmake --build --preset release
 
+      # Saved even when a later step fails, so the next run doesn't build the dependencies again.
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+
       - name: Unit tests
-        run: ctest --preset release
+        run: ctest --preset release --output-junit ctest-junit.xml
+
+      # Job logs need a sign-in; annotations and the summary don't, so failures are readable by anyone.
+      - name: Report failed tests
+        if: failure()
+        shell: pwsh
+        run: |
+          $junit = 'build\release\ctest-junit.xml'
+          if (-not (Test-Path $junit)) { exit 0 }
+          $xml = [xml](Get-Content -Raw $junit)
+          $failed = @($xml.SelectNodes('//testcase') | Where-Object { $_.GetAttribute('status') -eq 'fail' })
+          if ($failed.Count -eq 0) { exit 0 }
+          function Escape([string]$s) { $s.Replace('%', '%25').Replace("`r", '').Replace("`n", '%0A') }
+          $names = $failed | ForEach-Object { $_.GetAttribute('name') }
+          "::error title=$($failed.Count) test(s) failed::$(Escape ($names -join "`n"))"
+          foreach ($t in $failed | Select-Object -First 9) {
+            $out = $t.SelectSingleNode('system-out')
+            $lines = @(if ($out) { $out.InnerText -split "`r?`n" | Where-Object { $_ -ne '' } })
+            "::error title=$($t.GetAttribute('name'))::$(Escape (($lines | Select-Object -Last 25) -join "`n"))"
+          }
+          "## Failed tests`n" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          $names | ForEach-Object { "- ``$_``" } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
