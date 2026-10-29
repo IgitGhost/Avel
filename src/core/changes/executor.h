@@ -30,6 +30,10 @@ struct ExecuteOptions {
     std::optional<std::size_t> stop_after;
     // Called when stop_after is reached; the default just stops. The CLI ends the process here.
     std::function<void()> on_stop;
+    // Called once at the end of a run that edited an environment variable (or undid or settled such
+    // an edit). The default broadcasts WM_SETTINGCHANGE "Environment", so Explorer and the programs
+    // started afterwards see the change. Tests replace it.
+    std::function<void()> environment_changed;
 };
 
 struct ItemResult {
@@ -50,8 +54,10 @@ struct ChangeEvents {
 };
 
 // Removes the plan's items, in a safe order: services and tasks first (so their files are free),
-// then packages, registry values, registry keys, and files last. An item inside another planned
-// item is left to go with it. Hold store.lock() around this.
+// then task folders (deepest first, once their tasks are gone), packages, registry values and value
+// edits, registry keys, and files last. An item inside another planned item is left to go with it.
+// A value edit is applied only while the value is still what it expects; otherwise it is skipped
+// as `changed`. Hold store.lock() around this.
 ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteOptions& options = {},
                       const ChangeEvents& events = {});
 
@@ -62,7 +68,9 @@ struct RestoreResult {
 };
 
 // Undoes a set, in the reverse order of removal: all of its removed items, or only `only`. Nothing
-// that has appeared in an item's place since is ever replaced. events.item_finished is called for
+// that has appeared in an item's place since is ever replaced. A value edit is reverted exactly
+// while the value is still what was written; otherwise its inverse is applied (the entries put back
+// into the list, the count raised again) where there is one. events.item_finished is called for
 // each item it tries.
 RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vector<std::size_t>& only = {},
                       const ExecuteOptions& options = {}, const ChangeEvents& events = {});

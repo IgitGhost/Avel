@@ -67,6 +67,8 @@ enum class Reason : std::uint8_t {
     Exists,             // Undo: something new is in its place
     BackupMissing,      // Undo: the backup is gone or unreadable
     Error,              // See the Win32 code
+    Changed,            // A value edit: the value changed since planning (for undo: since the edit)
+    NotEmpty,           // A task folder that still holds tasks or folders
 };
 
 struct ItemStatus {

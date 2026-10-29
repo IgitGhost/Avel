@@ -258,7 +258,8 @@ struct Item {
     bool metadata_only = false;  // Modified: only its attributes, times, security or extended attributes
     std::uint32_t first_reasons = 0;
     std::uint64_t contents = 0;
-    bool merged = false;  // The Deleted half of a replacement
+    std::vector<std::size_t> inside;  // A created root: the items `contents` counts
+    bool merged = false;              // The Deleted half of a replacement
     bool hidden = false;  // Inside a created root, or a created folder that holds older items
 };
 
@@ -273,6 +274,7 @@ void assign_roots(std::vector<Item>& items) {
     for (std::size_t i = 0; i < items.size(); ++i) {
         items[i].hidden = false;
         items[i].contents = 0;
+        items[i].inside.clear();
         if (items[i].change == ChangeKind::Created && items[i].directory && !items[i].merged) {
             created_folders.emplace(items[i].frn, i);
         }
@@ -291,7 +293,8 @@ void assign_roots(std::vector<Item>& items) {
             parent = items[folder->second].parent;
         }
     }
-    for (auto& item : items) {
+    for (std::size_t index = 0; index < items.size(); ++index) {
+        auto& item = items[index];
         if (item.change != ChangeKind::Created || item.merged) {
             continue;
         }
@@ -308,11 +311,35 @@ void assign_roots(std::vector<Item>& items) {
         if (root) {
             item.hidden = true;
             ++items[*root].contents;
+            items[*root].inside.push_back(index);
         }
     }
     for (const auto frn : mixed) {
         items[created_folders.at(frn)].hidden = true;
     }
+}
+
+// A created root folder's inventory: the items assign_roots counted in it, relative to it. Nullopt
+// when one's path is unknown or there are more than kMaxContainedItems.
+std::optional<std::vector<leftovers::ContainedItem>> inventory_of(const std::vector<Item>& items,
+                                                                  const Item& root) {
+    if (!root.path.resolved || root.inside.size() > leftovers::kMaxContainedItems) {
+        return std::nullopt;
+    }
+    const std::wstring base = platform::normalize_path(root.path.text);
+    std::vector<leftovers::ContainedItem> inside;
+    inside.reserve(root.inside.size());
+    for (const std::size_t index : root.inside) {
+        const Item& item = items[index];
+        const std::wstring path = platform::normalize_path(item.path.text);
+        if (!item.path.resolved || path.size() <= base.size() + 1 || path[base.size()] != L'\\' ||
+            !platform::istarts_with(path, base)) {
+            return std::nullopt;
+        }
+        inside.push_back({path.substr(base.size() + 1), std::nullopt, item.directory});
+    }
+    std::sort(inside.begin(), inside.end());
+    return inside;
 }
 
 }  // namespace
@@ -758,6 +785,9 @@ std::vector<TraceChange> resolve_file_changes(const FileChangeAggregator& change
             change.old_path = platform::normalize_path(item.old_path.text);
         }
         change.contents = item.contents;
+        if (item.change == ChangeKind::Created && item.directory) {
+            change.inside = inventory_of(items, item);
+        }
         change.replaced = item.replaced;
         if (!item.path.resolved || (item.change == ChangeKind::Renamed && !item.old_path.resolved)) {
             change.noise = NoiseReason::Unresolved;

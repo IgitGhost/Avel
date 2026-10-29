@@ -74,6 +74,10 @@ add_library(avel_core STATIC
     leftovers/snapshots.cpp
     leftovers/system_scanners.cpp
     leftovers/system_snapshots.cpp
+    leftovers/trace_scanner.cpp
+    leftovers/trace_source.h
+    leftovers/value_edits.cpp
+    leftovers/value_edits.h
     platform/com_security.cpp
     platform/com_security.h
     platform/command_line.cpp
@@ -122,16 +126,24 @@ add_library(avel_core STATIC
     tracker/journal_trace.h
     tracker/known_values.cpp
     tracker/known_values.h
+    tracker/linking.cpp
+    tracker/linking.h
     tracker/noise_filter.cpp
     tracker/noise_filter.h
     tracker/registry_snapshot.cpp
     tracker/registry_snapshot.h
     tracker/trace.cpp
     tracker/trace.h
+    tracker/trace_export.cpp
+    tracker/trace_export.h
+    tracker/trace_items.cpp
+    tracker/trace_items.h
     tracker/trace_record.cpp
     tracker/trace_record.h
     tracker/trace_session.cpp
     tracker/trace_session.h
+    tracker/trace_source.cpp
+    tracker/trace_source.h
     tracker/trace_store.cpp
     tracker/trace_store.h
     uninstall/batch.cpp
@@ -157,5 +169,5 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd version windowsapp
-            xmllite)
+    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd user32 version
+            windowsapp xmllite)

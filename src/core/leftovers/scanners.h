@@ -215,6 +215,39 @@ void scan_firewall_rules(const ScanContext& context, std::vector<Leftover>& foun
 void scan_msi_registration(const ScanContext& context, std::vector<Leftover>& found);
 void scan_deep(const ScanContext& context, std::vector<Leftover>& found);
 
+// The value edits the targets' install traces call for (trace_scanner.cpp), planned once for all
+// targets before their items are scanned: one edit per value, planned against the value as it is
+// now, so two traces that changed one value (Path) never make the second edit fail compare-and-set.
+struct TraceValuePlan {
+    struct Edit {
+        ValueEditLocation location;
+        ValueEditBasis basis = ValueEditBasis::Undo;  // Undo or Restore
+        std::vector<std::size_t> targets;             // Whose traces it takes back (indices into the targets)
+    };
+    std::vector<Edit> edits;
+    std::vector<std::vector<ValueEditBasis>> bases;  // [target][traced value]: what became of it
+    // Every SharedDLLs count, as it will be once the edits are made.
+    struct SharedDll {
+        std::wstring path;  // The value's name, normalized
+        std::uint64_t count = 0;
+    };
+    std::vector<SharedDll> shared_dlls;
+};
+
+TraceValuePlan plan_trace_values(const ScanEnvironment& environment, std::span<const ScanTarget> targets);
+
+// What the target's install trace saw the installer create, still there: tied items with the
+// strongest evidence, the rest with a weak one. Changes to items that existed before are never
+// offered. Counts what it leaves out in `use`.
+void scan_trace(const ScanContext& context, const TraceValuePlan& values, std::vector<Leftover>& found,
+                TraceUse& use);
+
+// The planned value edits as leftovers. A raw value that a traced value names (a SharedDLLs value
+// the references found) goes: its evidence joins the value's edit, and with no edit planned, the
+// trace says there is nothing of the installer's left to take back. `targets` as the scan used them.
+void add_trace_value_edits(const TraceValuePlan& plan, std::span<const ScanTarget> targets,
+                           std::vector<Leftover>& found);
+
 // BCU TestForSimilarNames: among items found side by side (in one folder or key), penalizes
 // those whose name another program's name contains, and all but the closest of several similar
 // names. `names[i]` is the name of `found[indices[i]]`.

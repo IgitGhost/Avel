@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 
 #include "core/leftovers/environment.h"
 #include "core/platform/paths.h"
@@ -33,6 +34,7 @@ constexpr Noise kVolumeNoise[] = {
 constexpr Noise kWindowsNoise[] = {
     {L"Temp", kTemporary},
     {L"SystemTemp", kTemporary},
+    {L"CbsTemp", kTemporary},  // Servicing's working folders
     {L"Prefetch", kSystem},
     {L"Logs", kSystem},
     {L"SoftwareDistribution", kSystem},
@@ -41,6 +43,15 @@ constexpr Noise kWindowsNoise[] = {
     {L"AppReadiness", kSystem},  // Packaged apps being prepared for each user
     {LR"(appcompat\Programs)", kSystem},
     {LR"(appcompat\pca)", kSystem},  // The Program Compatibility Assistant's records
+    // Windows' own compatibility fix database, which it downloads and installs by itself (seen
+    // while Notepad++ installed in the Sandbox), and the compatibility appraiser's data and working
+    // files, which it runs by itself (seen while Notepad++ and Inno Setup installed)
+    {LR"(appcompat\cloudsdb*)", kSystem},
+    {LR"(apppatch\drvpatch.sdb)", kSystem},
+    {LR"(apppatch\CustomSDB\{22221111-1111-1111-1111-111111111111}.sdb)", kSystem},
+    {LR"(System32\appraiser)", kSystem},
+    {LR"(appcompat\appraiser)", kSystem},
+    {LR"(appcompat\UA)", kSystem},
     {LR"(INF\setupapi*.log)", kSystem},
     {LR"(Microsoft.NET\Framework*\v*\ngen*.log)", kSystem},
     // The performance counters' names and help texts, which lodctr and WMI's performance adapter
@@ -91,6 +102,7 @@ constexpr Noise kServiceProfileNoise[] = {
     {LR"(AppData\Local\Microsoft\Windows\WebCache)", kSystem},
     {LR"(AppData\Local\Microsoft\Windows\Caches)", kSystem},
     {LR"(AppData\Local\Microsoft\Windows\UsrClass.dat*)", kSystem},
+    {LR"(AppData\Local\Microsoft\Windows\PowerShell\StartupProfileData-*)", kSystem},  // A cache
     {LR"(AppData\Local\FontCache)", kSystem},
     {LR"(AppData\LocalLow)", kSystem},  // Only caches, such as crypt32's downloaded certificates
     {L"NTUSER.DAT*", kSystem},
@@ -110,6 +122,9 @@ constexpr Noise kProgramDataNoise[] = {
     {LR"(Microsoft\Windows\DeviceMetadataCache)", kSystem},
     {LR"(USOShared\Logs)", kSystem},
     {L"USOPrivate", kSystem},
+    // Windows' software identification tag of itself, which Windows rewrites by itself (seen while
+    // Notepad++ installed in the Sandbox); other products' tags beside it are theirs
+    {LR"(regid.1991-06.com.microsoft\regid.1991-06.com.microsoft_Windows-*.swidtag)", kSystem},
 };
 
 enum class UserFolder : std::uint8_t { Profile, Local, Roaming, LocalLow };
@@ -190,6 +205,24 @@ constexpr std::wstring_view kMachineKeyNoise[] = {
     LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\AppModel)",
     LR"(SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel)",
     LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\OneSettings)",
+    // The compatibility appraiser and its telemetry, which run by themselves (seen during the
+    // Sandbox's installs)
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Appraiser)",
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\TelemetryController)",
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\TargetVersionUpgradeExperienceIndicators)",
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Shared\TargetVersionUpgradeExperienceIndicators)",
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\AvTracking)",
+    // Windows' own compatibility fix database (a fixed id), which it downloads and installs by
+    // itself, with an Uninstall entry Settings lists; a program's own database has its own id
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\InstalledSDB\{22221111-1111-1111-1111-111111111111})",
+    LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{22221111-1111-1111-1111-111111111111}.sdb)",
+    // Windows' feature configuration (fcon.dll): the usage of its staged features that processes
+    // report, which its own Flighting\FeatureConfig tasks flush here, and their reporting state
+    // (seen written between a removal and its undo in the Sandbox)
+    LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Fcon)",
+    LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\OneSettings)",  // Windows' settings from the cloud
+    LR"(SOFTWARE\Microsoft\Wbem\Transports\Decoupled)",           // WMI's running decoupled providers
+    LR"(SOFTWARE\Microsoft\RemovalTools\MRT)",  // The Malicious Software Removal Tool, from Windows Update
     LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\Notifications)",
     LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\Prefetcher)",
     LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\VolatileNotifications)",
@@ -210,6 +243,7 @@ constexpr std::wstring_view kMachineKeyNoise[] = {
     LR"(SYSTEM\CurrentControlSet\Services\Dhcp)",
     LR"(SYSTEM\CurrentControlSet\Services\NlaSvc)",
     LR"(SYSTEM\CurrentControlSet\Services\iphlpsvc)",
+    LR"(SYSTEM\CurrentControlSet\Services\NcbService\NCBKapiNlmCache)",  // The network broker's cache
     LR"(SYSTEM\CurrentControlSet\Services\SharedAccess\Epoch)",
     LR"(SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\RestrictedServices)",
     LR"(SYSTEM\CurrentControlSet\Services\mpssvc\Parameters\PortKeywords)",
@@ -251,8 +285,19 @@ constexpr Noise kUserKeyNoise[] = {
     // The Start menu's and Settings' synced state, and packages' state (see the machine's)
     {LR"(Software\Microsoft\Windows\CurrentVersion\CloudStore)", kSystem},
     {LR"(Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel)", kSystem},
-    // Resource strings Windows caches (Explorer's MuiCache is Local Settings\...\Shell\MuiCache)
+    // Resource strings Windows caches (Explorer's MuiCache is Local Settings\...\Shell\MuiCache),
+    // and packages' names and logos it resolves (MrtCache; Avel's own inventory, reading them for
+    // the packaged apps, fills it too: seen during `force` in the Sandbox)
     {LR"(Software\Classes\Local Settings\MuiCache)", kSystem},
+    {LR"(Software\Classes\Local Settings\MrtCache)", kSystem},
+    {LR"(Software\Microsoft\RestartManager)", kSystem},  // Restart Manager's sessions, for any installer
+    // The shell's own bookkeeping, which it writes by itself (seen between a removal and its undo
+    // in the Sandbox): its notifications of apps newly added to startup, and its watch over apps it
+    // launches ahead of time
+    {LR"(Software\Microsoft\Windows\CurrentVersion\RunNotification)", kSystem},
+    {LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\PrelaunchErrorWatcher)", kSystem},
+    // Storage settings' cache of what folders take up (the user's Storage Sense policy beside it is real)
+    {LR"(Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\CachedSizes)", kSystem},
     // Explorer's folder views
     {LR"(Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags)", kUser},
     {LR"(Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\BagMRU)", kUser},
@@ -294,6 +339,21 @@ constexpr ValueNoise kValueNoise[] = {
     // with SHCNE_ASSOCCHANGED), so that caches of them are read again
     {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer)",
      L"GlobalAssocChangedCounter", kSystem},
+    // Explorer's answer to an environment change being announced (WM_SETTINGCHANGE "Environment")
+    {platform::Hive::User, LR"(Software\Microsoft\Windows NT\CurrentVersion\Winlogon)", L"ParseAutoexec",
+     kSystem},
+    // Storage Sense's last reading of the system volume's free space (seen in the Sandbox's idle round)
+    {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense)", L"BootVolFreeCap",
+     kSystem},
+    // Windows' own compatibility fix database being installed (see kMachineKeyNoise)
+    {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)",
+     L"{22221111-1111-1111-1111-111111111111}.sdb", kSystem},
+    {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)",
+     L"drvpatch.sdb", kSystem},
+    {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)",
+     L"PatchDbUpdateTickCount", kSystem},
+    {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom\*)",
+     L"{22221111-1111-1111-1111-111111111111}.sdb", kSystem},
 };
 
 // Never noise, in either hive, whatever else matches: a program's removal relies on them.
@@ -542,6 +602,36 @@ NoiseReason classify_value(const NoiseRules& rules, const platform::RegistryAddr
     return classify_key_name(rules, name);
 }
 
+namespace {
+
+// A created folder or key that holds nothing but noise was made to hold it (Windows creating a
+// user's AppCompatFlags for the Compatibility Assistant's records): the first item's reason.
+NoiseReason classify_contents(const NoiseRules& rules, const TraceChange& change) {
+    if (change.change != ChangeKind::Created || !change.inside || change.inside->empty()) {
+        return NoiseReason::None;
+    }
+    std::optional<NoiseReason> first;
+    for (const auto& item : *change.inside) {
+        NoiseReason reason = NoiseReason::None;
+        if (const auto* file = std::get_if<leftovers::FileLocation>(&change.location)) {
+            reason = classify_file(rules, file->path + L"\\" + item.path);
+        } else if (const auto* key = std::get_if<leftovers::RegistryKeyLocation>(&change.location)) {
+            platform::RegistryAddress address = key->key;
+            if (!item.path.empty()) {
+                address.path += L"\\" + item.path;
+            }
+            reason = item.value ? classify_value(rules, address, *item.value) : classify_key(rules, address);
+        }
+        if (reason == NoiseReason::None) {
+            return NoiseReason::None;
+        }
+        first = first.value_or(reason);
+    }
+    return first.value_or(NoiseReason::None);
+}
+
+}  // namespace
+
 void apply_noise(const NoiseRules& rules, std::vector<TraceChange>& changes) {
     for (auto& change : changes) {
         if (change.noise != NoiseReason::None) {
@@ -553,6 +643,9 @@ void apply_noise(const NoiseRules& rules, std::vector<TraceChange>& changes) {
             change.noise = classify_key(rules, key->key);
         } else if (const auto* value = std::get_if<leftovers::RegistryValueLocation>(&change.location)) {
             change.noise = classify_value(rules, value->key, value->value_name);
+        }
+        if (change.noise == NoiseReason::None) {
+            change.noise = classify_contents(rules, change);
         }
     }
 }

@@ -23,7 +23,12 @@ enum class Evidence : std::uint8_t {
     CompanyNameMatch,           // +4  The parent folder or key is named after the publisher
     AllSubdirsMatched,          // +4  The folder is, or will be, empty once the other leftovers are gone
     StartupMatched,             // +6  A startup entry (Run value, task, service) of the program
+    TracedInstallRoot,          // +5  (Avel) The install trace saw the installer create it, tied to the
+                                //     program (its own folders and keys, or referencing them); detail: why
+    TracedValueUndo,            // +3  (Avel) A value edit taking back exactly what the installer did (trace)
     ProductNamePerfectMatch,    // +2
+    TracedCreated,              // +1  (Avel) The install trace saw it created; nothing ties it to the program
+    TracedValueRestore,         // +1  (Avel) A value edit putting back what the installer replaced (trace)
     NoOwner,                    // 0   (Avel) An orphaned folder: no installed program owns it
     Depth,                      // 2 - 2 * level: how deep below a search root the item sits
     DirectlyInsideKnownFolder,  // -1
@@ -33,10 +38,18 @@ enum class Evidence : std::uint8_t {
     UsedBySimilarNamedApp,      // -2  Might belong to another program with a similar name
     OtherUserData,              // -2  (Avel) In another user's profile, for a machine-wide program
     QuestionableDirectoryName,  // -3  "install", "settings", "config", "data", ...
+    ContainerHoldsMore,         // -4  (Avel) A folder or key the installer created now holds more than
+                                //     its install trace saw in it, and the trace can't tell which items
+                                //     are the installer's: offered whole, below Good (trace)
     StartupIsRunOnce,           // -5
     DirectoryStillUsed,         // -7  Another installed program lives in or below this folder
+    SharedDllStillUsed,         // -7  (Avel) Is or holds a DLL whose SharedDLLs count stays above 0 once the
+                                //     planned edits are made: another program still uses it
     StoreApp,                   // -10 Data of a packaged app, which Windows manages itself
 };
+
+// Evidence an install trace gave (Scanner::Trace).
+bool is_trace_evidence(Evidence evidence);
 
 // What points into the program's install folder, for PathReference and StartupMatched.
 enum class ReferenceKind : std::uint8_t {

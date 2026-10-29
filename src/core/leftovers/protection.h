@@ -4,8 +4,11 @@
 //   - HardFloor: the last line of defence, built from the live system and not replaceable. It
 //     guards the Windows folder, drive roots, Program Files, ProgramData and the user profiles
 //     (and every ancestor of them), system areas such as WindowsApps, Package Cache and packaged
-//     apps' data, OneDrive folders, Avel's own data, the SYSTEM registry and the core registry
-//     keys (Run, Uninstall, App Paths, ...), and Windows' own scheduled tasks.
+//     apps' data, OneDrive folders, Avel's own data, the SYSTEM registry, the core registry keys
+//     (Run, Uninstall, App Paths, ...), the Task Scheduler's TaskCache, what Windows keeps for
+//     registered packages (PackagedCom, AppModel, ...), and Windows' own scheduled tasks. Value
+//     edits are allowed only in a narrow list of keys: the machine's and each user's Environment
+//     and both SharedDLLs keys (see value_edits.h).
 //   - ProtectedPolicy: known folders of every user and of the machine (and their ancestors), plus
 //     the folder and key names Bulk Crap Uninstaller never treats as a program's own
 //     (UninstallTools/UninstallToolsGlobalConfig.cs, Junk/Finders/Registry/SoftwareRegKeyScanner.cs;
@@ -24,20 +27,23 @@ namespace avel::leftovers {
 
 enum class ProtectionReason : std::uint8_t {
     None,
-    InvalidPath,       // Not an absolute path
+    InvalidPath,  // Not an absolute path
     DriveRoot,
-    WindowsFolder,     // The Windows folder or anything in it
-    ProgramFiles,      // A Program Files folder or one of its ancestors
-    ProgramData,       // ProgramData or one of its ancestors
-    UserProfiles,      // The profiles folder, a profile, or one of their ancestors
-    SystemArea,        // WindowsApps, Package Cache, System Volume Information, ...
-    CloudFolder,       // A OneDrive folder or anything in it
-    AvelData,          // Avel's own files and keys
-    KnownFolder,       // A known folder or one of its ancestors
-    BlacklistedName,   // A shared folder or key such as "Microsoft" or "Common Files"
-    CoreRegistryKey,   // A key Windows relies on, or one of its ancestors
-    SystemRegistry,    // HKLM\SYSTEM and the other system hives
-    WindowsTask,       // One of Windows' own scheduled tasks (under "\Microsoft\")
+    WindowsFolder,        // The Windows folder or anything in it
+    ProgramFiles,         // A Program Files folder or one of its ancestors
+    ProgramData,          // ProgramData or one of its ancestors
+    UserProfiles,         // The profiles folder, a profile, or one of their ancestors
+    SystemArea,           // WindowsApps, Package Cache, System Volume Information, ...
+    CloudFolder,          // A OneDrive folder or anything in it
+    AvelData,             // Avel's own files and keys
+    KnownFolder,          // A known folder or one of its ancestors
+    BlacklistedName,      // A shared folder or key such as "Microsoft" or "Common Files"
+    CoreRegistryKey,      // A key Windows relies on, or one of its ancestors
+    SystemRegistry,       // HKLM\SYSTEM and the other system hives
+    WindowsTask,          // One of Windows' own scheduled tasks (under "\Microsoft\")
+    PackageRegistration,  // What Windows keeps for a registered package (PackagedCom, ...): it goes
+                          // with the package (PackageLocation), never as raw keys or values
+    NotEditable,  // A value edit outside the environment and SharedDLLs, or of a variable Windows needs
 };
 
 std::string_view to_string(ProtectionReason reason);

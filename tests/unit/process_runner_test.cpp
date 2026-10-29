@@ -70,6 +70,39 @@ TEST_F(ProcessRunnerTest, TerminationKillsTheWholeProcessTree) {
     EXPECT_FALSE(std::filesystem::exists(marker_));  // The child never got to write it
 }
 
+// Sandbox run 1: with avel-cli's output piped to a script, a console uninstaller (sdbinst) wrote
+// into it ahead of the JSON. One gets a console of its own then.
+TEST_F(ProcessRunnerTest, AConsoleUninstallerNeverWritesIntoAvelsRedirectedOutput) {
+    SECURITY_ATTRIBUTES inheritable{sizeof(inheritable), nullptr, TRUE};  // As a shell's redirection is
+    HANDLE read = nullptr;
+    HANDLE write = nullptr;
+    ASSERT_TRUE(::CreatePipe(&read, &write, &inheritable, 1 << 16));
+    const HANDLE output = ::GetStdHandle(STD_OUTPUT_HANDLE);
+    const HANDLE error = ::GetStdHandle(STD_ERROR_HANDLE);
+    ::SetStdHandle(STD_OUTPUT_HANDLE, write);
+    ::SetStdHandle(STD_ERROR_HANDLE, write);
+    wchar_t system[MAX_PATH] = {};
+    ::GetSystemDirectoryW(system, MAX_PATH);
+    Cancellation cancellation;
+    const ProcessResult result =
+        run_and_wait(std::wstring(system) + L"\\cmd.exe",
+                     L"/c echo avel-leak-marker & echo avel-leak-marker 1>&2", cancellation);
+    ::SetStdHandle(STD_OUTPUT_HANDLE, output);
+    ::SetStdHandle(STD_ERROR_HANDLE, error);
+    ::CloseHandle(write);
+
+    std::string leaked;
+    char buffer[512];
+    DWORD bytes = 0;
+    while (::ReadFile(read, buffer, sizeof(buffer), &bytes, nullptr) && bytes > 0) {
+        leaked.append(buffer, bytes);
+    }
+    ::CloseHandle(read);
+    ASSERT_TRUE(result.started()) << result.error;
+    EXPECT_EQ(result.exit_code, 0u);
+    EXPECT_EQ(leaked, "");
+}
+
 TEST_F(ProcessRunnerTest, ReportsAMissingExecutable) {
     Cancellation cancellation;
     const ProcessResult result = run_and_wait(LR"(C:\Avel.Tests\does-not-exist.exe)", L"", cancellation);

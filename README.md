@@ -3,10 +3,11 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-4 done; Avel Trace in progress: 5a, core and CLI, done).** Avel lists
-> installed programs, runs their uninstallers silently or in batches, then finds what they left
-> behind and removes it with a backup that can be undone for 30 days. Programs that can't uninstall
-> themselves can be removed by force, and installations can be traced from the CLI. See
+> **Status: pre-alpha (Phases 0-4 done; Avel Trace in progress: 5a and 5b, tracing and uninstalling
+> by a trace from the CLI, done; the GUI is next).** Avel lists installed programs, runs their
+> uninstallers silently or in batches, then finds what they left behind and removes it with a
+> backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed by
+> force. From the CLI, installations can be traced and programs later removed by their trace. See
 > [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
@@ -62,7 +63,13 @@
   without a driver: files from the NTFS USN journal, the registry from a snapshot, and the exact
   values of the environment variables and SharedDLLs counts it touches. Windows' own background
   activity is set aside as noise. `trace run` launches the installer and stops by itself once the
-  installation is over; a trace survives a restart. Using a trace to uninstall comes next.
+  installation is over; a trace survives a restart. A finished trace is linked to the program it
+  installed and kept while that program is installed.
+  - **Uninstalling by the trace:** `uninstall` runs the program's uninstaller, then offers what
+    the trace saw the installer create and the uninstaller left, and takes back its edits to
+    `Path` and `SharedDLLs` exactly. `force` reverts a program by its trace without any
+    uninstaller. Only what is tied to the program (its own folders and keys) is checked by
+    default; what existed before the install is never offered.
 
   ```powershell
   # Run as administrator.
@@ -71,6 +78,11 @@
   avel-cli trace stop                              # install the program, then stop
   avel-cli trace list                              # every trace, newest first
   avel-cli trace show <id>                         # what it recorded (--all: noise too)
+  avel-cli uninstall <id> --quiet --yes --remove-leftovers   # uninstaller, then the trace's leftovers
+  avel-cli force <id> --dry-run                    # revert by the trace, no uninstaller
+  avel-cli force --trace <trace id>                # a trace whose program's entry is gone
+  avel-cli trace export <trace id> D:\x.trace.json # move a trace to another machine
+  avel-cli trace import D:\x.trace.json
   ```
 
   See [docs/trace.md](docs/trace.md).
@@ -88,12 +100,14 @@
   avel-cli uninstall <id> <id> --quiet --yes                # silent batch, no prompt
   avel-cli uninstall <id> --quiet --yes --json              # machine-readable results
   avel-cli uninstall <id> --quiet --yes --remove-leftovers  # then remove what it left behind
+  avel-cli uninstall <id> --quiet --yes --no-trace          # ... without its install trace
   avel-cli scan <id>                                        # preview a program's leftovers
   avel-cli scan <id> --deep                                 # ... and search every fixed drive
   avel-cli orphans                                          # folders no installed program owns
   avel-cli force <id> --dry-run                             # what a forced removal would take
   avel-cli force --exe "C:\Program Files\X\x.exe"           # the program a file belongs to
   avel-cli force --folder "D:\Tools\Old thing"              # a folder without an Uninstall entry
+  avel-cli force --trace <trace id> --dry-run               # what an install trace would revert
   avel-cli undo --list                                      # what Avel removed, newest first
   avel-cli undo <set id>                                    # put it back
   ```

@@ -586,6 +586,28 @@ TEST_F(FileChangesTest, CreatedItemsAreListedAsRootsWithTheirContents) {
     EXPECT_EQ(resolve(), expected);
 }
 
+// A created root keeps what it holds by name, so the leftover scan can tell what was added since.
+TEST_F(FileChangesTest, ACreatedRootKeepsWhatItHolds) {
+    constexpr std::uint64_t kContoso = 0x0001000000004100;
+    constexpr std::uint64_t kSub = 0x0001000000004102;
+    create(kContoso, kProgramFiles, L"Contoso", kFolder);
+    create(0x0001000000004101, kContoso, L"app.exe");
+    create(kSub, kContoso, L"Sub", kFolder);
+    create(0x0001000000004103, kSub, L"b.dat");
+    create(0x0001000000004104, kData, L"loose.txt");
+    const auto changes = resolve_file_changes(changes_, kRoot, L"Q:\\", resolver_, 0);
+    ASSERT_EQ(describe(changes), (std::vector<std::string>{R"(created Q:\Data\loose.txt)",
+                                                           R"(created Q:\Program Files\Contoso\ +3)"}));
+    EXPECT_FALSE(changes[0].inside.has_value());  // A file holds nothing
+    ASSERT_TRUE(changes[1].inside.has_value());
+    const std::vector<leftovers::ContainedItem> expected = {
+        {L"Sub", std::nullopt, true},
+        {LR"(Sub\b.dat)", std::nullopt, false},
+        {L"app.exe", std::nullopt, false},
+    };
+    EXPECT_EQ(*changes[1].inside, expected);
+}
+
 TEST_F(FileChangesTest, AFolderSomethingOlderWasMovedIntoIsNotOfferedWhole) {
     constexpr std::uint64_t kContoso = 0x0001000000005000;
     constexpr std::uint64_t kSub = 0x0001000000005002;

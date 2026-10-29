@@ -26,7 +26,8 @@ constexpr std::array kReasons = {
     Reason::AccessDenied,  Reason::InUse,         Reason::RegistryLink,    Reason::UnsupportedVolume,
     Reason::HasDependents, Reason::NeedsPassword, Reason::MarkedForDeletion, Reason::OtherUser,
     Reason::NotUndoable,   Reason::ReportOnly,    Reason::Contained,       Reason::Interrupted,
-    Reason::Exists,        Reason::BackupMissing, Reason::Error};
+    Reason::Exists,        Reason::BackupMissing, Reason::Error,           Reason::Changed,
+    Reason::NotEmpty};
 constexpr std::array kSetStates = {SetState::Running, SetState::Complete, SetState::Restored, SetState::PartlyRestored};
 
 }  // namespace
@@ -118,6 +119,10 @@ std::string_view to_string(Reason reason) {
             return "backup-missing";
         case Reason::Error:
             return "error";
+        case Reason::Changed:
+            return "changed";
+        case Reason::NotEmpty:
+            return "not-empty";
     }
     return "unknown";
 }

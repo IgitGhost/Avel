@@ -23,6 +23,22 @@ std::wstring working_directory_for(const std::wstring& executable) {
     return std::filesystem::is_directory(parent, error) ? parent.wstring() : std::wstring();
 }
 
+// Avel's standard output or error goes somewhere other than a console (avel-cli --json redirected
+// by a script). Windows gives a console program that shares Avel's console Avel's standard handles,
+// even uninherited, so a console uninstaller would write into Avel's output (Sandbox run 1:
+// sdbinst's "Uninstallation of ... complete." ahead of the JSON); it gets a console of its own
+// then. From a console, or from the GUI (no standard handles), nothing changes.
+bool output_redirected() {
+    for (const DWORD which : {STD_OUTPUT_HANDLE, STD_ERROR_HANDLE}) {
+        const HANDLE handle = ::GetStdHandle(which);
+        DWORD mode = 0;
+        if (handle && handle != INVALID_HANDLE_VALUE && !::GetConsoleMode(handle, &mode)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool job_is_empty(HANDLE job) {
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{};
     return ::QueryInformationJobObject(job, JobObjectBasicAccountingInformation, &accounting,
@@ -68,7 +84,8 @@ ProcessResult run_and_wait(const std::wstring& executable, const std::wstring& a
     startup.cb = sizeof(startup);
     wil::unique_process_information process;
     // Suspended until it's in the job, so it can't start children outside of it.
-    if (!::CreateProcessW(nullptr, command_line.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr,
+    const DWORD flags = CREATE_SUSPENDED | (output_redirected() ? CREATE_NEW_CONSOLE : 0);
+    if (!::CreateProcessW(nullptr, command_line.data(), nullptr, nullptr, FALSE, flags, nullptr,
                           directory.empty() ? nullptr : directory.c_str(), &startup, &process)) {
         return fail();
     }

@@ -1,4 +1,5 @@
-// Removing services, scheduled tasks and packages, and putting services and tasks back.
+// Removing services, scheduled tasks, task folders and packages, and putting services, tasks and
+// task folders back.
 #pragma once
 
 #include <windows.h>
@@ -52,6 +53,20 @@ ItemStatus remove_task(const TaskBackup& backup);
 ItemStatus restore_task(const TaskBackup& backup);
 bool task_exists(const std::wstring& path);
 
+struct TaskFolderBackup {
+    std::wstring path;  // \Folder
+    std::wstring sddl;  // Its security
+};
+
+// A task folder is removed only when empty (tasks are removed before folders, deeper folders
+// first). Skipped when it still holds tasks or folders (`not-empty`), for the root and Windows' own
+// folders (\Microsoft...), and when it's gone.
+std::optional<TaskFolderBackup> backup_task_folder(const std::wstring& path, ItemStatus& failure);
+ItemStatus remove_task_folder(const TaskFolderBackup& backup);
+// Created again (with any missing parents), then given its security if it differs.
+ItemStatus restore_task_folder(const TaskFolderBackup& backup);
+bool task_folder_exists(const std::wstring& path);
+
 // Removes a package registered for the current user (`user_sid`); other users' are skipped.
 // Packages can't be put back: the caller must have allowed that.
 ItemStatus remove_package_item(const std::wstring& full_name, const std::wstring& user_sid);
@@ -61,5 +76,7 @@ Json to_json(const ServiceBackup& backup);
 bool from_json(const Json& json, ServiceBackup& backup);
 Json to_json(const TaskBackup& backup);
 bool from_json(const Json& json, TaskBackup& backup);
+Json to_json(const TaskFolderBackup& backup);
+bool from_json(const Json& json, TaskFolderBackup& backup);
 
 }  // namespace avel::changes

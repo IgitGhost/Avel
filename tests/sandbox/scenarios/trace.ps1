@@ -1,5 +1,6 @@
-# Runs inside Windows Sandbox (Start-AvelSandbox.ps1 -Scenario trace). Phase 5a acceptance test for
-# Avel Trace, the install tracker (docs/trace.md), checked against an independent oracle:
+# Runs inside Windows Sandbox (Start-AvelSandbox.ps1 -Scenario trace). Phase 5a and 5b acceptance
+# test for Avel Trace, the install tracker, and removing programs by their traces (docs/trace.md),
+# checked against an independent oracle:
 # avel_capture (tests/helpers/capture.cpp) captures every file on C: and the registry roots the
 # tracker watches right before and right after each traced installation, and the diff of the two
 # captures is what really changed. In rounds 0, 0b and 1 both captures are taken while the trace is
@@ -7,8 +8,8 @@
 # changed again inside the trace but outside the captures (Get-AgainReason); around `trace run`
 # (rounds 2-4) they can't be, and a line is put down to the moments between a capture and the
 # trace's own window (from its trace.json) only with evidence: its creation, last write or key's
-# last write time lies there, or a watch of the volume's names saw it go away (or a created one
-# appear) then. A created
+# last write time lies there (for a gone key or value, that of the nearest key above it still
+# there), or a watch of the volume's names saw it go away (or a created one appear) then. A created
 # item the volume's journal has no record of between the captures is logged as KNOWN in any round.
 #   U. the tracker's unit tests that need elevation (USN journal, installer watch, registry
 #      snapshot) or the Sandbox's user profile;
@@ -22,16 +23,28 @@
 #      completeness (every line of the oracle's diff is accounted for by a reported change of the
 #      same kind), precision (every reported change that isn't noise is in the oracle's diff), and
 #      each of the fixture's items and known values;
+#   1 (5b). the trace linked to the fixture by itself and its items tied to it; the user adds their
+#      own PATH entries; `force` reverts the fixture by its trace (Revert: the oracle's diff between
+#      the capture before the install and the one after the removal holds exactly the KNOWN set,
+#      Test-Revert; exact PATH, SharedDLLs and CONTOSO_HOME), and `undo` gives back exactly what was
+#      there before the removal (Undo: state dumps, and the oracle's diff, Test-Undo, with a manual
+#      trace around the removal and undo telling Windows' own activity apart). Then `trace export`,
+#      `trace delete`, `trace import` and `trace link`; the fixture's own uninstaller removes its
+#      folder and key, and `force --trace <the imported trace>` reverts the rest, judged the same way;
 #   2-4. 7-Zip (MSI), Notepad++ (NSIS) and Inno Setup through `trace run`: it must end by itself
 #      (installer-done) and be complete against the oracle; precision exceptions are logged;
+#   2-4 (5b). `scan` previews each with its trace; `uninstall --quiet --remove-leftovers` runs its
+#      uninstaller and removes what the trace saw the installer create, and Test-Revert judges what
+#      is left against the capture before the install;
 #   5. the fixture through `trace run`, starting its app at the end: done within 45 s, the app
 #      listed as left running and still running;
 #   6. a `trace run` killed after its snapshot is finished by `trace stop`; a USN journal deleted
 #      and recreated during a trace makes it incomplete (C: "replaced"), the registry still reported.
-# Rounds 1-5 keep what they traced in $traced (trace id, oracle captures, results), for later rounds
-# (5b's trace-based removal and undo) to compare against.
+# Rounds 1-5 keep what they traced in $traced (trace id, oracle captures, results), for the 5b
+# rounds to compare against.
 # Writes results\trace.json (avel-cli's output), results\trace.log, results\trace-oracle-<round>.txt
-# (each round's oracle diff, every line with what accounted for it) and, last, results\trace.txt.
+# (each round's oracle diff, every line with what accounted for it; for the 5b checks, what judged
+# it) and, last, results\trace.txt.
 
 $ErrorActionPreference = 'Stop'
 $bin = 'C:\Avel\bin'
@@ -42,6 +55,7 @@ $cli = Join-Path $bin 'avel-cli.exe'
 
 $scenario = 'trace'
 . "$PSScriptRoot\common.ps1"
+. "$PSScriptRoot\oracle.ps1"
 . "$PSScriptRoot\trace_fixture.ps1"
 
 # In Temp, which the tracker sets aside, since rounds 0 and 1 capture while their trace is open.
@@ -94,6 +108,8 @@ $captureSkip = @(
 $diffExclude = @(
     '^C:\\Users\\[^\\]+\\AppData\\Local\\Temp(\\|$)',
     '^C:\\ProgramData\\Avel(\\|$)',
+    # Avel's quarantine of what a removal took, kept by the change set (docs/changes.md).
+    '^C:\\\$Avel\.Quarantine(\\|$)',
     '^C:\\Users\\[^\\]+\\NTUSER\.DAT',
     '^C:\\Users\\[^\\]+\\AppData\\Local\\Microsoft\\Windows\\UsrClass\.dat',
     '^C:\\Windows\\ServiceProfiles\\[^\\]+\\NTUSER\.DAT',
@@ -143,10 +159,12 @@ $servicesKey = 'HKLM\SYSTEM\CurrentControlSet\Services'
 $firewallRules = "$servicesKey\SharedAccess\Parameters\FirewallPolicy\FirewallRules"
 
 # The same silent switches as Install-Sample in samples.ps1; the MSI is given to `trace run` as is.
+# `entry`: the name of the sample's own Uninstall entry, which its trace's primary link must be.
 $traceSamples = @(
-    @{ label = 'r2-7zip'; name = '7-Zip (MSI)'; command = @("$installers\7z-x64.msi", '/qn', '/norestart') },
-    @{ label = 'r3-notepadpp'; name = 'Notepad++ (NSIS)'; command = @("$installers\npp-installer-x64.exe", '/S') },
-    @{ label = 'r4-innosetup'; name = 'Inno Setup'
+    @{ label = 'r2-7zip'; name = '7-Zip (MSI)'; entry = '^7-Zip '; command = @("$installers\7z-x64.msi", '/qn', '/norestart') },
+    @{ label = 'r3-notepadpp'; name = 'Notepad++ (NSIS)'; entry = '^Notepad\+\+ '
+       command = @("$installers\npp-installer-x64.exe", '/S') },
+    @{ label = 'r4-innosetup'; name = 'Inno Setup'; entry = '^Inno Setup '
        command = @("$installers\innosetup-x64.exe", '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/ALLUSERS') }
 )
 
@@ -407,7 +425,7 @@ public sealed class AvelNameWatch : IDisposable {
 # When the item of an oracle line was created or last written, as far as it shows (FILETIME, UTC;
 # 0 when unknown): a created file's or folder's creation time, a modified file's last write time
 # in the capture after, and for a created or modified key or value its key's last write time.
-# Nothing tells when something was deleted.
+# Nothing of its own tells when something was deleted (see Get-NearestKeyWrite for keys and values).
 function Get-ChangeTime($line) {
     try {
         if ($line.kind -in 'F', 'D') {
@@ -433,6 +451,25 @@ function Get-KeyLastWrite([string]$key) {
     if ($key -match '^HKLM\\(.+)$') { return [AvelKeyTime]::LastWrite($true, $Matches[1]) }
     if ($key -match '^HKU\\(.+)$') { return [AvelKeyTime]::LastWrite($false, $Matches[1]) }
     return 0
+}
+
+# For a gone key or value (an oracle path, "<key>" or "<key>|<value name>"), the nearest key above
+# it that is there now (a value's own key, when it is) and that key's last write time (FILETIME,
+# UTC), or $null: deleting a subkey or a value writes the key that held it, so that time is when
+# the deletion happened unless the key was written again since, as a created key's own last write
+# time is for its creation.
+function Get-NearestKeyWrite([string]$path) {
+    $bar = $path.IndexOf('|')
+    $key = if ($bar -ge 0) { $path.Substring(0, $bar) } else { Split-Path $path }
+    while ($key -match '^(HKLM|HKU)\\.') {
+        if (Test-RegistryItem $key) {
+            $time = Get-KeyLastWrite $key
+            if ($time -le 0) { return $null }
+            return @{ key = $key; time = $time }
+        }
+        $key = Split-Path $key
+    }
+    return $null
 }
 
 # Whether the key or value an oracle path names ("<key>" or "<key>|<value name>") is there now.
@@ -485,12 +522,25 @@ function Find-MovedFolder($line, $gap, [switch]$Removed) {
 # `gaps`, the moments between a capture and the trace (@{ from; to; keysTo; what; watch },
 # FILETIMEs; keysTo, when there, ends the gap for keys and values), or, for a file or folder, the
 # gap's name watch saw it go away (deleted) or appear (created: one moved in keeps its creation
-# time) then, by itself or with a folder above it (see Find-MovedFolder).
+# time) then, by itself or with a folder above it (see Find-MovedFolder). For a gone key or value,
+# the last write time of the nearest key above it that is still there (see Get-NearestKeyWrite;
+# run 1: a user's MuiCache\1656 deleted as 1657 replaced it, seconds after 7-Zip's trace stopped).
 function Get-GapReason($line, $gaps) {
     if (-not $gaps) { return $null }
     $file = $line.kind -in 'F', 'D'
     if ($line.sign -eq '-') {
-        if (-not $file) { return $null }
+        if (-not $file) {
+            if ($line.kind -notin 'K', 'V') { return $null }
+            $above = Get-NearestKeyWrite $line.path
+            if (-not $above) { return $null }
+            foreach ($gap in $gaps) {
+                $to = if ($gap.keysTo) { $gap.keysTo } else { $gap.to }
+                if ($above.time -ge $gap.from -and $above.time -le $to) {
+                    return "changed $($gap.what) (gone; $($above.key), the nearest key above it that is still there, was last written at $(Format-FileTime $above.time) UTC, between $(Format-FileTime $gap.from) and $(Format-FileTime $to))"
+                }
+            }
+            return $null
+        }
         foreach ($gap in $gaps) {
             $time = if ($gap.watch) { $gap.watch.RemovedAt($line.path, $gap.from, $gap.to) } else { 0 }
             if ($time -gt 0) {
@@ -532,6 +582,11 @@ function Get-GapReason($line, $gaps) {
 
 # What an uncovered line's evidence says, for the log: when its item was created or last written.
 function Get-ChangeNote($line) {
+    if ($line.sign -eq '-' -and $line.kind -in 'K', 'V') {
+        $above = Get-NearestKeyWrite $line.path
+        if ($above) { return " (gone; $($above.key) above it last written at $(Format-FileTime $above.time) UTC)" }
+        return ''
+    }
     if ($line.sign -eq '-' -or $line.kind -notin 'F', 'D', 'K', 'V') { return '' }
     $time = Get-ChangeTime $line
     if ($time -le 0) { return '' }
@@ -604,7 +659,7 @@ function Get-TaskTargets([string]$task) {
         -ErrorAction SilentlyContinue
     # The Task Scheduler writes the id with two NULs at the end; GetValue drops only one.
     $id = if ($tree) { "$($tree.GetValue('Id'))".TrimEnd([char]0) } else { '' }
-    if (-not $id) { Write-Held "    task $($task): no Id in TaskCache\Tree, its entries by id can't be named" }
+    if ($tree -and -not $id) { Write-Held "    task $($task): no Id in TaskCache\Tree, its entries by id can't be named" }
     if ($id) {
         foreach ($list in 'Tasks', 'Plain', 'Boot', 'Logon', 'Maintenance') { $targets += @{ path = "$taskCache\$list\$id"; container = $true } }
     }
@@ -628,6 +683,10 @@ function Get-OracleTargets($location) {
         { $_ -in 'service', 'driver' } { return @{ path = "$servicesKey\$($location.service)"; container = $true } }
         'firewall-rule' { return @{ path = "$firewallRules|$($location.rule_id)"; container = $false } }
         'task' { return Get-TaskTargets $location.task }
+        'task-folder' {
+            return @(@{ path = "$taskCache\Tree$($location.task)"; container = $true },
+                     @{ path = "C:\Windows\System32\Tasks$($location.task)"; container = $true })
+        }
     }
 }
 
@@ -1094,7 +1153,7 @@ function Test-Precision($json, $lines, [string]$label, [switch]$Strict) {
         if (-not $found -and -not (Test-OracleCanRead $path)) { Log "    in a folder or key the oracle can't read: $text"; continue }
         $exceptions++
         $why = if ($found) { "the oracle has '$found' there" } else { 'the oracle saw no change there' }
-        if ($item.location.kind -in 'service', 'driver', 'task', 'firewall-rule') {
+        if ($item.location.kind -in 'service', 'driver', 'task', 'task-folder', 'firewall-rule') {
             Log "    $($item.location.kind), checked separately: $text ($why)"
         } elseif ($Strict) {
             Fail "$($label): imprecise: $text ($why)"
@@ -1187,6 +1246,1084 @@ function Test-FixtureTrace($json, [string]$label, $paths) {
     if ($inside) { Fail "$($label): the program's folder isn't one item: $(@($inside | ForEach-Object { Format-Change $_ }) -join '; ')" }
     elseif ($folder.Count -eq 1) { Log "  OK: the program's folder is one item with $($folder[0].contents) inside" }
     Test-KnownValues $json.known_values $label $paths
+}
+
+# ---------------------------------------------------------------------------------------------
+# 5b: removing by the trace (docs/trace.md, "Uninstalling by the trace")
+
+# The user's own PATH entries, added after the fixture's trace: a removal by the trace must keep
+# them, and the rest of the value byte for byte. The user's own is unexpanded, as setx leaves it.
+$userPathEntries = [ordered]@{ 'machine-environment' = 'C:\Tools\bin'; 'user-environment' = '%USERPROFILE%\bin' }
+
+# Where a removal never touches what an installer created: Windows' folder and keys, shared names
+# and packaged apps' places. Restated here from docs/leftovers.md ("Protection"), so a created item
+# the scan didn't offer is put down to protection only when it lies in one of them.
+$protectedFolderNames = @('Microsoft', 'Microsoft Games', 'Temp', 'Programs', 'Common', 'Common Files', 'Clients',
+    'Downloads', 'Desktop', 'Internet Explorer', 'Windows', 'Windows NT', 'Windows Photo Viewer', 'Windows Mail',
+    'Windows Defender', 'Windows Media Player', 'Uninstall Information', 'Reference Assemblies',
+    'InstallShield Installation Information', 'Installer', 'winsxs', 'WindowsApps', 'DirectX', 'DirectXRedist',
+    'Package Cache')
+$protectedKeyNames = @('Microsoft', 'Wow6432Node', 'Windows', 'Classes', 'Clients', 'RegisteredApplications')
+$volumeSystemFolders = @('System Volume Information', '$Recycle.Bin', 'Recovery', 'Config.Msi', '$WinREAgent',
+    '$Windows.~BT', '$Windows.~WS', '$SysReset', 'Boot', 'EFI')
+$protectedSubtrees = @(
+    @{ path = "$env:ProgramFiles\WindowsApps"; what = "packaged apps' folder" },
+    @{ path = "$env:ProgramData\Package Cache"; what = "WiX Burn's package cache" },
+    @{ path = "$env:ProgramData\Avel"; what = "Avel's own data" })
+# Keys Windows relies on below SOFTWARE (a user's Software too), and the keys above them; "*" is any
+# one key, so Windows Installer's Products key stays while a product's key below it may go.
+$coreKeyPatterns = @('Classes\CLSID', 'Classes\Interface', 'Classes\TypeLib', 'Classes\AppID',
+    'Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache', 'Microsoft\Windows\CurrentVersion\Run',
+    'Microsoft\Windows\CurrentVersion\RunOnce', 'Microsoft\Windows\CurrentVersion\Uninstall',
+    'Microsoft\Windows\CurrentVersion\App Paths', 'Microsoft\Windows\CurrentVersion\SharedDLLs',
+    'Microsoft\Windows\CurrentVersion\Installer\*', 'Microsoft\Windows\CurrentVersion\Installer\UserData\*\*',
+    'Microsoft\Windows\CurrentVersion\Installer\Managed\*\Installer\*', 'Classes\Installer\*', 'Microsoft\Installer\*',
+    'Microsoft\Windows\CurrentVersion\Shell Extensions\Approved', 'Microsoft\Windows\CurrentVersion\Policies',
+    'Microsoft\Windows NT\CurrentVersion', 'Policies', 'RegisteredApplications')
+# What Windows keeps for a registered package below SOFTWARE (a user's Software too), restated from
+# docs/leftovers.md ("package-registration"), and the machine's ProgramData\Packages: it goes only
+# with its package, never as keys or folders of their own (Notepad++'s sparse package, run 2).
+$packageKeyPatterns = @('Classes\PackagedCom', 'Classes\ActivatableClasses', 'Classes\Extensions\ContractId',
+    'Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel',
+    'Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer',
+    'Microsoft\Windows\CurrentVersion\AppModel', 'Microsoft\Windows\CurrentVersion\Appx',
+    'Microsoft\Windows\CurrentVersion\AppHost\IndexedDB', 'Microsoft\Windows\CurrentVersion\BackgroundAccessApplications',
+    'Microsoft\SecurityManager\CapAuthz')
+
+# avel-cli <arguments>, each quoted as needed, its output kept for trace.json as plain strings.
+function Invoke-Avel([string[]]$arguments, [string]$label, [int]$timeoutSeconds = 600) {
+    $result = Invoke-Cli @($arguments | ForEach-Object { Format-Argument $_ }) $label $timeoutSeconds
+    $raw[$label] = @{ exit = $result.exit; stdout = "$($result.text)"; stderr = "$($result.errors)" }
+    return $result
+}
+
+# Whether the key `parts` (its names below SOFTWARE) is one `pattern` describes, or above one.
+function Test-LeadsTo([string[]]$parts, [string[]]$pattern) {
+    if ($parts.Count -gt $pattern.Count) { return $false }
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        if ($pattern[$i] -ne '*' -and $pattern[$i] -ne $parts[$i]) { return $false }
+    }
+    return $true
+}
+
+# Why a removal never touches a key (HKLM\... or HKU\<sid>\...), or with -Value a value in it; or $null.
+function Get-ProtectedKey([string]$key, [switch]$Value) {
+    if ($key -match '^HKLM\\(SYSTEM|SECURITY|SAM|HARDWARE|BCD00000000|COMPONENTS|DRIVERS|SCHEMA)(\\|$)') {
+        return "in the system hive $($Matches[1])"
+    }
+    if ($key -match '^HKLM\\SOFTWARE\\(WOW6432Node\\)?Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache(\\|$)') {
+        return "the Task Scheduler's own records"
+    }
+    if ($Value) { return $null }  # A value in a key Windows relies on (a Run entry) is fine on its own
+    $relative = (ConvertTo-OraclePath $key) -replace '^HKLM(\\|$)', '' -replace '^HKU\\[^\\]+(\\|$)', ''
+    $parts = @($relative -split '\\' | Where-Object { $_ })
+    if ($parts.Count -le 1) { return "a hive's top-level key" }
+    if ($parts[0] -eq 'SOFTWARE') {
+        $rest = @($parts | Select-Object -Skip 1)
+        if ($rest[0] -eq 'WOW6432Node') {
+            $rest = @($rest | Select-Object -Skip 1)
+        } elseif ($rest.Count -ge 2 -and $rest[0] -eq 'Classes' -and $rest[1] -eq 'WOW6432Node') {
+            $rest = @('Classes') + @($rest | Select-Object -Skip 2)
+        }
+        if (-not $rest.Count) { return 'a key Windows relies on (SOFTWARE)' }
+        foreach ($pattern in $coreKeyPatterns) {
+            if (Test-LeadsTo $rest ($pattern -split '\\')) { return "a key Windows relies on ($pattern)" }
+        }
+    }
+    if ($protectedKeyNames -contains $parts[-1]) { return "named like a shared key ($($parts[-1]))" }
+    return $null
+}
+
+# Why a removal never touches a file or folder, or $null.
+function Get-ProtectedFolder([string]$path) {
+    $path = $path.TrimEnd('\')
+    if (Test-Under $path $windows) { return 'in the Windows folder' }
+    if ($path -match '^[A-Za-z]:\\([^\\]+)' -and $volumeSystemFolders -contains $Matches[1]) { return "in a volume's system folder ($($Matches[1]))" }
+    foreach ($subtree in $protectedSubtrees) { if (Test-Under $path $subtree.path) { return "in $($subtree.what)" } }
+    if ($path -match '^[A-Za-z]:\\Users\\[^\\]+\\AppData\\Local\\Packages(\\|$)') { return "in packaged apps' data" }
+    foreach ($folder in $keep) { if (Test-Under $folder $path) { return "is or holds the special folder $folder" } }
+    $name = Split-Path $path -Leaf
+    $stem = if ($name.Contains('.')) { $name.Substring(0, $name.LastIndexOf('.')) } else { $name }
+    if ($protectedFolderNames -contains $name -or $protectedFolderNames -contains $stem) { return "named like a shared folder ($name)" }
+    return $null
+}
+
+# Why a removal never touches a reported location, or $null.
+function Get-ProtectedPlace($location) {
+    switch ($location.kind) {
+        { $_ -in 'folder', 'file' } { return Get-ProtectedFolder $location.path }
+        'registry-key' { return Get-ProtectedKey $location.key }
+        'registry-value' { return Get-ProtectedKey $location.key -Value }
+        { $_ -in 'task', 'task-folder' } { if ($location.task -match '^\\Microsoft(\\|$)') { return "Windows' own task" } }
+    }
+    return $null
+}
+
+# The same for what an oracle line names.
+function Get-ProtectedLine($line) {
+    switch ($line.kind) {
+        { $_ -in 'D', 'F' } { return Get-ProtectedFolder $line.path }
+        'K' { return Get-ProtectedKey $line.path }
+        'V' { return Get-ProtectedKey $line.path.Substring(0, $line.path.IndexOf('|')) -Value }
+    }
+    return $null
+}
+
+# Which of $packageKeyPatterns (or ProgramData\Packages) a reported location is a package's
+# registration in: at or below it, or above it (as the product guards it); $null if none.
+function Get-PackageRegistrationPlace($location) {
+    if ($location.kind -in 'folder', 'file') {
+        if (Test-Under $location.path.TrimEnd('\') (Join-Path $env:ProgramData 'Packages')) { return 'ProgramData\Packages' }
+        return $null
+    }
+    if ($location.kind -notin 'registry-key', 'registry-value') { return $null }
+    $relative = (ConvertTo-OraclePath $location.key) -replace '^HKLM(\\|$)', '' -replace '^HKU\\[^\\]+(\\|$)', ''
+    $parts = @($relative -split '\\' | Where-Object { $_ })
+    if ($parts.Count -lt 2 -or $parts[0] -ne 'SOFTWARE') { return $null }
+    $rest = @($parts | Select-Object -Skip 1)
+    if ($rest[0] -eq 'WOW6432Node') {
+        $rest = @($rest | Select-Object -Skip 1)
+    } elseif ($rest.Count -ge 2 -and $rest[0] -eq 'Classes' -and $rest[1] -eq 'WOW6432Node') {
+        $rest = @('Classes') + @($rest | Select-Object -Skip 2)
+    }
+    foreach ($pattern in $packageKeyPatterns) {
+        $want = $pattern -split '\\'
+        $under = $rest.Count -ge $want.Count
+        for ($i = 0; $under -and $i -lt $want.Count; $i++) { $under = $rest[$i] -eq $want[$i] }
+        if ($under -or ($location.kind -eq 'registry-key' -and (Test-LeadsTo $rest $want))) { return $pattern }
+    }
+    return $null
+}
+
+# The packages a removal's scan offered (`json`: uninstall's or force's), by full name:
+# @{ full; family; user; offered (its level); state and reason (its plan item's, if planned) }.
+function Get-RoundPackages($json) {
+    $packages = [ordered]@{}
+    $scan = if ($json.leftover_scan) { $json.leftover_scan } else { $json }
+    foreach ($item in @(@($scan.leftovers) + @($json.leftover_removal.items) | Where-Object { $_ -and $_.location.kind -eq 'package' })) {
+        $full = "$($item.location.package_full_name)"
+        if (-not $full) { continue }
+        if (-not $packages.Contains($full)) {
+            $fields = $full -split '_'  # Name_Version_Architecture_ResourceId_PublisherId
+            $packages[$full] = @{ full = $full; family = "$($fields[0])_$($fields[-1])"; user = "$($item.location.user_sid)"
+                                  offered = $item.confidence; state = $null; reason = $null; registered = $null }
+        }
+        if ($item.state) { $packages[$full].state = $item.state; $packages[$full].reason = $item.reason }
+    }
+    return $packages
+}
+
+# Whether `package` (see Get-RoundPackages) is registered now: in its user's package repository, or
+# for any user as Get-AppxPackage sees it.
+function Test-PackageRegistered($package) {
+    $user = if ($package.user) { $package.user } else { $traceUserSid }
+    if (Test-RegistryItem "HKU\$user\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages\$($package.full)") {
+        return $true
+    }
+    try {
+        return @(Get-AppxPackage -AllUsers -ErrorAction Stop | Where-Object { $_.PackageFullName -eq $package.full }).Count -gt 0
+    } catch {
+        return $false
+    }
+}
+
+# Whether the registration at a reported location, still there, is `package`'s: its path names the
+# package (its full or family name, in any case), or a key or folder below it does, or, for an
+# AppContainer mapping, its Moniker value is the package's family.
+function Test-NamesPackage($location, $package) {
+    $where = Where-Text $location
+    foreach ($name in $package.full, $package.family) { if ($where.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+    $path = if ($location.kind -in 'folder', 'file') { $location.path } else {
+        (ConvertTo-OraclePath $location.key) -replace '^HKLM\\', 'Registry::HKEY_LOCAL_MACHINE\' -replace '^HKU\\', 'Registry::HKEY_USERS\'
+    }
+    try {
+        foreach ($child in @(Get-ChildItem -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue)) {
+            foreach ($name in $package.full, $package.family) { if ("$($child.PSChildName)" -eq $name) { return $true } }
+        }
+        if ($location.kind -eq 'registry-key') {
+            $moniker = (Get-ItemProperty -LiteralPath $path -Name Moniker -ErrorAction SilentlyContinue).Moniker
+            if ($moniker -and $moniker -eq $package.family) { return $true }
+        }
+    } catch { }
+    return $false
+}
+
+function New-ItemMap { New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::OrdinalIgnoreCase) }
+
+function Add-Item($sets, [string]$path, [bool]$container, $item) {
+    if (-not $path) { return }
+    $map = if ($container) { $sets.container } else { $sets.exact }
+    if (-not $map.ContainsKey($path)) { $map[$path] = $item }
+}
+
+# A trace's change, or one of its known values (as @{ change = 'known'; known }), as one line of text
+# and as a key that names it.
+function Format-Item($item) {
+    if ($item.change -eq 'known') { return "known value $($item.known.spot) $($item.known.key) : $($item.known.name)" }
+    return Format-Change $item
+}
+
+function Get-ItemKey($item) {
+    if ($item.change -eq 'known') { return "known|$(ConvertTo-OraclePath $item.known.key)|$($item.known.name)" }
+    return "$($item.change)|$($item.location.kind)|$(Where-Text $item.location)"
+}
+
+# What the install's own changes (not noise) and known values stand for in the oracle, by sign, as
+# New-Coverage, with the item itself. A known value stands for its value whatever the sign.
+function New-ItemCoverage($json) {
+    $cover = @{}
+    foreach ($sign in '+', '~', '-') { $cover[$sign] = @{ exact = New-ItemMap; container = New-ItemMap } }
+    $signs = @{ created = '+'; deleted = '-'; modified = '~'; renamed = '+' }
+    foreach ($item in @($json.changes | Where-Object { $_ -and $_.noise -eq 'none' })) {
+        $sign = $signs[$item.change]
+        if (-not $sign) { continue }
+        foreach ($target in @(Get-OracleTargets $item.location)) {
+            if ($target) { Add-Item $cover[$sign] $target.path $target.container $item }
+        }
+        if ($item.change -eq 'renamed' -and $item.old_path) {
+            Add-Item $cover['-'] $item.old_path ($item.location.kind -eq 'folder') $item
+        }
+    }
+    foreach ($value in @($json.known_values | Where-Object { $_ })) {
+        $known = [pscustomobject]@{ change = 'known'; known = $value }
+        foreach ($sign in '+', '~', '-') { Add-Item $cover[$sign] ((ConvertTo-OraclePath $value.key) + '|' + $value.name) $false $known }
+    }
+    return $cover
+}
+
+# Reported items (a scan's leftovers, a removal's items) by "<kind>|<location>".
+function New-LocationMap($items) {
+    $map = New-ItemMap
+    foreach ($item in @($items | Where-Object { $_ -and $_.location })) {
+        $key = "$($item.location.kind)|$(Where-Text $item.location)"
+        if (-not $map.ContainsKey($key)) { $map[$key] = $item }
+    }
+    return , $map
+}
+
+# The item of `map` at a location given by its kind and text, or else the folder or key that holds
+# it: @{ item; container (bool) }, or $null.
+function Find-LocationItem($map, [string]$kind, [string]$where) {
+    $found = $null
+    if ($map.TryGetValue("$kind|$where", [ref]$found)) { return @{ item = $found; container = $false } }
+    $parentKind = $null
+    $path = $where
+    if ($kind -in 'folder', 'file') {
+        $parentKind = 'folder'
+    } elseif ($kind -in 'registry-key', 'registry-value') {
+        $parentKind = 'registry-key'
+        if ($kind -eq 'registry-value') {
+            $path = $where.Substring(0, [Math]::Max(0, $where.LastIndexOf(' : ')))
+            if ($map.TryGetValue("registry-key|$path", [ref]$found)) { return @{ item = $found; container = $true } }
+        }
+    }
+    if (-not $parentKind) { return $null }
+    for ($i = $path.LastIndexOf('\'); $i -gt 2; $i = $path.LastIndexOf('\', $i - 1)) {
+        if ($map.TryGetValue("$parentKind|$($path.Substring(0, $i))", [ref]$found)) { return @{ item = $found; container = $true } }
+    }
+    return $null
+}
+
+# What a removal changed, done or partly done, as the oracle spells it: its items' own targets (a
+# task its key in TaskCache\Tree and its file, not the folders above), a value edit its value.
+function New-Footprint($removal) {
+    $sets = @{ exact = New-ItemMap; container = New-ItemMap }
+    foreach ($item in @($removal.items | Where-Object { $_ -and $_.state -in 'done', 'partial' })) {
+        $location = $item.location
+        $what = "$($location.kind) $(Where-Text $location)"
+        if ($location.kind -eq 'value-edit') {
+            Add-Item $sets ((ConvertTo-OraclePath $location.key) + '|' + $location.value) $false $what
+        } elseif ($location.kind -eq 'task') {
+            Add-Item $sets "$taskCache\Tree$($location.task)" $true $what
+            Add-Item $sets "C:\Windows\System32\Tasks$($location.task)" $false $what
+        } else {
+            foreach ($target in @(Get-OracleTargets $location)) { if ($target) { Add-Item $sets $target.path $target.container $what } }
+        }
+    }
+    return $sets
+}
+
+# What became of an item the installer created, changed or deleted that the oracle still sees
+# changed after a removal by the trace: @{ class = KNOWN or FAIL; reason; protected }.
+function Get-RevertVerdict($item, $context) {
+    if ($item.change -eq 'known') {
+        $value = $item.known
+        if ($context.paths -and $value.name -eq 'Path' -and $context.paths.Contains($value.spot)) {
+            return $context.paths[$value.spot].Clone()
+        }
+        $basis = @($context.use.values | Where-Object {
+            $_ -and (ConvertTo-OraclePath $_.key) -eq (ConvertTo-OraclePath $value.key) -and $_.name -eq $value.name
+        } | ForEach-Object { $_.basis })[0]
+        return @{ class = 'FAIL'; reason = "the installer's change to it wasn't taken back (basis: $(if ($basis) { $basis } else { 'not reported' }))" }
+    }
+    $location = $item.location
+    $where = Where-Text $location
+    $own = $context.fixture -and $context.fixture.items.Contains((Get-ItemKey $item))
+    if ($item.change -ne 'created') {
+        return @{ class = 'KNOWN'; reason = "it existed before the install ($($item.change)); a removal by the trace never offers it (shown only)" }
+    }
+    $found = Find-LocationItem $context.scan $location.kind $where
+    if ($location.kind -eq 'firewall-rule') {
+        if ($found) { return @{ class = 'KNOWN'; reason = "firewall rules are reported (here at $($found.item.confidence)), never removed" } }
+        return @{ class = 'FAIL'; reason = "a firewall rule the scan didn't report" }
+    }
+    if ($found) {
+        $reported = $found.item
+        $level = $reported.confidence
+        $evidence = @($reported.evidence | ForEach-Object { if ($_.detail) { "$($_.kind)($($_.detail))" } else { $_.kind } }) -join ', '
+        $inside = if ($found.container) { " (inside the reported $(Where-Text $reported.location))" } else { '' }
+        if ($level -in 'good', 'very-good') {
+            if ($reported.location.kind -eq 'driver') { return @{ class = 'KNOWN'; reason = 'drivers are shown only, never removed' } }
+            $planned = $null
+            $null = $context.removal.TryGetValue("$($reported.location.kind)|$(Where-Text $reported.location)", [ref]$planned)
+            $what = if ($planned) { "planned, but $($planned.state) ($($planned.reason))" } else { 'not planned' }
+            return @{ class = 'FAIL'; reason = "offered at $level $($reported.score) [$evidence]$inside, $what, and still there" }
+        }
+        $tied = if (@($reported.evidence | Where-Object { $_.kind -eq 'traced-install-root' }).Count) { 'tied' } else { 'untied' }
+        if ($own) { return @{ class = 'FAIL'; reason = "the fixture's own item, left at $level $($reported.score) [$evidence]$inside" } }
+        return @{ class = 'KNOWN'; reason = "left below the removal threshold, $($tied): $level $($reported.score) [$evidence]$inside" }
+    }
+    # A package's registration goes with its package, which a removal takes only with
+    # --allow-irreversible: KNOWN while the package the scan offered is still registered and its
+    # plan left it, never when the package went and its registration stayed.
+    $place = Get-PackageRegistrationPlace $location
+    $package = if ($place) { @($context.packages.Values | Where-Object { Test-NamesPackage $location $_ })[0] } else { $null }
+    if ($package) {
+        if ($null -eq $package.registered) { $package.registered = Test-PackageRegistered $package }
+        $plan = if ($package.state) { "planned at $($package.offered), $($package.state) ($($package.reason))" } else { "offered at $($package.offered), not planned" }
+        if ($package.registered -and (-not $package.state -or ($package.state -eq 'skipped' -and $package.reason -eq 'not-undoable'))) {
+            return @{ class = 'KNOWN'; reason = "a package's registration ($place), which goes only with its package $($package.full), still registered: $plan, as a package goes only with --allow-irreversible" }
+        }
+        $now = if ($package.registered) { 'still registered' } else { 'no longer registered' }
+        return @{ class = 'FAIL'; reason = "a package's registration ($place), left with its package $($package.full) $now ($plan)" }
+    }
+    $rule = Get-ProtectedPlace $location
+    if ($rule -and $own) { return @{ class = 'FAIL'; reason = "the fixture's own item, never offered: protected ($rule)" } }
+    if ($rule) { return @{ class = 'KNOWN'; reason = "a protected creation ($rule), never offered"; protected = $true } }
+    return @{ class = 'FAIL'; reason = "still there, yet the scan didn't report it and it isn't in a protected place" }
+}
+
+# Revert: what a removal by the trace leaves of an installation. Every line of the oracle's diff
+# between the capture before the install and `after` (the capture after the removal) is judged by
+# the install's own change (not noise) or known value that accounts for it, once per item
+# (Get-RevertVerdict): it must be gone, or be KNOWN: what existed before (never offered), a firewall
+# rule (never removed), a protected creation (each line below it protected too), what the scan left
+# below the removal threshold (with its level; never one of the fixture's own), or a PATH value's
+# exact check (-PathVerdicts). A line nothing of the install accounts for isn't the installer's:
+# the trace's noise, or changed outside its trace or after the install (logged), unless the
+# removal's footprint covers it, which fails: the removal changed what the install didn't make.
+# -Fixture (@{ items; required }): the items that must all be gone, and the KNOWN ones that must
+# be there. Writes results\trace-oracle-<label>.txt.
+function Test-Revert($record, [string]$after, $json, [string]$label, $Fixture = $null, $PathVerdicts = $null) {
+    $lines = @(Get-CaptureDiff $record.pre $after)
+    $own = New-ItemCoverage $record.all
+    $noise = New-Coverage $record.all
+    $footprint = New-Footprint $json.leftover_removal
+    $installed = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($line in $record.lines) { $null = $installed.Add($line.path) }
+    $scan = if ($json.leftover_scan) { $json.leftover_scan } else { $json }
+    $context = @{ scan = (New-LocationMap $scan.leftovers); removal = (New-LocationMap $json.leftover_removal.items)
+                  use = @($scan.traces | Where-Object { $_ })[0]; fixture = $Fixture; paths = $PathVerdicts
+                  packages = (Get-RoundPackages $json) }
+    $others = @{ '+' = @('~', '-'); '~' = @('+', '-'); '-' = @('+', '~') }
+    $verdicts = [ordered]@{}
+    $notOwn = [ordered]@{}
+    $later = [System.Collections.Generic.List[string]]::new()
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $detail = [System.Collections.Generic.List[string]]::new()
+    $excluded = 0
+    foreach ($line in $lines) {
+        if ($diffExcludeRegex.IsMatch($line.path)) { $excluded++; $detail.Add("excluded`t$($line.text)"); continue }
+        $item = Find-Cover $own[$line.sign] $line.path
+        if (-not $item) {
+            foreach ($sign in $others[$line.sign]) { $item = Find-Cover $own[$sign] $line.path; if ($item) { break } }
+        }
+        if ($item) {
+            $key = Get-ItemKey $item
+            $verdict = $verdicts[$key]
+            if (-not $verdict) {
+                $verdict = Get-RevertVerdict $item $context
+                $verdict.text = Format-Item $item
+                $verdict.lines = [System.Collections.Generic.List[string]]::new()
+                $verdicts[$key] = $verdict
+            }
+            $verdict.lines.Add($line.text)
+            $class = $verdict.class
+            if ($verdict.protected -and -not (Get-ProtectedLine $line)) {
+                $problems.Add("left inside the protected creation $($verdict.text), and not protected itself: $($line.text)")
+                $class = 'PROBLEM'
+            }
+            $detail.Add("$($class): $($verdict.reason)`t$($line.text)")
+            continue
+        }
+        $removedBy = Find-Cover $footprint $line.path
+        if ($removedBy) {
+            $what = if ($line.sign -eq '-') { 'the removal took away what was there before the install' } else { 'changed where the removal worked' }
+            $problems.Add("$what ($removedBy): $($line.text)")
+            $detail.Add("PROBLEM: $what ($removedBy)`t$($line.text)")
+            continue
+        }
+        $reason = Find-Cover $noise[$line.sign] $line.path
+        $why = if ($reason) { "the install's trace: $reason" } elseif ($installed.Contains($line.path)) { "changed outside the install's trace" } else { 'changed after the install' }
+        $notOwn[$why] = 1 + [int]$notOwn[$why]
+        if ($why -eq 'changed after the install') { $later.Add($line.text) }
+        $detail.Add("not the installer's ($why)`t$($line.text)")
+    }
+    [IO.File]::WriteAllLines((Join-Path $results "trace-oracle-$label.txt"), [string[]]$detail, [Text.UTF8Encoding]::new($false))
+
+    $known = @($verdicts.Values | Where-Object { $_.class -eq 'KNOWN' })
+    $failed = @($verdicts.Values | Where-Object { $_.class -ne 'KNOWN' })
+    $notOwnCount = 0
+    foreach ($count in $notOwn.Values) { $notOwnCount += $count }
+    Log ("  revert: {0} difference(s) between the capture before the install and the one after the removal: {1} excluded, {2} not the installer's{3}; {4} of its item(s) KNOWN, {5} left that shouldn't be, {6} other problem(s)" -f
+         $lines.Count, $excluded, $notOwnCount, $(if ($notOwnCount) { ' (' + (@($notOwn.GetEnumerator() | ForEach-Object { "$($_.Key) $($_.Value)" }) -join ', ') + ')' }),
+         $known.Count, $failed.Count, $problems.Count)
+    $shown = 0
+    foreach ($text in $later) {
+        if ($shown++ -ge 10) { Log "      ... and $($later.Count - 10) more changed after the install (see trace-oracle-$label.txt)"; break }
+        Log "      changed after the install: $text"
+    }
+    foreach ($verdict in $known) { Log "    KNOWN: $($verdict.reason): $($verdict.text) ($($verdict.lines.Count) line(s))" }
+    foreach ($verdict in $failed) {
+        Fail "$($label): $($verdict.reason): $($verdict.text) ($($verdict.lines.Count) line(s))"
+        foreach ($text in @($verdict.lines | Select-Object -First 3)) { Log "      $text" }
+    }
+    foreach ($text in $problems) { Fail "$($label): $text" }
+    if ($Fixture) {
+        foreach ($entry in $Fixture.required.GetEnumerator()) {
+            if (-not $verdicts.Contains($entry.Key)) { Fail "$($label): must stay, but the oracle sees it as before the install: $($entry.Value)" }
+        }
+    }
+    if (-not $failed -and -not $problems.Count) { Log '  OK: the removal took back everything the installer did but the KNOWN set' }
+}
+
+# The shell's record of a shortcut it saw created: a value of a user's UFH\SHC, named by a counter.
+$shortcutRecord = '^HKU\\[^\\]+\\Software\\Microsoft\\Windows\\CurrentVersion\\UFH\\SHC\|'
+# The shell's record of the handlers it has seen for a file type: an empty REG_NONE value named after
+# each one's ProgID, in a user's Explorer\FileExts\<extension>\OpenWithProgids, which it writes by
+# itself (run 2: for 27 of Windows' own types, between a removal and its undo).
+$handlerRecordKey = '^HKU\\[^\\]+\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\[^\\|]+(\\OpenWithProgids)?$'
+$handlerRecordValue = '^HKU\\[^\\]+\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\[^\\|]+\\OpenWithProgids\|'
+
+# The non-noise changes of the fixture's install that aren't the fixture's own (Windows' shell
+# reacting to its shortcut: the Start menu's state), by what they stand for in the oracle: their
+# paths may change again when the shortcut goes and comes back. `shortcuts`: the type, size and
+# hash (the oracle's attributes) of each UFH\SHC value the install's oracle diff (`lines`) shows
+# created: the shell records a shortcut again under a new name when it comes back.
+function New-ShellCoverage($json, $fixture, $lines) {
+    $sets = @{ exact = New-ItemMap; container = New-ItemMap
+               shortcuts = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal) }
+    foreach ($item in @($json.changes | Where-Object { $_ -and $_.noise -eq 'none' })) {
+        $where = Where-Text $item.location
+        if ($fixture.items.Contains((Get-ItemKey $item)) -or $item.location.kind -in 'task', 'task-folder' -or
+            $where -like 'C:\Windows\System32\Tasks\*') { continue }
+        foreach ($target in @(Get-OracleTargets $item.location)) { if ($target) { Add-Item $sets $target.path $target.container (Format-Change $item) } }
+    }
+    foreach ($line in @($lines | Where-Object { $_ -and $_.sign -eq '+' -and $_.kind -eq 'V' -and $_.path -match $shortcutRecord })) {
+        $null = $sets.shortcuts.Add($line.attributes)
+    }
+    return $sets
+}
+
+# Undo: the oracle's diff between `before` (the capture before the removal) and `after` (the one
+# after its undo) must be empty, but for what Windows did meanwhile: the noise of `watch` (a manual
+# trace around the removal and the undo, --all), the Task Scheduler's new id and file for a task
+# registered again (`tasks`, its targets before and after; its definition and security are compared
+# by the state dumps), the shell's own state the install changed too (`shell`), the shell's record
+# of the fixture's shortcut made again when the undo gave the shortcut back (a new UFH\SHC value
+# with the same data as one the install made, `shell.shortcuts`), the shell's records of the
+# handlers it has seen for file types (FileExts, see $handlerRecordKey), and a container's base-layer
+# item that the volume's journal has no record of between the captures (`journal`, see
+# Get-JournalSilence; run 1: C:\Windows\PrintDialog\en-US). A line where the removal worked fails
+# whatever else accounts for it. Writes results\trace-oracle-<label>.txt.
+function Test-Undo([string]$before, [string]$after, $watch, $removal, [string]$label, $tasks, $shell, $journal) {
+    $journalState = @{}
+    $lines = @(Get-CaptureDiff $before $after)
+    $noise = if ($watch) { New-Coverage $watch } else { $null }
+    $footprint = New-Footprint $removal
+    $taskSets = @{ exact = New-ItemMap; container = New-ItemMap }
+    foreach ($target in @($tasks)) { if ($target) { Add-Item $taskSets $target.path $target.container 'task' } }
+    $detail = [System.Collections.Generic.List[string]]::new()
+    $byNoise = [ordered]@{}
+    $known = [ordered]@{}
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $excluded = 0
+    foreach ($line in $lines) {
+        if ($diffExcludeRegex.IsMatch($line.path)) { $excluded++; $detail.Add("excluded`t$($line.text)"); continue }
+        if (Find-Cover $taskSets $line.path) {
+            $why = "the Task Scheduler registers a restored task anew: a new id, its file written again (the state dump compares its definition and security)"
+            $known[$why] = 1 + [int]$known[$why]
+            $detail.Add("KNOWN: $why`t$($line.text)")
+            continue
+        }
+        $removed = Find-Cover $footprint $line.path
+        if ($removed) {
+            $problems.Add("not given back exactly ($removed): $($line.text)")
+            $detail.Add("PROBLEM: not given back exactly ($removed)`t$($line.text)")
+            continue
+        }
+        $reason = $null
+        if ($noise) {
+            foreach ($sign in @($line.sign) + @('+', '~', '-' | Where-Object { $_ -ne $line.sign })) {
+                $found = Find-Cover $noise[$sign] $line.path
+                if ($found -and $found -ne 'none') { $reason = $found; break }
+                if ($found -and -not $reason) { $reason = 'none' }
+            }
+        }
+        if ($reason -and $reason -ne 'none') {
+            $byNoise[$reason] = 1 + [int]$byNoise[$reason]
+            $detail.Add("noise ($reason)`t$($line.text)")
+            continue
+        }
+        $shellItem = if ($shell) { Find-Cover $shell $line.path } else { $null }
+        if ($shellItem) {
+            $why = "the shell's own state, which it changed when the fixture was installed too ($shellItem)"
+            $known[$why] = 1 + [int]$known[$why]
+            $detail.Add("KNOWN: $why`t$($line.text)")
+            continue
+        }
+        if ($shell -and $line.sign -eq '+' -and $line.kind -eq 'V' -and $line.path -match $shortcutRecord -and
+            $shell.shortcuts.Contains($line.attributes)) {
+            $why = 'the shell recorded the shortcut the undo gave back once more: a new UFH\SHC value, the same as the one it made when the fixture was installed'
+            $known[$why] = 1 + [int]$known[$why]
+            $detail.Add("KNOWN: $why`t$($line.text)")
+            continue
+        }
+        # Created, never changed or taken: a key that holds a record also holds whatever else is
+        # below it (UserChoice), and each of those lines is judged on its own.
+        if ($line.sign -eq '+' -and (($line.kind -eq 'K' -and $line.path -match $handlerRecordKey) -or
+                                     ($line.kind -eq 'V' -and $line.path -match $handlerRecordValue -and $line.attributes -match '^0 0 '))) {
+            $why = "the shell recorded the handlers it has seen for file types (an empty REG_NONE value named after each one's ProgID, in FileExts\<extension>\OpenWithProgids)"
+            $known[$why] = 1 + [int]$known[$why]
+            $detail.Add("KNOWN: $why`t$($line.text)")
+            continue
+        }
+        if (-not $reason -and ($silence = Get-JournalSilence $line $journal $journalState)) {
+            $why = "a container's base-layer item: $silence ($($line.text))"
+            $known[$why] = 1 + [int]$known[$why]
+            $detail.Add("KNOWN: $silence`t$($line.text)")
+            continue
+        }
+        $what = if (-not $watch) { 'no watch trace tells' } elseif ($reason) { 'the watch trace reports it as a change that is not noise' } else { "the watch trace doesn't account for it" }
+        $problems.Add("changed between the removal and its undo, not where the removal worked, and $($what): $($line.text)$(Get-ChangeNote $line)")
+        $detail.Add("PROBLEM: $what`t$($line.text)")
+    }
+    [IO.File]::WriteAllLines((Join-Path $results "trace-oracle-$label.txt"), [string[]]$detail, [Text.UTF8Encoding]::new($false))
+    $noisy = 0
+    foreach ($count in $byNoise.Values) { $noisy += $count }
+    $knownCount = 0
+    foreach ($count in $known.Values) { $knownCount += $count }
+    Log ("  undo: {0} difference(s) between the capture before the removal and the one after its undo: {1} excluded, {2} noise{3}, {4} known, {5} problem(s)" -f
+         $lines.Count, $excluded, $noisy, $(if ($noisy) { ' (' + (@($byNoise.GetEnumerator() | ForEach-Object { "$($_.Key) $($_.Value)" }) -join ', ') + ')' }),
+         $knownCount, $problems.Count)
+    foreach ($entry in $known.GetEnumerator()) { Log "    KNOWN: $($entry.Key): $($entry.Value) line(s)" }
+    if (-not $problems.Count) { Log '  OK: undo gave back exactly what was there before the removal (the oracle)'; return }
+    Fail "$($label): $($problems.Count) difference(s) after the undo"
+    $shown = 0
+    foreach ($text in $problems) {
+        if ($shown++ -ge 50) { Log "      ... and $($problems.Count - 50) more (see trace-oracle-$label.txt)"; break }
+        Log "      $text"
+    }
+}
+
+# A scan's `traces` (leftover_scan's, or scan's own): one use, of trace `traceId` by `programId`,
+# whose counts add up to the trace's changes that aren't noise (each is an item, gone, shown only or
+# protected) and whose value edits are the values planned (undo or restore). Returns the use.
+function Test-TraceUse($scan, [string]$label, [string]$traceId, [string]$programId, $record) {
+    $uses = @($scan.traces | Where-Object { $_ })
+    if ($uses.Count -ne 1) { Fail "$($label): the scan used $($uses.Count) trace(s), not 1" }
+    if (-not $uses) { return $null }
+    $use = $uses[0]
+    Log ('  trace use: {0} by {1}: {2} item(s) ({3} tied), {4} value edit(s), {5} gone, {6} shown only, {7} protected' -f
+         $use.trace_id, $use.program_id, $use.items, $use.tied, $use.value_edits, $use.gone, $use.shown_only, $use.protected)
+    foreach ($value in @($use.values | Where-Object { $_ })) { Log "    value $($value.key) : $($value.name): $($value.basis)" }
+    $problems = @()
+    if ($use.trace_id -ne $traceId) { $problems += "trace $($use.trace_id), not $traceId" }
+    if ($use.program_id -ne $programId) { $problems += "program $($use.program_id), not $programId" }
+    $changes = @($record.all.changes | Where-Object { $_ -and $_.noise -eq 'none' }).Count
+    $sum = [int]$use.items + [int]$use.gone + [int]$use.shown_only + [int]$use.protected
+    if ($sum -ne $changes) { $problems += "items, gone, shown only and protected add up to $sum, but the trace has $changes change(s) that aren't noise" }
+    $planned = @($use.values | Where-Object { $_ -and $_.basis -in 'undo', 'restore' }).Count
+    if ([int]$use.value_edits -ne $planned) { $problems += "$($use.value_edits) value edit(s), but $planned value(s) planned" }
+    if ([int]$use.tied -gt [int]$use.items) { $problems += 'more tied than items' }
+    if ($problems) { Fail "$($label): leftover_scan.traces: $($problems -join '; ')" }
+    else { Log '  OK: the trace use names the trace and the program, and its counts add up' }
+    return $use
+}
+
+# The scan's items that carry a trace's evidence, for the log.
+function Write-TracedItems($scan) {
+    $items = @($scan.leftovers | Where-Object { $_ -and @($_.evidence | Where-Object { $_.kind -like 'traced-*' }).Count })
+    Log "  the scan's items with the trace's evidence: $($items.Count)"
+    foreach ($item in $items) {
+        $where = Where-Text $item.location
+        if ($item.location.kind -eq 'value-edit') { $where += " ($($item.location.edit))" }
+        $evidence = @($item.evidence | ForEach-Object { if ($_.detail) { "$($_.kind)($($_.detail))" } else { $_.kind } }) -join ', '
+        Log ('    {0,-12} {1,3}  {2,-14} {3}  [{4}]' -f $item.confidence, $item.score, $item.location.kind, $where, $evidence)
+    }
+}
+
+# Every item of a removal done, or left to go with what contains it; a package is removed only with
+# --allow-irreversible. -Optional: no removal at all is fine (nothing was planned).
+function Test-RemovalDone($removal, [string]$label, [switch]$Optional) {
+    if (-not $removal) {
+        if ($Optional) { Log '  nothing was planned for removal' } else { Fail "$($label): nothing was removed (no leftover_removal)" }
+        return
+    }
+    $items = @($removal.items | Where-Object { $_ })
+    Log "  change set $($removal.set_id): $($items.Count) item(s), $($removal.quarantined_bytes) bytes quarantined"
+    foreach ($item in $items) {
+        $where = Where-Text $item.location
+        if ($item.location.kind -eq 'value-edit') { $where += " ($($item.location.edit))" }
+        Log ('    {0,-4} {1,-26} {2,-11} {3,-15} {4}' -f $item.index, "$($item.state) ($($item.reason))", $item.confidence, $item.location.kind, $where)
+        if ($item.state -eq 'done' -or ($item.state -eq 'skipped' -and $item.reason -eq 'contained')) { continue }
+        if ($item.location.kind -eq 'package' -and $item.state -eq 'skipped' -and $item.reason -eq 'not-undoable') {
+            Log '      KNOWN: a package goes only with --allow-irreversible (undo couldn''t put it back)'
+            continue
+        }
+        Fail "$($label): $($item.location.kind) $where is $($item.state) ($($item.reason))"
+    }
+}
+
+# A user's own PATH entry, appended (or with -Remove taken out) as a user would, the value kept
+# REG_EXPAND_SZ.
+function Set-UserPathEntry([string]$spot, [string]$entry, [switch]$Remove) {
+    $base = if ($spot -eq 'machine-environment') { [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', 'Registry64') }
+            else { [Microsoft.Win32.RegistryKey]::OpenBaseKey('CurrentUser', 'Registry64') }
+    $key = $base.OpenSubKey($(if ($spot -eq 'machine-environment') { $traceMachineEnvironment } else { 'Environment' }), $true)
+    if (-not $key) { return }
+    try {
+        $old = $key.GetValue('Path', $null, 'DoNotExpandEnvironmentNames')
+        if ($Remove) {
+            if (-not $old) { return }
+            $kept = @($old -split ';' | Where-Object { $_ -ne $entry })
+            if ($kept.Count -ne @($old -split ';').Count) { $key.SetValue('Path', ($kept -join ';'), 'ExpandString') }
+        } else {
+            $new = if (-not $old) { $entry } elseif ($old.EndsWith(';')) { $old + $entry } else { "$old;$entry" }
+            $key.SetValue('Path', $new, 'ExpandString')
+        }
+    } finally {
+        $key.Close()
+    }
+}
+
+function Read-Value($key, [string]$name) {
+    if (-not $key -or @($key.GetValueNames()) -notcontains $name) { return $null }
+    return @{ kind = "$($key.GetValueKind($name))"; data = $key.GetValue($name, $null, 'DoNotExpandEnvironmentNames') }
+}
+
+# The fixture's values in the known spots as they are now.
+function Read-FixtureValues {
+    $machine = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', 'Registry64')
+    $user = [Microsoft.Win32.RegistryKey]::OpenBaseKey('CurrentUser', 'Registry64')
+    $values = @{}
+    $key = $machine.OpenSubKey($traceMachineEnvironment)
+    $values['machine-environment'] = Read-Value $key 'Path'
+    $values.home = Read-Value $key 'CONTOSO_HOME'
+    if ($key) { $key.Close() }
+    $key = $user.OpenSubKey('Environment')
+    $values['user-environment'] = Read-Value $key 'Path'
+    if ($key) { $key.Close() }
+    $key = $machine.OpenSubKey($traceSharedDlls)
+    $values.shared = Read-Value $key $traceShared
+    $values.own = Read-Value $key "$traceRoot\shell.dll"
+    if ($key) { $key.Close() }
+    return $values
+}
+
+# The fixture's values right after a removal by its trace, exactly: each PATH the value before the
+# install plus the user's own entry (returned as Test-Revert's -PathVerdicts, by spot), the shared
+# DLL's count back at 1, its own count and CONTOSO_HOME gone.
+function Get-FixturePathVerdicts($values, $paths, [string]$label) {
+    $verdicts = @{}
+    foreach ($spot in $userPathEntries.Keys) {
+        $before = $paths[$spot]
+        $mine = $userPathEntries[$spot]
+        $want = if (-not $before) { $mine } elseif ($before.EndsWith(';')) { $before + $mine } else { "$before;$mine" }
+        $now = $values[$spot]
+        $problems = @()
+        if (-not $now) {
+            $problems += 'it is gone'
+        } else {
+            if ($now.kind -ne 'ExpandString') { $problems += "it is $($now.kind), not REG_EXPAND_SZ" }
+            if ("$($now.data)" -cne $want) { $problems += "it is '$($now.data)', not '$want'" }
+        }
+        if ($problems) {
+            Log "  $spot Path after the removal: $($problems -join '; ')"
+            $verdicts[$spot] = @{ class = 'FAIL'; reason = "not the value before the install plus the user's own entry ($($problems -join '; '))" }
+        } else {
+            Log "  OK: $spot Path is exactly the value before the install plus the user's own entry $mine"
+            $verdicts[$spot] = @{ class = 'KNOWN'; reason = "the user's own entry $mine, added after the install, stays and the installer's is gone (checked exactly)" }
+        }
+    }
+    if (-not $values.shared -or $values.shared.kind -ne 'DWord' -or [int64]$values.shared.data -ne 1) {
+        Fail "$($label): the SharedDLLs count of $traceShared is $(if ($values.shared) { "$($values.shared.kind) $($values.shared.data)" } else { 'gone' }), not back at 1"
+    } else { Log "  OK: the SharedDLLs count of $traceShared is back at 1" }
+    if ($values.own) { Fail "$($label): the SharedDLLs count of $traceRoot\shell.dll is still there ($($values.own.data))" }
+    else { Log "  OK: the SharedDLLs count of $traceRoot\shell.dll is gone" }
+    if ($values.home) { Fail "$($label): CONTOSO_HOME is still there ('$($values.home.data)')" }
+    else { Log '  OK: CONTOSO_HOME is gone' }
+    return $verdicts
+}
+
+# The fixture's items and what Test-Revert needs to know about them: `items` (change|kind|where),
+# `created` (its created items), `required` (the KNOWN set that must stay: Theme, the firewall rule
+# and both PATH values with the user's own entries), and its state dump specs: what a removal takes,
+# what stays and the values it edits.
+function New-FixtureContext([string]$ruleId) {
+    $items = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $created = @()
+    foreach ($want in @(Get-TraceFixtureItems)) {
+        $where = if ($want.kind -eq 'firewall-rule') { $ruleId } else { $want.where }
+        $null = $items.Add("$($want.change)|$($want.kind)|$where")
+        if ($want.change -eq 'created') { $created += @{ kind = $want.kind; where = $where } }
+    }
+    $environment = "HKLM\$traceMachineEnvironment"
+    $windows = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
+    return @{
+        ruleId = $ruleId; items = $items; created = $created
+        required = [ordered]@{
+            'modified|registry-value|HKLM\SOFTWARE\Contoso Shared : Theme' = 'Theme, which the installer changed'
+            "created|firewall-rule|$ruleId" = 'the firewall rule'
+            "known|$environment|Path" = "the machine Path, with the user's own entry"
+            "known|HKU\$traceUserSid\Environment|Path" = "the user's Path, with the user's own entry"
+        }
+        removedSpecs = @("file:$traceRoot", "key:$windows\Uninstall\Contoso Trace", 'key:HKLM\SOFTWARE\Contoso Trace',
+            "key:HKU\$traceUserSid\Software\Contoso Trace", 'file:C:\ProgramData\Contoso Trace', "file:$env:APPDATA\Contoso Trace",
+            "file:$traceStartMenu", "value:$windows\Run|ContosoTraceUpdater", "key:$windows\App Paths\ContosoTrace.exe",
+            "key:HKLM\SOFTWARE\Classes\CLSID\$traceClsid", 'key:HKLM\SOFTWARE\Classes\*\shellex\ContextMenuHandlers\ContosoTrace',
+            "value:$windows\Shell Extensions\Approved|$traceClsid", "service:$traceService", "task:$traceTask")
+        stayingSpecs = @("value:$firewallRules|$ruleId", 'value:HKLM\SOFTWARE\Contoso Shared|Theme', "file:$(Split-Path $traceShared)")
+        valueSpecs = @("value:$environment|Path", "value:$environment|CONTOSO_HOME", "value:HKU\$traceUserSid\Environment|Path",
+            "value:HKLM\$traceSharedDlls|$traceShared", "value:HKLM\$traceSharedDlls|$traceRoot\shell.dll")
+    }
+}
+
+# The fixture in a removal by its trace: each of its created items planned (or inside what is),
+# tied to it in the scan; its five value edits planned; what stays never planned. -ProgramGone:
+# its own uninstaller took its folder and Uninstall key already.
+function Test-FixturePlan($json, $fixture, [string]$label, [switch]$ProgramGone) {
+    $planned = New-LocationMap $json.leftover_removal.items
+    $scan = New-LocationMap $json.leftover_scan.leftovers
+    $ok = 0
+    $wanted = 0
+    foreach ($want in $fixture.created) {
+        if ($want.kind -eq 'firewall-rule') { continue }
+        if ($ProgramGone -and (($want.kind -eq 'folder' -and $want.where -eq $traceRoot) -or
+                               ($want.kind -eq 'registry-key' -and $want.where -like '*\Uninstall\Contoso Trace'))) { continue }
+        $wanted++
+        $what = "$($want.kind) $($want.where)"
+        $found = Find-LocationItem $planned $want.kind $want.where
+        if (-not $found) { Fail "$($label): the fixture's $what isn't planned for removal"; continue }
+        $reported = $null
+        $null = $scan.TryGetValue("$($want.kind)|$($want.where)", [ref]$reported)
+        $tie = if ($reported) { @($reported.evidence | Where-Object { $_.kind -eq 'traced-install-root' } | ForEach-Object { $_.detail })[0] } else { $null }
+        $how = if ($found.container) { "inside the planned $(Where-Text $found.item.location)" } else { "$($found.item.state) ($($found.item.reason))" }
+        if (-not $tie) {
+            $evidence = if ($reported) { "$($reported.confidence): " + (@($reported.evidence | ForEach-Object { $_.kind }) -join ', ') } else { 'not in the scan by itself' }
+            Fail "$($label): the fixture's $what isn't tied to it ($evidence)"
+            continue
+        }
+        Log "    $($reported.confidence), tied ($tie): $what, $how"
+        $ok++
+    }
+    Log "  $ok of the fixture's $wanted created item(s) planned and tied to it"
+    $edits = @(
+        @{ key = "HKLM\$traceMachineEnvironment"; name = 'Path'; edit = 'remove-path-entries' },
+        @{ key = "HKU\$traceUserSid\Environment"; name = 'Path'; edit = 'remove-path-entries' },
+        @{ key = "HKLM\$traceMachineEnvironment"; name = 'CONTOSO_HOME'; edit = 'delete-value' },
+        @{ key = "HKLM\$traceSharedDlls"; name = $traceShared; edit = 'decrement-shared-dll' },
+        @{ key = "HKLM\$traceSharedDlls"; name = "$traceRoot\shell.dll"; edit = 'delete-value' })
+    $made = @($json.leftover_removal.items | Where-Object { $_ -and $_.location.kind -eq 'value-edit' })
+    foreach ($want in $edits) {
+        $found = @($made | Where-Object { (ConvertTo-OraclePath $_.location.key) -eq $want.key -and $_.location.value -eq $want.name })
+        $what = "$($want.key) : $($want.name)"
+        if ($found.Count -ne 1) { Fail "$($label): the value edit of $what is planned $($found.Count) time(s)"; continue }
+        $edit = $found[0]
+        if ($edit.location.edit -ne $want.edit) { Fail "$($label): the value edit of $what is $($edit.location.edit), not $($want.edit)" }
+        else { Log "  OK: value edit $($edit.location.edit) of $what at $($edit.confidence): $($edit.state)" }
+    }
+    $restores = @($made | Where-Object { $_.location.edit -eq 'restore-value' })
+    if ($restores) { Fail "$($label): $($restores.Count) value(s) to restore, which the fixture never changes" }
+    $stays = @("firewall-rule|$($fixture.ruleId)", 'registry-value|HKLM\SOFTWARE\Contoso Shared : Theme',
+               'registry-key|HKLM\SOFTWARE\Contoso Shared', "folder|$(Split-Path $traceShared)", "file|$traceShared")
+    foreach ($key in $stays) { if ($planned.ContainsKey($key)) { Fail "$($label): planned what must stay: $key" } }
+}
+
+# After the stop, the fixture's trace is linked to it by itself (trace show --json: links) and its
+# created items are tied to it (tied, tie). Returns the program's id, or $null.
+function Test-FixtureLinks([string]$id, $fixture) {
+    $show = Invoke-Trace @('show', $id, '--json') 'r1-show'
+    if (-not $show.json) { Fail "round 1 (5b): trace show printed no JSON (exit $($show.exit))"; return $null }
+    $links = @($show.json.trace.links | Where-Object { $_ })
+    foreach ($link in $links) {
+        Log "  link: $($link.name) ($($link.program_id)) [$($link.matched_by)]$(if ($link.primary) { ', primary' }); key $($link.uninstall_key), folder $($link.install_location)"
+    }
+    $program = $null
+    $primary = @($links | Where-Object { $_.primary })
+    if ($primary.Count -ne 1) {
+        Fail "round 1 (5b): the trace has $($primary.Count) primary link(s) after the stop, not 1"
+    } else {
+        $link = $primary[0]
+        $program = $link.program_id
+        $problems = @()
+        if ($link.name -ne 'Contoso Trace') { $problems += "name '$($link.name)'" }
+        if ($link.matched_by -ne 'created-key') { $problems += "matched by $($link.matched_by)" }
+        if ($link.uninstall_key -ne 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Contoso Trace') { $problems += "Uninstall key $($link.uninstall_key)" }
+        if ("$($link.install_location)".TrimEnd('\') -ne $traceRoot) { $problems += "folder '$($link.install_location)'" }
+        if ($problems) { Fail "round 1 (5b): the trace's link isn't the fixture: $($problems -join ', ')" }
+        else { Log '  OK: the trace linked itself to the fixture when it stopped (by the Uninstall key it created)' }
+    }
+    $changes = @($show.json.changes | Where-Object { $_ })
+    $tied = 0
+    foreach ($want in $fixture.created) {
+        $change = @($changes | Where-Object { $_.change -eq 'created' -and $_.location.kind -eq $want.kind -and (Where-Text $_.location) -eq $want.where })[0]
+        if (-not $change) { continue }  # Round 1 fails it
+        if ($change.tied) { $tied++; Log "    tied ($($change.tie)): $($want.kind) $($want.where)" }
+        else { Fail "round 1 (5b): the fixture's $($want.kind) $($want.where) isn't tied to it (tie: $($change.tie))" }
+    }
+    Log "  $tied of the fixture's $($fixture.created.Count) created item(s) tied to it"
+    foreach ($change in @($changes | Where-Object { -not $_.tied })) { Log "    not tied: $(Format-Change $change)" }
+    return $program
+}
+
+# trace export: one file, an "avel-trace" of schema 1 holding the trace and its user.
+function Test-TraceExport([string]$id, [string]$file) {
+    if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
+    $export = Invoke-Trace @('export', $id, $file) 'r1-export'
+    if ($export.exit -ne 0 -or -not (Test-Path -LiteralPath $file)) { Fail "round 1 (5b): trace export exited with $($export.exit)"; return }
+    try {
+        $data = [IO.File]::ReadAllText($file, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    } catch {
+        Fail "round 1 (5b): the exported file isn't JSON: $($_.Exception.Message)"
+        return
+    }
+    $users = @($data.users | Where-Object { $_ } | ForEach-Object { $_.sid })
+    $problems = @()
+    if ($data.format -ne 'avel-trace' -or $data.schema_version -ne 1) { $problems += "format $($data.format), schema $($data.schema_version)" }
+    if ($data.trace.id -ne $id) { $problems += "trace $($data.trace.id)" }
+    if ($users -notcontains $sid) { $problems += "users $($users -join ', ')" }
+    if ($problems) { Fail "round 1 (5b): the exported file isn't this trace's: $($problems -join '; ')" }
+    else { Log "  OK: trace export wrote $((Get-Item -LiteralPath $file).Length) bytes, users: $($users -join ', ')" }
+}
+
+# trace delete, then trace import of the exported file (a new trace, its origin named, linked again
+# to the fixture), then trace link by hand. Returns the imported trace's id, or $null.
+function Import-FixtureTrace([string]$id, [string]$file, [string]$program) {
+    $delete = Invoke-Trace @('delete', $id) 'r1-delete'
+    if ($delete.exit -ne 0) { Fail "round 1 (5b): trace delete exited with $($delete.exit)" }
+    elseif (@(Get-TraceList | Where-Object { $_.id -eq $id })) { Fail "round 1 (5b): trace $id is still listed after trace delete" }
+    else { Log "  OK: trace $id deleted" }
+    $import = Invoke-Trace @('import', $file, '--json') 'r1-import'
+    $info = $import.json.trace
+    if ($import.exit -ne 0 -or -not $info -or -not $info.id) { Fail "round 1 (5b): trace import exited with $($import.exit)"; return $null }
+    $remapped = if ($info.imported.remapped) { "$($info.imported.remapped.from_sid) -> $($info.imported.remapped.to_sid)" } else { 'none' }
+    Log "  imported as $($info.id): $($info.state), origin $($info.imported.origin_id), remapped $remapped, not remapped: $(@($info.imported.not_remapped) -join ', ')"
+    foreach ($link in @($info.links | Where-Object { $_ })) { Log "    link: $($link.name) ($($link.program_id)) [$($link.matched_by)]$(if ($link.primary) { ', primary' })" }
+    $primary = @($info.links | Where-Object { $_ -and $_.primary })[0]
+    $problems = @()
+    if ($info.state -ne 'complete') { $problems += "state $($info.state)" }
+    if ($info.imported.origin_id -ne $id) { $problems += "origin $($info.imported.origin_id)" }
+    if (-not $primary -or $primary.program_id -ne $program) { $problems += "primary link $($primary.program_id), not $program" }
+    if ($problems) { Fail "round 1 (5b): trace import: $($problems -join '; ')" }
+    else { Log "  OK: imported as a new trace of $id, linked to the installed fixture again" }
+    $link = Invoke-Trace @('link', $info.id, $program, '--json') 'r1-link'
+    $links = @($link.json.trace.links | Where-Object { $_ })
+    $first = $links[0]
+    if ($link.exit -ne 0 -or -not $first -or $first.program_id -ne $program -or $first.matched_by -ne 'manual' -or -not $first.primary -or
+        @($links | Where-Object { $_.program_id -eq $program }).Count -ne 1) {
+        Fail "round 1 (5b): trace link: exit $($link.exit), links $(@($links | ForEach-Object { "$($_.program_id) [$($_.matched_by)]$(if ($_.primary) { ' primary' })" }) -join '; ')"
+    } else { Log '  OK: trace link made the fixture its primary link, by hand' }
+    return $info.id
+}
+
+# A removal by the trace and its undo, inside a manual trace (the watch) whose noise tells
+# Windows' own activity apart: state dumps and oracle captures before the removal, after it (once
+# Windows has reacted) and after the undo, and the fixture's values right after the removal. The
+# watch is deleted afterwards. Returns what it saw.
+function Invoke-FixtureRevert([string]$label, [string[]]$force, $fixture) {
+    Close-OpenTrace
+    $specs = @($fixture.removedSpecs) + @($fixture.stayingSpecs) + @($fixture.valueSpecs)
+    $revert = @{ tasks = @() }
+    $start = Invoke-Trace @('start', '--description', "watch: $label", '--json') "$label-watch-start"
+    $watching = $start.exit -eq 0 -and $start.json.trace.state -eq 'open'
+    if (-not $watching) { Fail "$($label): the watch trace didn't start (exit $($start.exit)); Windows' own activity can't be told apart" }
+    Start-Hold
+    try {
+        $revert.tasks += @(Get-TaskTargets $traceTask)
+        $revert.dumpBefore = Split-StateDump (Get-StateDump $specs)
+        $revert.journal = @{ before = [AvelJournal]::Query('C:'); after = $null }
+        $revert.before = New-OracleCapture "$label-before"
+        $revert.run = Invoke-Avel (@($force) + '--json') "$label-force" 600
+        Start-Sleep -Seconds $settleSeconds
+        $revert.values = Read-FixtureValues
+        $revert.dumpRemoved = Split-StateDump (Get-StateDump $specs)
+        $revert.after = New-OracleCapture "$label-after"
+        $set = if ($revert.run.json) { $revert.run.json.leftover_removal.set_id } else { $null }
+        if ($set) {
+            $revert.undo = Invoke-Avel @('undo', $set, '--json') "$label-undo" 600
+            Start-Sleep -Seconds $settleSeconds
+        }
+        $revert.undone = New-OracleCapture "$label-undone"
+        $revert.journal.after = [AvelJournal]::Query('C:')
+        $revert.dumpUndone = Split-StateDump (Get-StateDump $specs)
+        $revert.tasks += @(Get-TaskTargets $traceTask)
+    } finally {
+        if ($watching) { $stop = Invoke-Trace @('stop', '--json') "$label-watch-stop" }
+        Stop-Hold
+    }
+    if ($watching -and $stop.json) {
+        Log '  the watch trace around the removal and its undo:'
+        Write-TraceSummary $stop.json
+        foreach ($link in @($stop.json.trace.links | Where-Object { $_ })) { Log "    linked to $($link.name) ($($link.program_id)) [$($link.matched_by)]" }
+        $revert.watch = Get-AllChanges $stop "$label-watch"
+        Write-NoiseCounts $revert.watch
+        $null = Invoke-Trace @('delete', $stop.json.trace.id) "$label-watch-delete"
+    } elseif ($watching) {
+        Fail "$($label): the watch trace's stop printed no JSON (exit $($stop.exit))"
+    }
+    return $revert
+}
+
+# A removal of the fixture by its trace (Invoke-FixtureRevert): force's JSON (the program and its
+# trace, the trace use, the plan), what the removal left (state dumps, exact values, Test-Revert)
+# and its undo (state dumps, Test-Undo).
+function Test-FixtureRevert($revert, $record, $fixture, [string]$traceId, [string]$programId, [string]$label, $shell,
+                            [switch]$ProgramGone) {
+    $run = $revert.run
+    if (-not $run -or -not $run.json) { Fail "$($label): force printed no JSON (exit $(if ($run) { $run.exit }))"; return }
+    $json = $run.json
+    if ($run.exit -ne 0) { Fail "$($label): force exited with $($run.exit)" }
+    $programs = @($json.programs | Where-Object { $_ })
+    if ($programs.Count -ne 1 -or $programs[0].id -ne $programId -or $programs[0].trace -ne $traceId) {
+        Fail "$($label): force's programs are $(@($programs | ForEach-Object { "$($_.id) by trace $($_.trace)" }) -join '; '), not $programId by trace $traceId"
+    } else {
+        Log "  OK: force reverted $programId by trace $traceId"
+    }
+    $use = Test-TraceUse $json.leftover_scan $label $traceId $programId $record
+    if ($use) {
+        $values = @($use.values | Where-Object { $_ })
+        if ($values.Count -ne 5 -or @($values | Where-Object { $_.basis -ne 'undo' })) {
+            Fail "$($label): want the fixture's 5 values planned as undo, got $(@($values | ForEach-Object { "$($_.name) $($_.basis)" }) -join ', ')"
+        }
+        if ($ProgramGone -and [int]$use.gone -lt 2) { Fail "$($label): $($use.gone) traced item(s) gone, but the fixture's own uninstaller took its folder and Uninstall key" }
+    }
+    Write-TracedItems $json.leftover_scan
+    Test-RemovalDone $json.leftover_removal $label
+    Check-Safe @($json.leftover_scan.leftovers) "$label scan"
+    if ($json.leftover_removal) { Check-Safe @($json.leftover_removal.items) "$label removal" }
+    Test-FixturePlan $json $fixture $label -ProgramGone:$ProgramGone
+    foreach ($spec in $fixture.removedSpecs) {
+        if ($revert.dumpRemoved[$spec] -notmatch '^<missing>') { Fail "$($label): not removed: $spec" }
+    }
+    foreach ($spec in $fixture.stayingSpecs) {
+        if ($revert.dumpRemoved[$spec] -ne $revert.dumpBefore[$spec]) { Fail "$($label): changed what must stay: $spec" }
+    }
+    $paths = Get-FixturePathVerdicts $revert.values $record.paths $label
+    Test-Revert $record $revert.after $json "$label-revert" -Fixture $fixture -PathVerdicts $paths
+    if (-not $revert.undo) { Fail "$($label): there was no change set to undo"; return }
+    Log "  undo: $($revert.undo.json.state), exit $($revert.undo.exit)"
+    if ($revert.undo.json.state -ne 'restored') { Fail "$($label): undo: state $($revert.undo.json.state)" }
+    Compare-State $revert.dumpBefore $revert.dumpUndone "$($label): undo gave back exactly what was there (state dumps)"
+    Test-Undo $revert.before $revert.undone $revert.watch $json.leftover_removal "$label-undo" $revert.tasks $shell $revert.journal
+}
+
+# 5b of round 1: the fixture, still installed, reverted by its trace with `force` and undone; then
+# its trace exported, deleted, imported and linked by hand, its own uninstaller run (its folder and
+# key go), and the rest reverted with `force --trace <the imported trace>` (the program is gone, so
+# the target is trace:<id>) and undone. Leaves the fixture removed and the user's entries gone.
+function Invoke-FixtureRevertRound($record) {
+    Log ''
+    Log 'Round 1 (5b): the fixture reverted by its trace with force and undone; its trace exported, deleted, imported and linked by hand; its own uninstaller run, the rest reverted with force --trace and undone'
+    if (-not $record -or -not $record.id) { Fail 'round 1 (5b): there is no trace of the fixture to revert'; return }
+    if (-not (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Contoso Trace')) { Fail 'round 1 (5b): the fixture is not installed'; return }
+    try {
+        $id = $record.id
+        $fixture = New-FixtureContext (Get-TraceFixtureRuleId)
+        $program = Test-FixtureLinks $id $fixture
+        if (-not $program) { $program = 'Contoso Trace' }  # Its exact name
+        $file = Join-Path $captures 'r1-fixture.trace.json'
+        Test-TraceExport $id $file
+        foreach ($spot in $userPathEntries.Keys) { Set-UserPathEntry $spot $userPathEntries[$spot] }
+        Log "  the user added their own Path entries: $(@($userPathEntries.GetEnumerator() | ForEach-Object { "$($_.Key) $($_.Value)" }) -join ', ')"
+        $shell = New-ShellCoverage $record.all $fixture $record.lines
+
+        Log ''
+        Log "  A. force $program --yes --end-processes, then undo"
+        $revert = Invoke-FixtureRevert 'r1-force' @('force', $program, '--yes', '--end-processes') $fixture
+        Test-FixtureRevert $revert $record $fixture $id $program 'r1-force' $shell
+
+        Log ''
+        Log '  B. trace export, delete, import and link; the fixture''s own uninstaller; force --trace <the imported trace>, then undo'
+        $imported = Import-FixtureTrace $id $file $program
+        if (-not $imported) { return }
+        $uninstaller = Start-Process "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -Wait -PassThru -WindowStyle Hidden `
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$traceRoot\uninstall.ps1`"")
+        $left = @($traceRoot, 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Contoso Trace' | Where-Object { Test-Path -LiteralPath $_ })
+        if ($uninstaller.ExitCode -ne 0 -or $left) { Fail "round 1 (5b): the fixture's own uninstaller exited with $($uninstaller.ExitCode), left: $($left -join ', ')" }
+        else { Log '  the fixture''s own uninstaller removed its folder and its Uninstall key' }
+        Start-Sleep -Seconds $settleSeconds  # Windows' reactions to it, before the watch
+        $revert = Invoke-FixtureRevert 'r1-force-trace' @('force', '--trace', $imported, '--yes', '--end-processes') $fixture
+        Test-FixtureRevert $revert $record $fixture $imported "trace:$imported" 'r1-force-trace' $shell -ProgramGone
+    } finally {
+        Remove-TraceFixture
+        foreach ($spot in $userPathEntries.Keys) { Set-UserPathEntry $spot $userPathEntries[$spot] -Remove }
+    }
+}
+
+# 5b of rounds 2-4, mode 1: the sample uninstalled with its trace. `scan` previews it; `uninstall
+# --quiet --remove-leftovers` runs its own uninstaller, then what the trace saw its installer create
+# joins the leftovers and what is Good or better goes. results[].trace names the trace, the trace
+# use's counts add up, every planned item goes, Test-Revert judges what is left against the capture
+# before the install, and retention starts the uninstalled program's trace's 30 days.
+function Invoke-UninstallByTrace($sample, [int]$number) {
+    Log ''
+    Log "Round $number (5b): $($sample.name) uninstalled with its trace (uninstall --quiet --remove-leftovers)"
+    $record = $traced[$sample.label]
+    if (-not $record -or -not $record.id) { Fail "round $number (5b): there is no trace of $($sample.name)"; return }
+    $label = "$($sample.label)-uninstall"
+    $links = @($record.result.trace.links | Where-Object { $_ })
+    foreach ($link in $links) { Log "  link: $($link.name) ($($link.program_id)) [$($link.matched_by)]$(if ($link.primary) { ', primary' })" }
+    $link = @($links | Where-Object { $_.primary })[0]
+    if (-not $link) { Fail "$($label): the trace isn't linked to any program, so nothing is uninstalled by it"; return }
+    # Uninstalling another entry the installer's trace saw registered (run 1: Windows' compatibility
+    # fix database, which Windows installed meanwhile) would remove the wrong program.
+    if ($link.name -notmatch $sample.entry) { Fail "$($label): the trace's primary link is $($link.name), not $($sample.name)'s own entry; not uninstalled"; return }
+    $program = $link.program_id
+
+    $preview = Invoke-Avel @('scan', $program, '--all-levels', '--json') "$label-scan" 300
+    if (-not $preview.json) {
+        Fail "$($label): scan printed no JSON (exit $($preview.exit))"
+    } else {
+        $programs = @($preview.json.programs | Where-Object { $_ })
+        if ($programs.Count -ne 1 -or $programs[0].trace -ne $record.id) { Fail "$($label): scan's programs are $(@($programs | ForEach-Object { "$($_.id) by trace $($_.trace)" }) -join '; '), not by trace $($record.id)" }
+        else { Log "  OK: scan previews $program with trace $($record.id)" }
+        $use = Test-TraceUse $preview.json "$label scan" $record.id $program $record
+        if ($use -and [int]$use.tied -lt 1) { Fail "$($label): scan: nothing the trace saw is tied to the program while it is installed" }
+    }
+
+    $run = Invoke-Avel @('uninstall', $program, '--quiet', '--yes', '--remove-leftovers', '--no-restore-point', '--json') $label 900
+    Start-Sleep -Seconds $settleSeconds
+    $after = New-OracleCapture "$label-after"
+    if (-not $run.json) { Fail "$($label): uninstall printed no JSON (exit $($run.exit))"; return }
+    $json = $run.json
+    # Not $results: that is the results folder, which the functions called from here use too.
+    $outcomes = @($json.results | Where-Object { $_ })
+    foreach ($outcome in $outcomes) { Log "  $($outcome.name): $($outcome.outcome), exit code $($outcome.exit_code), $([int]$outcome.elapsed_ms) ms, trace $($outcome.trace)" }
+    if ($outcomes.Count -ne 1 -or $outcomes[0].outcome -notin 'removed', 'reboot-required') { Fail "$($label): the uninstall didn't remove $($sample.name)" }
+    if ($outcomes.Count -ge 1 -and $outcomes[0].trace -ne $record.id) { Fail "$($label): results[].trace is '$($outcomes[0].trace)', not $($record.id)" }
+    elseif ($outcomes.Count -ge 1) { Log "  OK: results[].trace names the round's trace" }
+    $use = Test-TraceUse $json.leftover_scan $label $record.id $program $record
+    if ($use -and [int]$use.gone -lt 1) { Fail "$($label): nothing the trace saw is gone after the uninstaller ran" }
+    Write-TracedItems $json.leftover_scan
+    Test-RemovalDone $json.leftover_removal $label -Optional
+    Check-Safe @($json.leftover_scan.leftovers) "$label scan"
+    if ($json.leftover_removal) { Check-Safe @($json.leftover_removal.items) "$label removal" }
+    Test-Revert $record $after $json "$label-revert"
+    $show = Invoke-Trace @('show', $record.id, '--json') "$label-show"
+    if (-not $show.json) { Fail "$($label): trace show printed no JSON (exit $($show.exit))" }
+    elseif (-not $show.json.trace.unresolved_since) { Fail "$($label): the uninstalled program's trace has no unresolved_since: retention didn't start its 30 days" }
+    else { Log "  OK: the trace is kept 30 days from $($show.json.trace.unresolved_since)" }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1395,6 +2532,7 @@ function Invoke-FixtureRound {
     $install = { (Start-Process $file $arguments -Wait -PassThru -WindowStyle Hidden).ExitCode }.GetNewClosure()
     $record = Invoke-TracedRound 'r1-fixture' 'Contoso Trace Fixture' -Install $install
     if (-not $record) { return }
+    $record.paths = $paths  # For 5b's exact checks
     $json = $record.result
     if ($record.install -ne 0) { Fail "the fixture's installer returned $($record.install)" }
     if ($json.trace.state -ne 'complete' -or $json.trace.mode -ne 'manual' -or $json.trace.stop_reason -ne 'manual') {
@@ -1594,7 +2732,7 @@ function Invoke-ContainerRound {
     Test-Precision $json $record.lines 'round 0b' -Strict
 }
 try {
-    Log "Avel Phase 5a trace scenario, $(Get-Date -Format s)"
+    Log "Avel Phase 5 trace scenario, $(Get-Date -Format s)"
     Log "OS: $([Environment]::OSVersion.VersionString), user: $env:USERNAME ($sid), $([Environment]::ProcessorCount) processors"
     Log "avel-cli: $((& $cli version) -join ' ')"
     Write-SystemFacts
@@ -1604,9 +2742,11 @@ try {
     Invoke-Round 'round 0' { Invoke-IdleRound }
     Invoke-Round 'round 0b' { Invoke-ContainerRound }
     Invoke-Round 'round 1' { Invoke-FixtureRound }
+    Invoke-Round 'round 1 (5b)' { Invoke-FixtureRevertRound $traced['r1-fixture'] }
     $number = 2
     foreach ($sample in $traceSamples) {
         Invoke-Round "round $number" { Invoke-SampleRound $sample $number }
+        Invoke-Round "round $number (5b)" { Invoke-UninstallByTrace $sample $number }
         $number++
     }
     Invoke-Round 'round 5' { Invoke-RunAfterRound }

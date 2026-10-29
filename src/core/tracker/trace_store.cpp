@@ -109,6 +109,8 @@ std::string_view to_string(TraceError error) {
             return "not-found";
         case TraceError::NotOpen:
             return "not-open";
+        case TraceError::NotFinished:
+            return "not-finished";
         case TraceError::InUse:
             return "in-use";
         case TraceError::Damaged:
@@ -251,6 +253,25 @@ std::unique_ptr<TraceFolder> TraceStore::create(TraceInfo& info, TraceError& err
     }
 
     const auto now = options_.clock();
+    auto folder = new_folder(now, error);
+    if (!folder) {
+        return nullptr;
+    }
+    info.id = folder->id_;
+    info.started = now;
+    info.state = TraceState::Starting;
+    if (!folder->write_info(info)) {
+        folder->lock_.reset();
+        platform::delete_tree(folder->path_);
+        error = TraceError::WriteFailed;
+        return nullptr;
+    }
+    error = TraceError::None;
+    return folder;
+}
+
+std::unique_ptr<TraceFolder> TraceStore::new_folder(std::chrono::system_clock::time_point now,
+                                                    TraceError& error) {
     std::unique_ptr<TraceFolder> folder(new TraceFolder());
     for (int attempt = 0; attempt < 3 && folder->path_.empty(); ++attempt) {
         const std::wstring id = platform::new_record_id(now);
@@ -266,11 +287,35 @@ std::unique_ptr<TraceFolder> TraceStore::create(TraceInfo& info, TraceError& err
         error = TraceError::WriteFailed;
         return nullptr;
     }
-    info.id = folder->id_;
-    info.started = now;
-    info.state = TraceState::Starting;
     folder->lock_ = platform::take_folder_lock(folder->path_);
-    if (!folder->lock_ || !folder->write_info(info)) {
+    if (!folder->lock_) {
+        platform::delete_tree(folder->path_);
+        error = TraceError::WriteFailed;
+        return nullptr;
+    }
+    return folder;
+}
+
+std::unique_ptr<TraceFolder> TraceStore::add_finished(TraceInfo& info, const TraceResult& result,
+                                                      const KnownValues& saved, TraceError& error) {
+    if (!is_finished(info.state)) {
+        error = TraceError::NotFinished;
+        return nullptr;
+    }
+    const auto guard = lock();
+    if (!guard) {
+        error = TraceError::Busy;
+        return nullptr;
+    }
+    auto folder = new_folder(options_.clock(), error);
+    if (!folder) {
+        return nullptr;
+    }
+    info.id = folder->id_;
+    // trace.json last: until it's there, purge takes the folder for damaged.
+    if (!changes::write_file_durably(folder->file(kSavedValuesFile), to_json(saved).dump(1, '\t')) ||
+        !changes::write_file_durably(folder->file(kChangesFile), to_json(result).dump(1, '\t')) ||
+        !folder->write_info(info)) {
         folder->lock_.reset();
         platform::delete_tree(folder->path_);
         error = TraceError::WriteFailed;
@@ -309,6 +354,36 @@ std::unique_ptr<TraceFolder> TraceStore::open_folder(const std::wstring& id, Tra
     return folder;
 }
 
+std::optional<TraceInfo> TraceStore::update(const std::wstring& id,
+                                            const std::function<bool(TraceInfo& info)>& change,
+                                            TraceError& error) {
+    const auto guard = lock();
+    if (!guard) {
+        error = TraceError::Busy;
+        return std::nullopt;
+    }
+    const auto folder = open_folder(id, error);
+    if (!folder) {
+        return std::nullopt;
+    }
+    auto info = folder->read_info();
+    if (!info) {
+        error = TraceError::Damaged;
+        return std::nullopt;
+    }
+    if (!is_finished(info->state)) {
+        error = TraceError::NotFinished;
+        return std::nullopt;
+    }
+    info->id = id;
+    if (change(*info) && !folder->write_info(*info)) {
+        error = TraceError::WriteFailed;
+        return std::nullopt;
+    }
+    error = TraceError::None;
+    return info;
+}
+
 bool TraceStore::held(const std::wstring& id) const {
     const std::wstring path = folder_of(id);
     return platform::is_safe_record_id(id) && folder_exists(path) && !platform::take_folder_lock(path);
@@ -334,7 +409,7 @@ bool TraceStore::remove(const std::wstring& id, TraceError& error) {
     return true;
 }
 
-std::size_t TraceStore::purge(const std::function<bool(const TraceInfo&)>& keep) {
+std::size_t TraceStore::purge(const std::function<bool(TraceInfo& info)>& installed) {
     const auto guard = lock();
     if (!guard) {
         return 0;
@@ -349,14 +424,17 @@ std::size_t TraceStore::purge(const std::function<bool(const TraceInfo&)>& keep)
         if (file.other_version) {
             continue;
         }
-        auto lock_file = platform::take_folder_lock(path);
-        if (!lock_file) {
+        TraceFolder folder;
+        folder.id_ = name;
+        folder.path_ = path;
+        folder.lock_ = platform::take_folder_lock(path);
+        if (!folder.lock_) {
             continue;  // A process drives it
         }
         const bool damaged = !file.info || file.info->state == TraceState::Starting;
         const bool finished = file.info && is_finished(file.info->state);
-        if (damaged || (finished && keep && !keep(*file.info))) {
-            lock_file.reset();
+        if (damaged || (finished && installed && expired(folder, *file.info, installed))) {
+            folder.release();
             if (platform::delete_tree(path) == ERROR_SUCCESS) {
                 ++count;
             }
@@ -369,6 +447,30 @@ std::size_t TraceStore::purge(const std::function<bool(const TraceInfo&)>& keep)
         }
     }
     return count;
+}
+
+bool TraceStore::expired(TraceFolder& folder, TraceInfo info,
+                         const std::function<bool(TraceInfo& info)>& installed) {
+    info.id = folder.id_;
+    const auto now = options_.clock();
+    if (info.links.empty()) {
+        // Nothing says whether its program is still there: kept for a while after it was recorded
+        // here.
+        const auto since = info.imported ? info.imported->time : info.stopped.value_or(info.started);
+        return now - since >= kTraceRetention;
+    }
+    const Json before = to_json(info);
+    if (installed(info)) {
+        info.unresolved_since.reset();
+    } else if (!info.unresolved_since) {
+        info.unresolved_since = now;
+    } else if (now - *info.unresolved_since >= kTraceRetention) {
+        return true;
+    }
+    if (to_json(info) != before) {
+        folder.write_info(info);  // A failure is tried again at the next purge
+    }
+    return false;
 }
 
 void tidy_trace_folder(const std::wstring& folder, const std::vector<KnownValueChange>& known) {

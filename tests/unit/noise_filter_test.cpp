@@ -335,6 +335,157 @@ TEST_F(NoiseFilterTest, KnowsWhatWindowsKeepsUpToDate) {
     EXPECT_EQ(user_value(kMe, game_bar, L"AppCaptureEnabled"), NoiseReason::None);
 }
 
+// What the 5b Sandbox run saw Windows do during the installs, and during Avel's own removals.
+TEST_F(NoiseFilterTest, KnowsWhatWindowsDidDuringTheSandboxsInstalls) {
+    const std::wstring flags = LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)";
+    const std::wstring uninstall = LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\)";
+    const std::wstring fix_database = L"{22221111-1111-1111-1111-111111111111}";
+    const std::wstring own_database = L"{C0C0A000-0000-0000-0000-000000000001}";
+    const std::vector<std::wstring> keys = {
+        flags + LR"(\Appraiser\RunResults\LastFullSyncRun)",
+        flags + LR"(\Appraiser\SEC)",
+        flags + LR"(\TelemetryController\AppInv)",
+        flags + LR"(\TargetVersionUpgradeExperienceIndicators\UNV)",
+        flags + LR"(\Shared\TargetVersionUpgradeExperienceIndicators\UNV)",
+        flags + LR"(\AvTracking\History)",
+        flags + LR"(\InstalledSDB\)" + fix_database,
+        uninstall + fix_database + L".sdb",
+        LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\OneSettings\appcompat\runtimesdbincloud)",
+        LR"(SOFTWARE\Microsoft\Wbem\Transports\Decoupled\Client)",
+        LR"(SOFTWARE\Microsoft\RemovalTools\MRT)",
+        LR"(SYSTEM\CurrentControlSet\Services\NcbService\NCBKapiNlmCache\2)",
+    };
+    for (const auto& key : keys) {
+        EXPECT_EQ(machine_key(key), NoiseReason::SystemActivity) << platform::to_utf8(key);
+    }
+    // A program's own compatibility database, and its Uninstall entry, are its own.
+    EXPECT_EQ(machine_key(flags + LR"(\InstalledSDB\)" + own_database), NoiseReason::None);
+    EXPECT_EQ(machine_key(uninstall + own_database + L".sdb"), NoiseReason::None);
+    for (const auto& name :
+         {fix_database + L".sdb", std::wstring(L"drvpatch.sdb"), std::wstring(L"PatchDbUpdateTickCount")}) {
+        EXPECT_EQ(machine_value(flags, name), NoiseReason::SystemActivity) << platform::to_utf8(name);
+    }
+    EXPECT_EQ(machine_value(flags + LR"(\Custom\patchsdbtest.exe)", fix_database + L".sdb"),
+              NoiseReason::SystemActivity);
+    EXPECT_EQ(machine_value(flags + LR"(\Custom\contoso.exe)", own_database + L".sdb"), NoiseReason::None);
+
+    const std::vector<std::wstring> files = {
+        LR"(C:\Windows\appcompat\cloudsdb\apppatch.sdb)",
+        LR"(C:\Windows\appcompat\cloudsdb.cab)",
+        LR"(C:\Windows\apppatch\drvpatch.sdb)",
+        LR"(C:\Windows\apppatch\CustomSDB\)" + fix_database + L".sdb",
+        LR"(C:\Windows\System32\appraiser\Appraiser_Data.ini)",
+        LR"(C:\Windows\appcompat\appraiser\AltData\appraiser.sdb)",
+        LR"(C:\Windows\appcompat\UA\GenericError.bmp)",
+        LR"(C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Windows\PowerShell\)"
+        L"StartupProfileData-NonInteractive",
+        LR"(C:\ProgramData\regid.1991-06.com.microsoft\regid.1991-06.com.microsoft_Windows-10-Enterprise.swidtag)",
+    };
+    for (const auto& path : files) {
+        EXPECT_EQ(file(path), NoiseReason::SystemActivity) << platform::to_utf8(path);
+    }
+    EXPECT_EQ(file(LR"(C:\Windows\CbsTemp\31286386_1157142330\FoDEnum)"), NoiseReason::Temporary);
+    EXPECT_EQ(file(LR"(C:\Windows\apppatch\CustomSDB\)" + own_database + L".sdb"), NoiseReason::None);
+    EXPECT_EQ(file(LR"(C:\Windows\appcompat\contoso.sdb)"), NoiseReason::None);
+    EXPECT_EQ(
+        file(LR"(C:\ProgramData\regid.1991-06.com.microsoft\regid.1991-06.com.microsoft_Office-16.swidtag)"),
+        NoiseReason::None);
+
+    // Each user's: packages' resolved names and logos, Restart Manager's sessions, and Explorer's
+    // answer to an environment change Avel announces.
+    EXPECT_EQ(user_key(kMe, LR"(Software\Classes\Local Settings\MrtCache\C:%5CProgram Files%5CWindowsApps)"),
+              NoiseReason::SystemActivity);
+    EXPECT_EQ(user_key(kMe, LR"(Software\Microsoft\RestartManager\Session0000)"),
+              NoiseReason::SystemActivity);
+    EXPECT_EQ(user_value(kMe, LR"(Software\Microsoft\Windows NT\CurrentVersion\Winlogon)", L"ParseAutoexec"),
+              NoiseReason::SystemActivity);
+    EXPECT_EQ(user_value(kMe, LR"(Software\Microsoft\Windows NT\CurrentVersion\Winlogon)", L"Shell"),
+              NoiseReason::None);
+
+    // Sandbox run 2: the shell's own bookkeeping between a removal and its undo, Storage Sense in
+    // the idle round. The user's Storage Sense policy, and the machine's other values, are real.
+    const std::wstring current_version = LR"(Software\Microsoft\Windows\CurrentVersion)";
+    for (const auto& key :
+         {current_version + LR"(\RunNotification)", current_version + LR"(\Explorer\PrelaunchErrorWatcher)",
+          current_version +
+              LR"(\StorageSense\Parameters\CachedSizes\{BE4D5A12-0000-0000-73DE-0CBE81D53E6D})"}) {
+        EXPECT_EQ(user_key(kMe, key), NoiseReason::SystemActivity) << platform::to_utf8(key);
+    }
+    EXPECT_EQ(user_value(kMe, current_version + LR"(\StorageSense\Parameters\StoragePolicy)", L"01"),
+              NoiseReason::None);
+    EXPECT_EQ(user_key(kMe, current_version + LR"(\Run)"), NoiseReason::None);
+    const std::wstring storage_sense = LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense)";
+    EXPECT_EQ(machine_value(storage_sense, L"BootVolFreeCap"), NoiseReason::SystemActivity);
+    EXPECT_EQ(machine_value(storage_sense, L"Contoso"), NoiseReason::None);
+
+    // Sandbox run 3: Windows' feature configuration flushing its features' usage, between a removal
+    // and its undo; a key merely named like it is real.
+    const std::wstring fcon = LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Fcon)";
+    for (const auto* name : {L"DU", L"PDU", L"PUU", L"TimeSinceLastLog"}) {
+        EXPECT_EQ(machine_value(fcon, name), NoiseReason::SystemActivity) << platform::to_utf8(name);
+    }
+    EXPECT_EQ(machine_key(fcon + LR"(\HealthStatus)"), NoiseReason::SystemActivity);
+    EXPECT_EQ(machine_key(LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\FconContoso)"), NoiseReason::None);
+}
+
+// A created folder or key holding nothing but noise was made for it; one holding anything else, or
+// nothing, wasn't.
+TEST_F(NoiseFilterTest, ACreatedContainerHoldingOnlyNoiseIsNoise) {
+    const auto created_key = [](platform::Hive hive, const wchar_t* sid, std::wstring path,
+                                std::vector<leftovers::ContainedItem> inside) {
+        TraceChange change;
+        change.location = leftovers::RegistryKeyLocation{{hive, sid, std::move(path)}};
+        change.inside = std::move(inside);
+        return change;
+    };
+    const std::wstring flags = LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)";
+    std::vector<TraceChange> changes = {
+        // A user's AppCompatFlags, created for the Compatibility Assistant's records
+        created_key(platform::Hive::User, kMe,
+                    LR"(Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags)",
+                    {{L"Compatibility Assistant", std::nullopt, true},
+                     {LR"(Compatibility Assistant\Store)", std::nullopt, true},
+                     {LR"(Compatibility Assistant\Store)", LR"(C:\Setup\setup.exe)", false}}),
+        // Windows' fix database naming a program to fix
+        created_key(platform::Hive::Machine, L"", flags + LR"(\Custom\patchsdbtest.exe)",
+                    {{L"", L"{22221111-1111-1111-1111-111111111111}.sdb", false}}),
+        created_key(platform::Hive::Machine, L"", flags + LR"(\InstalledSDB)",
+                    {{L"{22221111-1111-1111-1111-111111111111}", std::nullopt, true},
+                     {L"{22221111-1111-1111-1111-111111111111}", L"DatabasePath", false}}),
+        // A program's own database there, beside Windows'
+        created_key(platform::Hive::Machine, L"", flags + LR"(\Custom\contoso.exe)",
+                    {{L"", L"{22221111-1111-1111-1111-111111111111}.sdb", false},
+                     {L"", L"{C0C0A000-0000-0000-0000-000000000001}.sdb", false}}),
+        created_key(platform::Hive::Machine, L"", LR"(SOFTWARE\Contoso)", {}),  // Empty
+        created_key(platform::Hive::Machine, L"", LR"(SOFTWARE\Fabrikam)", {}),
+    };
+    changes.back().inside.reset();  // Only its count kept
+    TraceChange folder;
+    folder.location = leftovers::FileLocation{LR"(C:\Users\me\AppData\Local\Contoso)", true};
+    folder.inside = std::vector<leftovers::ContainedItem>{{L"Temp", std::nullopt, true}};
+    changes.push_back(folder);
+    // A packaged app's folder for nothing but its WebView2 data
+    folder.location = leftovers::FileLocation{
+        LR"(C:\Users\me\AppData\Local\Packages\Contoso.App_1a2b3c4d5e6f\LocalState)", true};
+    folder.inside = std::vector<leftovers::ContainedItem>{{L"EBWebView", std::nullopt, true},
+                                                          {LR"(EBWebView\Local State)", std::nullopt, false}};
+    changes.push_back(folder);
+    // Created by the Malicious Software Removal Tool, from Windows Update (seen during 7-Zip's install)
+    changes.push_back(created_key(platform::Hive::Machine, L"", LR"(SOFTWARE\Microsoft\RemovalTools)",
+                                  {{L"MRT", std::nullopt, true}, {L"MRT", L"GUID", false}}));
+
+    apply_noise(rules_, changes);
+    EXPECT_EQ(changes[0].noise, NoiseReason::SystemActivity);
+    EXPECT_EQ(changes[1].noise, NoiseReason::SystemActivity);
+    EXPECT_EQ(changes[2].noise, NoiseReason::SystemActivity);
+    EXPECT_EQ(changes[3].noise, NoiseReason::None);
+    EXPECT_EQ(changes[4].noise, NoiseReason::None);
+    EXPECT_EQ(changes[5].noise, NoiseReason::None);
+    EXPECT_EQ(changes[6].noise, NoiseReason::None);  // Contoso\Temp isn't a temp folder
+    EXPECT_EQ(changes[7].noise, NoiseReason::SystemActivity);
+    EXPECT_EQ(changes[8].noise, NoiseReason::SystemActivity);
+}
+
 TEST_F(NoiseFilterTest, NeverSetsAsideWhatRemovalReliesOn) {
     // A broad rule that would otherwise cover them.
     rules_.keys.push_back({platform::Hive::User, L"", LR"(software\microsoft\windows\currentversion)",

@@ -158,6 +158,12 @@ std::wstring task_name(const std::wstring& path) {
     return path.substr(path.find_last_of(L'\\') + 1);
 }
 
+// The root folder, and Windows' own (\Microsoft and below).
+bool is_windows_task_folder(const std::wstring& path) {
+    return path.empty() || path == L"\\" || platform::iequals(path, L"\\Microsoft") ||
+           platform::istarts_with(path, L"\\Microsoft\\");
+}
+
 }  // namespace
 
 std::optional<ServiceBackup> backup_service(HKEY services, const std::wstring& name, ItemStatus& failure) {
@@ -399,6 +405,89 @@ bool task_exists(const std::wstring& path) {
     return static_cast<bool>(scheduler.task(path, result));
 }
 
+std::optional<TaskFolderBackup> backup_task_folder(const std::wstring& path, ItemStatus& failure) {
+    if (is_windows_task_folder(path)) {
+        failure = skipped(Reason::Protected);
+        return std::nullopt;
+    }
+    const TaskScheduler scheduler;
+    if (!scheduler.root()) {
+        failure = skipped(Reason::Error);
+        return std::nullopt;
+    }
+    const auto folder = scheduler.folder(path, false);
+    if (!folder) {
+        failure = skipped(Reason::Missing);
+        return std::nullopt;
+    }
+    wil::com_ptr_nothrow<IRegisteredTaskCollection> tasks;
+    wil::com_ptr_nothrow<ITaskFolderCollection> folders;
+    LONG task_count = 0;
+    LONG folder_count = 0;
+    wil::unique_bstr sddl;
+    if (FAILED(folder->GetTasks(TASK_ENUM_HIDDEN, tasks.put())) || FAILED(tasks->get_Count(&task_count)) ||
+        FAILED(folder->GetFolders(0, folders.put())) || FAILED(folders->get_Count(&folder_count))) {
+        failure = skipped(Reason::AccessDenied);
+        return std::nullopt;
+    }
+    if (task_count > 0 || folder_count > 0) {
+        failure = skipped(Reason::NotEmpty);
+        return std::nullopt;
+    }
+    if (FAILED(folder->GetSecurityDescriptor(DACL_SECURITY_INFORMATION, &sddl))) {
+        failure = skipped(Reason::AccessDenied);
+        return std::nullopt;
+    }
+    return TaskFolderBackup{path, sddl ? sddl.get() : L""};
+}
+
+ItemStatus remove_task_folder(const TaskFolderBackup& backup) {
+    const TaskScheduler scheduler;
+    const auto parent = scheduler.folder(task_parent(backup.path), false);
+    const auto name = wil::make_bstr_nothrow(task_name(backup.path).c_str());
+    if (!parent || !name) {
+        return {ItemState::Failed, Reason::Missing, 0};
+    }
+    const HRESULT result = parent->DeleteFolder(name.get(), 0);
+    if (FAILED(result)) {
+        const Reason reason = result == E_ACCESSDENIED                            ? Reason::AccessDenied
+                              : result == HRESULT_FROM_WIN32(ERROR_DIR_NOT_EMPTY) ? Reason::NotEmpty
+                                                                                  : Reason::Error;
+        return {ItemState::Failed, reason, static_cast<std::uint32_t>(result)};
+    }
+    return {ItemState::Done, Reason::None, 0};
+}
+
+ItemStatus restore_task_folder(const TaskFolderBackup& backup) {
+    if (task_folder_exists(backup.path)) {
+        return {ItemState::RestoreSkipped, Reason::Exists, 0};
+    }
+    const TaskScheduler scheduler;
+    const auto parent = scheduler.folder(task_parent(backup.path), true);
+    const auto name = wil::make_bstr_nothrow(task_name(backup.path).c_str());
+    wil::com_ptr_nothrow<ITaskFolder> created;
+    const VARIANT default_security{};
+    const HRESULT result =
+        parent && name ? parent->CreateFolder(name.get(), default_security, created.put()) : E_OUTOFMEMORY;
+    if (FAILED(result)) {
+        return {ItemState::RestoreFailed, Reason::Error, static_cast<std::uint32_t>(result)};
+    }
+    // As for tasks: created with the default security, then given its own where that differs.
+    wil::unique_bstr current;
+    const auto sddl = wil::make_bstr_nothrow(backup.sddl.c_str());
+    if (!backup.sddl.empty() && sddl &&
+        SUCCEEDED(created->GetSecurityDescriptor(DACL_SECURITY_INFORMATION, &current)) &&
+        (!current || backup.sddl != current.get())) {
+        created->SetSecurityDescriptor(sddl.get(), 0);
+    }
+    return {ItemState::Restored, Reason::None, 0};
+}
+
+bool task_folder_exists(const std::wstring& path) {
+    const TaskScheduler scheduler;
+    return static_cast<bool>(scheduler.folder(path, false));
+}
+
 ItemStatus remove_package_item(const std::wstring& full_name, const std::wstring& user_sid) {
     if (!user_sid.empty() && !platform::iequals(user_sid, platform::current_user_sid())) {
         return skipped(Reason::OtherUser);
@@ -480,6 +569,22 @@ bool from_json(const Json& json, TaskBackup& backup) {
         return false;
     }
     backup = {*path, *xml, get_text(json, "sddl").value_or(L"")};
+    return true;
+}
+
+Json to_json(const TaskFolderBackup& backup) {
+    Json json;
+    put_text(json, "path", backup.path);
+    put_text(json, "sddl", backup.sddl);
+    return json;
+}
+
+bool from_json(const Json& json, TaskFolderBackup& backup) {
+    const auto path = get_text(json, "path");
+    if (!json.is_object() || !path) {
+        return false;
+    }
+    backup = {*path, get_text(json, "sddl").value_or(L"")};
     return true;
 }
 

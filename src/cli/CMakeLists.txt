@@ -7,6 +7,8 @@ configure_file(avel-cli.manifest.in "${CMAKE_CURRENT_BINARY_DIR}/avel-cli.manife
 add_executable(avel_cli
     change_output.cpp
     change_output.h
+    command_options.cpp
+    command_options.h
     console.cpp
     console.h
     force_command.cpp
@@ -26,6 +28,8 @@ add_executable(avel_cli
     trace_command.h
     trace_output.cpp
     trace_output.h
+    trace_use.cpp
+    trace_use.h
     uninstall_command.cpp
     undo_command.cpp
     undo_command.h

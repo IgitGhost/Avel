@@ -1,10 +1,13 @@
 # Dot-sourced by the trace scenario. "Contoso Trace Fixture" is a scripted fake installer. Its
 # install step is a separate script run as its own process (so `avel-cli trace run` can launch
-# it). It creates one item of every kind Avel removes, edits values in the spots the tracker saves
-# exactly (the machine and user PATH, a machine variable, both SharedDLLs counts) and changes one
-# unrelated value. Its uninstaller removes only its folder and its Uninstall key, like many real
-# ones. Some of what it finds is already there: a shared DLL another program installed, and a key
-# whose value it changes; Initialize-TraceFixture puts those in place, untraced.
+# it). It creates one item of every kind Avel removes (a folder, an Uninstall key, HKLM and HKCU
+# keys, a shortcut, a Run value, App Paths, a COM class with a context-menu handler, a service, a
+# task in a new task folder and a firewall rule), edits values in the spots the tracker saves
+# exactly (it appends to the machine PATH, REG_EXPAND_SZ, and the user's, creates CONTOSO_HOME,
+# raises a shared DLL's SharedDLLs count from 1 to 2 and creates its own) and changes one unrelated
+# value (Theme). Its uninstaller removes only its folder and its Uninstall key, like many real
+# ones. Some of what it finds is already there: the shared DLL, counted once by another program,
+# and the key whose Theme it changes; Initialize-TraceFixture puts those in place, untraced.
 
 $traceRoot = 'C:\Program Files\Contoso Trace'
 $traceSetup = 'C:\ContosoTraceSetup'
@@ -148,6 +151,7 @@ function Get-TraceFixtureItems {
         @{ change = 'created'; kind = 'registry-value'; where = "$windows\Shell Extensions\Approved : $traceClsid" },
         @{ change = 'created'; kind = 'service'; where = $traceService },
         @{ change = 'created'; kind = 'task'; where = $traceTask },
+        @{ change = 'created'; kind = 'task-folder'; where = (Split-Path $traceTask) },
         @{ change = 'created'; kind = 'firewall-rule'; where = $traceRule },
         @{ change = 'modified'; kind = 'registry-value'; where = 'HKLM\SOFTWARE\Contoso Shared : Theme' }
     )

@@ -71,24 +71,29 @@ the pieces of evidence for and against it.
 | `msi-registration` | Windows Installer's registration of the program's MSI product code: product keys, install properties, upgrade codes and components (see [force.md](force.md)) | installer-registration |
 | `deep-search` | With `--deep`: folders named after the program anywhere else on the fixed volumes (see [force.md](force.md)) | name match, outside-common-locations, company name |
 | `orphans` | Not run for a program: `avel-cli orphans` lists folders no installed program owns (see [force.md](force.md)) | no-owner |
+| `trace` | For a program with an install trace: what the installer created, still there, and the edits that take back its changes to `Path` and `SharedDLLs` (see "Install traces") | traced-install-root, traced-created, traced-value-undo |
 
 ## Confidence (`confidence.cpp`)
 
-The score is the sum of the records' points: BCU's values, plus seven of Avel's own (marked *).
+The score is the sum of the records' points: BCU's values, plus twelve of Avel's own (marked *).
 
 | Evidence | Points |
 |---|---|
 | uninstaller-key, installer-registration * | +20 |
 | startup-matched * | +6 |
+| traced-install-root * | +5 |
 | explicit-connection, path-reference *, company-name-match, all-subdirs-matched | +4 |
+| traced-value-undo * | +3 |
 | product-name-perfect-match | +2 |
+| traced-created *, traced-value-restore * | +1 |
 | no-owner * | 0 |
 | depth(n) | 2 − 2·n |
 | directly-inside-known-folder | −1 |
 | product-name-dodgy-match, item-name-equals-company-name, used-by-similar-named-app, other-user-data *, outside-common-locations * | −2 |
 | questionable-directory-name | −3 |
+| container-holds-more * | −4 |
 | startup-is-run-once * | −5 |
-| directory-still-used | −7 |
+| directory-still-used, shared-dll-still-used * | −7 |
 | store-app | −10 |
 
 | Score | Level |
@@ -118,12 +123,31 @@ removal code in 3b, right before it acts.
   - the Windows folder, drive roots and volume system folders;
   - Program Files, ProgramData, `C:\Users`, every profile and its AppData folders, and every
     ancestor of them;
-  - WindowsApps, Package Cache, packaged apps' data (`AppData\Local\Packages`), OneDrive folders
-    and Avel's own data;
+  - WindowsApps, Package Cache, packaged apps' data (`AppData\Local\Packages`, and the machine's
+    `ProgramData\Packages`), OneDrive folders and Avel's own data;
   - the SYSTEM hive (services and firewall rules are their own item kinds), the top-level keys,
     the core keys (Run, Uninstall, App Paths, CLSID, Windows Installer's containers, ...) with
     their ancestors, and Avel's key;
-  - Windows' own scheduled tasks (`\Microsoft\...`).
+  - the Task Scheduler's `TaskCache`, keys and values alike: tasks and task folders go through the
+    Task Scheduler as their own kinds;
+  - what Windows keeps for registered packages (`package-registration`), keys and values alike,
+    with their ancestors: `Classes\PackagedCom`, `Classes\ActivatableClasses`,
+    `Classes\Extensions\ContractId`, the `AppModel` and `AppContainer` keys under
+    `Classes\Local Settings`, `AppModel`, `Appx`, `AppHost\IndexedDB` and
+    `BackgroundAccessApplications` under `Microsoft\Windows\CurrentVersion`, and
+    `SecurityManager\CapAuthz`, in the machine's hive and every user's; and a package's ProgIDs
+    (`Classes\AppX` and 32 letters and digits), with the values that name one (a file type's
+    `OpenWithProgids`). Windows writes them when it registers a package, also a sparse package an
+    installer registers (Notepad++'s context menu), and removes them with it: a package goes only
+    through `PackageLocation`;
+  - Windows' own scheduled tasks (`\Microsoft\...`), and the root and `\Microsoft` task folders.
+  - **Value edits** are refused everywhere except in a narrow allow-list, the floor's only one: the
+    machine's `Session Manager\Environment`, each user's `Environment`, and both `SharedDLLs` keys
+    (64-bit and `WOW6432Node`). There, counts may only go down or be deleted, and variables
+    Windows relies on (`ComSpec`, `windir`, `TEMP`, `ProgramFiles`, ...) are never edited. Windows'
+    own lists (`Path`, `PATHEXT`, `PSModulePath`) may only lose entries, or be deleted in a user's
+    environment when the installer created them; no list is ever restored whole. Every other kind
+    stays refused in these keys as before.
 - **ProtectedPolicy**: the known folders (and their ancestors) of the machine and every scanned
   user, and BCU's blacklists of shared folder and key names (`Common Files`, `Microsoft`,
   `Windows`, ...). A folder name also counts without its extension (`Microsoft.NET`).
@@ -132,6 +156,118 @@ removal code in 3b, right before it acts.
 independent oracle: every known folder Windows reports (`IKnownFolderManager`), every profile,
 the Windows folder and drive roots, and the core registry keys. The Sandbox scenario does the
 same with .NET's special folders.
+
+## Value edits (`value_edits.cpp`)
+
+Some values are shared by many programs: `Path` and the other environment variables, and the
+`SharedDLLs` reference counts. An installer adds to them rather than creating them, so removing
+its traces means editing the value, not deleting it. A **`ValueEditLocation`** describes such an
+edit: the key and value, the kind (`remove-path-entries`, `decrement-shared-dll`, `delete-value`,
+`restore-value`), the value it expects and the value it writes (both raw, absent meaning no
+value), the entries it takes out and the count it takes off. Its identity includes what it does,
+so two traces' edits to one value stay two items.
+
+`plan_value_edit(change, live)` is pure. It takes what a trace saved about the value (its exact
+bytes before and after the install, `TracedValue`) and the value as it is now:
+
+| Change | Planned edit | Basis |
+|---|---|---|
+| Entries added to a list (`Path`, `PATHEXT`, or any value the installer only added `;`-separated entries to) | Those entries taken out of the live value; everything else stays byte for byte | `undo` |
+| A variable the installer created, unchanged since | Deleted | `undo` |
+| A list it created, with entries added since | Its entries taken out; deleted if none are left | `undo` |
+| Another variable it changed or deleted, unchanged since | Its old value restored | `restore` (Questionable) |
+| A SharedDLLs count it raised | Lowered by its increment (never below 0); deleted at 0 if the installer created it | `undo` |
+
+- **Lists.** Entries match ignoring case, surrounding quotes and spaces, and a trailing backslash
+  (but `C:\` isn't `C:`). The edit keeps the live type (a `setx` rewrite to `REG_SZ` stays), the
+  terminator, the user's later entries and order, and empty entries. An entry that was there
+  before the install stays: of two equal entries, the one written as the installer wrote it goes,
+  the last one for an appended entry. Entries the installer took out stay out (an upgrade that
+  replaced its old entry), but a list it replaced whole is never left empty.
+- **Nothing is planned** (`already-undone`, `changed-since`, `protected-variable`, `unsupported`)
+  when the installer's entries or reference are gone already, when undoing would lose a later
+  change (a created or changed variable that changed again), for the variables Windows relies on,
+  and for a count the installer didn't raise.
+- **Confidence** is the caller's: `undo` takes back exactly what the installer did, `restore` puts
+  back a value the user may not want any more, so it is never checked by default. The `trace`
+  scanner gives them `traced-value-undo` and `traced-value-restore` (see "Install traces").
+
+The executor applies an edit only while the value is still what it expects (compare-and-set, see
+[changes.md](changes.md)).
+
+## Install traces (`trace_scanner.cpp`)
+
+A program installed with Avel Trace ([trace.md](trace.md)) has a record of what its installer
+did. The leftover scan uses it through an interface, `TraceSource` (`trace_source.h`), so
+`leftovers` never depends on the tracker; `tracker::StoreTraceSource` reads the trace store, and
+tests fake it. With no source, or no trace, the scan is exactly what it was.
+
+- **The target.** `TraceSource::add_trace` fills in the target's `trace_id`, its `traced` items
+  (the trace's changes that aren't noise: location, category, how it changed, and whether it is
+  tied to the program, with the tracker's reason) and its `traced_values` (the values it changed
+  in the environment and `SharedDLLs`, exactly), each also as it was then (`captured_values`).
+  Tying reads the live registry and Task Scheduler, so the target is captured before the
+  uninstaller runs: `capture_targets(programs, source)`.
+- **The scanner** runs last in the scan's loop, so an item other scanners found too keeps their
+  scanner (and its group in the GUI) and merges, and protection and containment apply as to any
+  item:
+  - only `created` items are offered; deleted, modified and renamed items existed before the
+    install and are never offered (they are counted as `shown_only`);
+  - an item that no longer exists (the uninstaller removed it), or is a file where the trace saw a
+    folder, is left out (`gone`). Services, tasks and task folders are looked up in the registry
+    (`Services`, the Task Scheduler's `TaskCache\Tree`), firewall rules by their value;
+  - firewall rules are reported and never removed, and drivers only shown, as from any scanner.
+- **Created folders and keys** may since hold what other programs or the user put in them (another
+  program's handler in a `DragDropHandlers` key the installer created, files in a folder it
+  created). The trace keeps what each created folder and key held when it stopped
+  (`TracedItem::contents`, and by name in `inside`, up to 10,000 items). One goes whole only while
+  it holds no more than that, read again at scan time:
+  - holding more, it isn't offered; the items the trace saw in it that are still there are offered
+    in its place, with its evidence: a folder or subkey whole where nothing was added to it, else
+    what the trace saw in it, down to single files and values. Counted as `split`, and the items
+    offered for it as `split_into`;
+  - with only the count kept (more than 10,000 items, part of it unreadable then, or a trace from
+    before 5b), or when it can't be read now, it is offered whole with `container-holds-more`
+    (−4): tied, Questionable; untied, Bad. Merged with another scanner's evidence, it takes 4 off
+    that too.
+
+  Gaps: a value the installer wrote and another program rewrote since (same name) still counts as
+  the installer's; a folder or key someone emptied and refilled with as many items of the same
+  names is taken as unchanged. A created folder holding items older than the trace (moved in) was
+  never offered whole: its new items are listed one by one (see trace.md).
+- **Evidence.** Only tied items, the installer's own folders and keys, get the strongest evidence,
+  so nothing else the trace saw is checked by the default preset (Moderate: Good and above):
+
+  | Item | Evidence | Level alone |
+  |---|---|---|
+  | Tied | `traced-install-root` (+5), with the tie's reason as its detail (`install-folder`, `references-tied`, ...) | VeryGood |
+  | Untied | `traced-created` (+1) | Questionable |
+  | Untied, named like the program (a perfect name match, with or without its extension) | `traced-created` (+1), `product-name-perfect-match` (+2) | Good |
+  | A folder another installed program lives in | `directory-still-used` (−7) | |
+  | A file whose `SharedDLLs` count stays above 0 once the planned edits are made, or a folder holding one | `shared-dll-still-used` (−7), the DLL as its detail | |
+  | In another user's profile or hive, for a machine-wide program | `other-user-data` (−2) | |
+  | A created folder or key holding more than its trace's count of it | `container-holds-more` (−4) | |
+
+- **Value edits** are planned once for all the scan's targets, before their items, so that one
+  value gets one edit:
+  - each traced value is read as it is now and planned with `plan_value_edit`. Several traces that
+    changed one value (two programs that each appended to `Path`) make one edit: each is planned
+    on what the one before it leaves, and the edit expects the live value and writes the last
+    result. A second edit would fail compare-and-set. One trace that two targets share (a WiX
+    bundle and its MSI packages) takes the value back once;
+  - a `SharedDLLs` count that changed between the capture and the scan was dealt with by the
+    uninstaller: it isn't lowered again (`already-undone`);
+  - an `undo` edit gets `traced-value-undo` (+3, Good), and `path-reference` (+4, VeryGood) when
+    what it names lies in the program's folder or a tied item: an entry it takes out of a list, the
+    variable it deletes, the DLL whose count it lowers. A `restore` gets `traced-value-restore`
+    (+1, Questionable). The other bases plan nothing; the item isn't offered;
+  - a raw value that a traced value names (the `SharedDLLs` value that `path-references` offers to
+    delete) goes: its evidence joins the edit, and with no edit planned, the trace says nothing of
+    the installer's is left in it.
+- **What it brought** is in `ScanResult::traces`, one `TraceUse` per traced target: the trace's id,
+  the reported items with its evidence (and how many are tied), its value edits, what was gone,
+  shown only or protected, the created containers offered as what it saw in them, and each traced
+  value's basis.
 
 ## Merging and containment (`merge.cpp`)
 
@@ -143,7 +279,9 @@ contains it (`Leftover::inside`). Removal will skip items whose container is rem
 ## After an uninstall (`post_uninstall.cpp`)
 
 The CLI and the GUI share one path:
-1. Before the batch runs, `capture_targets()` records each program's scan target.
+1. Before the batch runs, `capture_targets()` records each program's scan target, and with a
+   `TraceSource`, its install trace, tied to it while it is still installed. The CLI passes one;
+   the GUI doesn't yet (5c).
 2. After the batch, `scan_after_uninstall()` scans the programs that were removed (or will be
    once Windows restarts), against a fresh inventory.
 
@@ -152,16 +290,25 @@ Nothing is scanned after a simulated run.
 ## Front ends
 
 **CLI.**
-- `avel-cli scan <id|name>... | --all [--json] [--min-level questionable|good|very-good] [--all-levels] [--timing]`
+- `avel-cli scan <id|name>... | --all [--json] [--min-level questionable|good|very-good] [--all-levels] [--timing] [--no-trace]`
   previews what each program would leave behind if its uninstaller removed nothing. It's useful
-  to check the matching on a live system. The GUI's Preview leftovers does the same.
-- `avel-cli uninstall` scans after the batch and prints what was left behind. JSON output gains
-  a `leftover_scan` object (every level). `--no-leftover-scan` turns it off.
+  to check the matching on a live system. The GUI's Preview leftovers does the same. Run as
+  administrator, it adds what a program's install trace recorded (`--no-trace` leaves it out);
+  unelevated it can't read the trace store, and the scan is as before.
+- `avel-cli uninstall` scans after the batch and prints what was left behind, a program's install
+  trace included (`--no-trace`: without it). JSON output gains a `leftover_scan` object (every
+  level). `--no-leftover-scan` turns it off.
 
 The JSON lists each item with its category, location, confidence, score, evidence (kind,
 points, reference, detail), owners, the scanner that found it and the index of its container,
 plus the protected matches dropped, the time taken and diagnostics (`not-elevated`,
-`user-hive-unavailable`).
+`user-hive-unavailable`). `traces` has one object per program whose install trace was used:
+`program_id`, `trace_id`, `items` (the reported leftovers with the trace's evidence, value edits
+aside), `tied`, `value_edits`, `gone`, `shown_only`, `protected`, `split` and `split_into` (created
+folders and keys holding more than the trace saw, and the items offered in their place), and `values` (`key`, `name`, and
+the `basis` of each traced value: `undo`, `restore`, `already-undone`, `changed-since`,
+`protected-variable` or `unsupported`). Value edits are items of kind `value-edit` (category
+`registry`, found by `trace`).
 
 **GUI** (`src/app`).
 - **The confirm dialog** has "Look for leftovers afterwards", on by default and remembered. It is
@@ -236,7 +383,21 @@ the `Approved` entry.
   - the confidence tables;
   - BCU's name matching, with reference vectors;
   - path handling (`C:\Foo` vs `C:\Foobar`, `\\?\`, command lines);
-  - protection, merging and containment.
+  - protection, merging and containment;
+  - value edits (`value_edits_test.cpp`): entries appended, prepended, or there before; the user's
+    later edits kept, or the entry already removed; `REG_EXPAND_SZ`, a `setx` rewrite, an
+    unterminated value; trailing `;`, case, quotes and trailing `\`; created, changed and deleted
+    variables; protected variables and Windows' lists; SharedDLLs increments and deletion at 0;
+    putting entries back for undo;
+  - install traces (`trace_scanner_test.cpp`, a fake `TraceSource` against the fixture's kind of
+    scratch roots): the levels of tied and untied items and the name match, the SharedDLLs
+    penalty, items gone and only created ones offered, protection of the Windows folder and a
+    known folder, a package's own registration never offered, created keys and folders that hold
+    more than the trace saw (offered as what it saw in them, or below Good with only a count),
+    merging with the install-location scanner, value edits (undo, a path
+    reference, restore at Questionable, one edit for two traces of one value and for one trace of
+    two targets, a count the uninstaller lowered, the raw value an edit replaces), and
+    `capture_targets` with a source.
 - **Fixture test (`leftover_scan_test.cpp`):** a fake program "Contoso Fixture" laid out in a
   temporary folder tree and volatile registry keys, standing in for the machine and a user. It
   has a service, a scheduled task, a shell extension, a firewall rule and decoys (shared folders,

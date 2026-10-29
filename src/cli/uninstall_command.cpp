@@ -10,15 +10,18 @@
 #include <optional>
 #include <string>
 
-#include "cli/console.h"
 #include "cli/change_output.h"
+#include "cli/command_options.h"
+#include "cli/console.h"
 #include "cli/leftover_output.h"
 #include "cli/program_lookup.h"
+#include "cli/trace_use.h"
 #include "core/inventory/inventory.h"
 #include "core/leftovers/post_uninstall.h"
 #include "core/platform/elevation.h"
 #include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
+#include "core/tracker/trace_source.h"
 #include "core/uninstall/batch.h"
 #include "core/uninstall/installer_detection.h"
 #include "core/version.h"
@@ -35,7 +38,7 @@ using Json = nlohmann::ordered_json;
 constexpr std::string_view kUsage =
     "Usage: avel-cli uninstall <program>... [--quiet] [--dry-run] [--yes] [--no-restore-point]\n"
     "                          [--no-leftover-scan | --remove-leftovers [--min-level <level>]\n"
-    "                          [--allow-irreversible]] [--deep] [--json]\n"
+    "                          [--allow-irreversible]] [--no-trace] [--deep] [--json]\n"
     "  <program>             an id from `avel-cli list --json`, or an exact display name\n"
     "  --quiet               use silent uninstall switches where known (interactive otherwise)\n"
     "  --dry-run             show what would run, change nothing\n"
@@ -46,22 +49,11 @@ constexpr std::string_view kUsage =
     "                        it back\n"
     "  --min-level <level>   the least likely leftovers to remove: good (default) or very-good\n"
     "  --allow-irreversible  also remove leftovers undo can't put back (packages)\n"
+    "  --no-trace            don't use the programs' install traces (by default, what a trace saw\n"
+    "                        the installer create, and its edits to Path and SharedDLLs, join the\n"
+    "                        leftovers)\n"
     "  --deep                also search every fixed drive for folders named after the programs\n"
-    "  --json              machine-readable output (needs --yes or --dry-run)\n";
-
-struct Options {
-    std::vector<std::wstring> programs;
-    bool quiet = false;
-    bool dry_run = false;
-    bool yes = false;
-    bool restore_point = true;
-    bool leftover_scan = true;
-    bool remove_leftovers = false;
-    leftovers::Confidence min_level = leftovers::Confidence::Good;
-    bool allow_irreversible = false;
-    bool json = false;
-    bool deep = false;
-};
+    "  --json                machine-readable output (needs --yes or --dry-run)\n";
 
 // Ctrl+C stops the batch after the running uninstaller; a second Ctrl+C terminates that one too.
 uninstall::Cancellation g_cancellation;
@@ -143,54 +135,9 @@ bool confirm(std::size_t count) {
 }  // namespace
 
 int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
-    Options options;
-    for (std::size_t i = 0; i < arguments.size(); ++i) {
-        const auto argument = arguments[i];
-        if (argument == L"--remove-leftovers") {
-            options.remove_leftovers = true;
-        } else if (argument == L"--allow-irreversible") {
-            options.allow_irreversible = true;
-        } else if (argument == L"--min-level" && i + 1 < arguments.size()) {
-            const auto level = arguments[++i];
-            if (level == L"good") {
-                options.min_level = leftovers::Confidence::Good;
-            } else if (level == L"very-good") {
-                options.min_level = leftovers::Confidence::VeryGood;
-            } else {
-                print_error("uninstall: --min-level is good or very-good\n");
-                return 2;
-            }
-        } else if (argument == L"--quiet") {
-            options.quiet = true;
-        } else if (argument == L"--dry-run") {
-            options.dry_run = true;
-        } else if (argument == L"--yes" || argument == L"-y") {
-            options.yes = true;
-        } else if (argument == L"--no-restore-point") {
-            options.restore_point = false;
-        } else if (argument == L"--deep") {
-            options.deep = true;
-        } else if (argument == L"--no-leftover-scan") {
-            options.leftover_scan = false;
-        } else if (argument == L"--json") {
-            options.json = true;
-        } else if (argument.starts_with(L"--")) {
-            print_error("uninstall: unknown option " + to_utf8(argument) + "\n" + std::string(kUsage));
-            return 2;
-        } else {
-            options.programs.emplace_back(argument);
-        }
-    }
-    if (options.programs.empty()) {
-        print_error(kUsage);
-        return 2;
-    }
-    if (options.json && !options.yes && !options.dry_run) {
-        print_error("uninstall: --json needs --yes or --dry-run (it can't ask for confirmation)\n");
-        return 2;
-    }
-    if (options.remove_leftovers && (options.dry_run || !options.leftover_scan)) {
-        print_error("uninstall: --remove-leftovers can't go with --dry-run or --no-leftover-scan\n");
+    UninstallCommandOptions options;
+    if (const auto error = parse_uninstall_options(arguments, options)) {
+        print_error(error->message + (error->usage ? std::string(kUsage) : std::string()));
         return 2;
     }
     // Checked before anything is uninstalled: removing leftovers needs a trustworthy change store.
@@ -216,10 +163,30 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
         items.push_back({program, uninstall::make_uninstall_plan(*program, mode, context)});
     }
 
+    // Uninstalling by the trace, the default mode: each program's uninstaller runs, then what its
+    // install trace saw the installer create joins the leftovers (docs/trace.md). The trace store is
+    // administrators' only, so an unelevated run doesn't see it.
+    const bool scan_leftovers = options.leftover_scan && !options.dry_run;
+    std::unique_ptr<tracker::TraceStore> traces;
+    std::optional<tracker::StoreTraceSource> trace_source;
+    if (options.trace && options.leftover_scan && context.elevated &&
+        (traces = open_trace_store_for("uninstall"))) {
+        trace_source.emplace(*traces, inventory);
+    }
+    std::vector<std::optional<std::wstring>> trace_ids;
+    for (const auto* program : programs) {
+        trace_ids.push_back(trace_source ? trace_source->trace_of(*program) : std::nullopt);
+    }
+
     if (!options.json) {
         print(options.dry_run ? "Dry run, nothing will be changed:\n" : "Plan:\n");
-        for (const auto& item : items) {
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            const auto& item = items[i];
             print(std::format("  {}\n      {}\n", name_of(*item.program), describe_plan(item.plan)));
+            if (trace_ids[i]) {
+                print(std::format("      install trace {} (its items join the leftover scan)\n",
+                                  to_utf8(*trace_ids[i])));
+            }
         }
         if (!context.elevated) {
             print(
@@ -262,8 +229,10 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     }
 
     // A simulated run removes nothing, so there would be nothing to find but the programs themselves.
-    const bool scan_leftovers = options.leftover_scan && !options.dry_run;
-    const auto targets = scan_leftovers ? leftovers::capture_targets(programs) : std::vector<leftovers::ScanTarget>();
+    // The traces' items are tied to their programs now, before the uninstallers run.
+    leftovers::TraceSource* const source = trace_source ? &*trace_source : nullptr;
+    const auto targets =
+        scan_leftovers ? leftovers::capture_targets(programs, source) : std::vector<leftovers::ScanTarget>();
 
     ::SetConsoleCtrlHandler(on_console_control, TRUE);
     const auto batch = uninstall::run_batch(items, batch_options, events, g_cancellation);
@@ -297,6 +266,10 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
             }
         }
     }
+    // The uninstalled programs' traces are kept 30 days from now.
+    if (traces && !options.dry_run) {
+        apply_trace_retention(*traces);
+    }
     if (options.json) {
         Json root;
         root["avel_version"] = kVersionString;
@@ -307,7 +280,12 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
                                  {"error", batch.restore_point_error}};
         root["results"] = Json::array();
         for (std::size_t i = 0; i < items.size(); ++i) {
-            root["results"].push_back(to_json(items[i], batch.results[i]));
+            Json result = to_json(items[i], batch.results[i]);
+            // The install trace whose items joined the leftover scan (for a dry run, would join).
+            result["trace"] = i < targets.size() ? trace_id_json(targets[i])
+                              : trace_ids[i]     ? Json(to_utf8(*trace_ids[i]))
+                                                 : Json(nullptr);
+            root["results"].push_back(std::move(result));
         }
         root["success"] = all_succeeded;
         root["leftover_scan"] =

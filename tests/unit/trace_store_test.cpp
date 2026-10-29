@@ -1,5 +1,6 @@
 // The trace store in a temporary folder: creating, listing and reading traces, one open trace at
-// a time, lock files that keep a trace from being removed, purging what died while starting, and
+// a time, lock files that keep a trace from being removed, purging what died while starting,
+// retention with the store's clock moved forward, adding finished traces from elsewhere, and
 // trace.json and changes.json read back exactly.
 #include <gtest/gtest.h>
 
@@ -58,6 +59,16 @@ protected:
         auto info = folder.read_info();
         ASSERT_TRUE(info);
         info->state = state;
+        ASSERT_TRUE(folder.write_info(*info));
+    }
+
+    // Stops the trace now (the test's clock) with these links.
+    void finish(const TraceFolder& folder, std::vector<TraceLink> links) const {
+        auto info = folder.read_info();
+        ASSERT_TRUE(info);
+        info->state = TraceState::Complete;
+        info->stopped = now_;
+        info->links = std::move(links);
         ASSERT_TRUE(folder.write_info(*info));
     }
 
@@ -204,14 +215,17 @@ TEST_F(TraceStoreTest, AHeldTraceIsNeitherOpenedNorRemoved) {
     EXPECT_EQ(error, TraceError::NotFound);
 }
 
-TEST_F(TraceStoreTest, PurgeKeepsFinishedTracesUnlessToldOtherwise) {
+// Retention, with the store's clock moved forward: an unlinked trace is kept for 30 days after it
+// stopped; an open one is never purged; without `installed`, purge only tidies.
+TEST_F(TraceStoreTest, RetentionDeletesAnUnlinkedTraceThirtyDaysAfterItStopped) {
     auto store = open_store();
     std::wstring finished;
     std::wstring open;
+    const auto stopped = now_;
     {
         auto folder = create(*store, L"finished");
         finished = folder->id();
-        set_state(*folder, TraceState::Complete);
+        finish(*folder, {});
     }
     now_ += 1h;
     {
@@ -219,13 +233,181 @@ TEST_F(TraceStoreTest, PurgeKeepsFinishedTracesUnlessToldOtherwise) {
         open = folder->id();
         set_state(*folder, TraceState::Open);
     }
-    EXPECT_EQ(store->purge(), 0u);  // No retention without links (5b)
+    const auto installed = [](TraceInfo&) { return false; };
+    now_ = stopped + 30 * 24h - 1s;
+    EXPECT_EQ(store->purge(installed), 0u);
+    EXPECT_FALSE(store->read(finished)->unresolved_since);  // Only linked traces count from there
+
+    now_ = stopped + 30 * 24h;  // Due, but only where retention is applied
+    EXPECT_EQ(store->purge(), 0u);
     EXPECT_EQ(store->list().size(), 2u);
-    // Even a `keep` that wants everything gone leaves the open trace alone.
-    EXPECT_EQ(store->purge([](const TraceInfo&) { return false; }), 1u);
+    EXPECT_EQ(store->purge(installed), 1u);
+    EXPECT_FALSE(store->read(finished));
+
+    // The open trace stays, however old.
+    now_ += 365 * 24h;
+    EXPECT_EQ(store->purge(installed), 0u);
     const auto traces = store->list();
     ASSERT_EQ(traces.size(), 1u);
     EXPECT_EQ(traces[0].id, open);
+}
+
+// A linked trace is kept while its links lead to an installed program; the first time they don't,
+// the time is recorded, and 30 days later the trace goes. The program coming back (an undo)
+// clears the record.
+TEST_F(TraceStoreTest, RetentionFollowsALinkedTracesProgram) {
+    auto store = open_store();
+    std::wstring id;
+    {
+        auto folder = create(*store, L"linked");
+        id = folder->id();
+        TraceLink link;
+        link.program_id = L"reg:HKLM64:Contoso";
+        link.name = L"Contoso 1.0";
+        link.primary = true;
+        finish(*folder, {link});
+    }
+    bool program_installed = true;
+    int calls = 0;
+    const auto installed = [&](TraceInfo& info) {
+        ++calls;
+        EXPECT_EQ(info.id, id);
+        return program_installed;
+    };
+
+    now_ += 400 * 24h;  // Long after it stopped: while the program is there, age doesn't matter
+    EXPECT_EQ(store->purge(installed), 0u);
+    EXPECT_EQ(calls, 1);
+    EXPECT_FALSE(store->read(id)->unresolved_since);
+
+    program_installed = false;  // Uninstalled
+    const auto uninstalled = now_;
+    EXPECT_EQ(store->purge(installed), 0u);
+    ASSERT_TRUE(store->read(id)->unresolved_since);
+    EXPECT_EQ(*store->read(id)->unresolved_since, uninstalled);
+
+    now_ += 20 * 24h;
+    EXPECT_EQ(store->purge(installed), 0u);
+    EXPECT_EQ(*store->read(id)->unresolved_since, uninstalled);  // Still the first time
+
+    program_installed = true;  // An undo put it back
+    EXPECT_EQ(store->purge(installed), 0u);
+    EXPECT_FALSE(store->read(id)->unresolved_since);
+
+    now_ += 20 * 24h;  // 40 days after the first uninstall, but it was back in between
+    program_installed = false;
+    const auto again = now_;
+    EXPECT_EQ(store->purge(installed), 0u);
+    EXPECT_EQ(*store->read(id)->unresolved_since, again);
+    now_ = again + 30 * 24h - 1s;
+    EXPECT_EQ(store->purge(installed), 0u);
+    now_ += 1s;
+    EXPECT_EQ(store->purge(installed), 1u);
+    EXPECT_FALSE(store->read(id));
+}
+
+// What `installed` changes in the links (an upgrade) is written back; a held trace isn't looked at.
+TEST_F(TraceStoreTest, RetentionWritesUpdatedLinksAndSkipsHeldTraces) {
+    auto store = open_store();
+    auto folder = create(*store, L"upgraded");
+    ASSERT_TRUE(folder);
+    const std::wstring id = folder->id();
+    TraceLink link;
+    link.program_id = L"reg:HKLM64:{OLD}";
+    link.version = L"1.0";
+    link.primary = true;
+    finish(*folder, {link});
+
+    int calls = 0;
+    const auto upgraded = [&](TraceInfo& info) {
+        ++calls;
+        info.links[0].program_id = L"reg:HKLM64:{NEW}";
+        info.links[0].version = L"2.0";
+        return true;
+    };
+    EXPECT_EQ(store->purge(upgraded), 0u);  // Held: not looked at
+    EXPECT_EQ(calls, 0);
+    folder->release();
+    EXPECT_EQ(store->purge(upgraded), 0u);
+    EXPECT_EQ(calls, 1);
+    const auto read = store->read(id);
+    ASSERT_TRUE(read);
+    ASSERT_EQ(read->links.size(), 1u);
+    EXPECT_EQ(read->links[0].program_id, L"reg:HKLM64:{NEW}");
+    EXPECT_EQ(read->links[0].version, L"2.0");
+}
+
+// An imported trace counts from its import, not from when it stopped on the other machine.
+TEST_F(TraceStoreTest, RetentionCountsAnImportedTraceFromItsImport) {
+    auto store = open_store();
+    TraceInfo info;
+    info.state = TraceState::Complete;
+    info.started = now_ - 100 * 24h;
+    info.stopped = now_ - 99 * 24h;
+    info.imported = TraceImport{now_, L"20260101-000000-00000001", {}, {}, {}, {}};
+    TraceError error{};
+    auto folder = store->add_finished(info, {}, {}, error);
+    ASSERT_TRUE(folder);
+    EXPECT_EQ(error, TraceError::None);
+    EXPECT_NE(info.id, L"20260101-000000-00000001");
+    folder.reset();
+    const auto installed = [](TraceInfo&) { return false; };
+    EXPECT_EQ(store->purge(installed), 0u);
+    now_ += 30 * 24h;
+    EXPECT_EQ(store->purge(installed), 1u);
+}
+
+// A finished trace from elsewhere can be added while a trace is open; an unfinished one can't.
+// update() edits finished traces only.
+TEST_F(TraceStoreTest, AddsFinishedTracesAndUpdatesThem) {
+    auto store = open_store();
+    auto open = create(*store, L"open");
+    ASSERT_TRUE(open);
+    set_state(*open, TraceState::Open);
+
+    TraceInfo info;
+    info.state = TraceState::Incomplete;
+    info.description = L"from elsewhere";
+    info.started = now_ - 48h;
+    TraceResult result;
+    TraceChange change;
+    change.location = leftovers::FileLocation{LR"(C:\Program Files\Contoso)", true};
+    result.changes.push_back(change);
+    KnownValues saved;
+    saved.keys.push_back({KnownSpot::MachineEnvironment, fakes::kMachineEnvironment, {}, true});
+    TraceError error{};
+    auto added = store->add_finished(info, result, saved, error);
+    ASSERT_TRUE(added);
+    added.reset();
+    const auto read = store->read(info.id);
+    ASSERT_TRUE(read);
+    EXPECT_EQ(read->state, TraceState::Incomplete);
+    EXPECT_EQ(read->started, info.started);  // Kept, not the store's clock
+    EXPECT_EQ(read->description, L"from elsewhere");
+    ASSERT_TRUE(store->read_result(info.id));
+    EXPECT_EQ(store->read_result(info.id)->changes.size(), 1u);
+    EXPECT_TRUE(exists(store->folder_of(info.id) + L"\\" + std::wstring(kSavedValuesFile)));
+    EXPECT_EQ(store->open_trace()->id, open->id());  // Still the open one
+
+    TraceInfo unfinished;
+    unfinished.state = TraceState::Open;
+    EXPECT_FALSE(store->add_finished(unfinished, {}, {}, error));
+    EXPECT_EQ(error, TraceError::NotFinished);
+
+    const auto updated = store->update(
+        info.id,
+        [](TraceInfo& trace) {
+            trace.description = L"renamed";
+            return true;
+        },
+        error);
+    ASSERT_TRUE(updated);
+    EXPECT_EQ(store->read(info.id)->description, L"renamed");
+    open->release();
+    EXPECT_FALSE(store->update(open->id(), [](TraceInfo&) { return true; }, error));
+    EXPECT_EQ(error, TraceError::NotFinished);
+    EXPECT_FALSE(store->update(L"20261023-000000-0000dead", [](TraceInfo&) { return true; }, error));
+    EXPECT_EQ(error, TraceError::NotFound);
 }
 
 TEST_F(TraceStoreTest, PurgeTidiesAFinishedTraceItsProcessLeft) {
@@ -361,12 +543,86 @@ TEST(TraceRecordTest, TraceInfoRoundTripsExactly) {
     EXPECT_FALSE(from_json(other_version, read));
 }
 
+// 5b's fields: links (exact, names UTF-8 can't carry included), the retention time and the import;
+// a trace.json from 5a, without them, still reads.
+TEST(TraceRecordTest, LinksRetentionAndImportRoundTrip) {
+    TraceInfo info;
+    info.id = L"20261024-090000-0000abcd";
+    info.state = TraceState::Complete;
+    info.started = std::chrono::sys_days{std::chrono::year{2026} / 10 / 24} + 9h;
+    info.stopped = info.started + 1min;
+    TraceLink manual;
+    manual.program_id = LR"(reg:HKU\S-1-5-21-1:Odd)";
+    manual.name = std::wstring(L"Odd \xD800 tool");
+    manual.publisher = L"Contoso";
+    manual.version = L"1.2";
+    manual.uninstall_key = platform::RegistryAddress{
+        platform::Hive::User, L"S-1-5-21-1", LR"(Software\Microsoft\Windows\CurrentVersion\Uninstall\Odd)"};
+    manual.install_location = LR"(C:\Users\A\AppData\Local\Programs\Odd)";
+    manual.matched_by = LinkMatch::Manual;
+    manual.primary = true;
+    TraceLink msi;
+    msi.program_id = L"msi:{23170F69-40C1-2702-2600-000001000000}";
+    msi.name = L"Runtime";
+    msi.product_code = L"{23170F69-40C1-2702-2600-000001000000}";
+    msi.matched_by = LinkMatch::ProductCode;
+    info.links = {manual, msi};
+    info.unresolved_since = info.stopped.value() + 24h;
+    info.imported = TraceImport{info.started + 48h, L"20261001-000000-00000001",
+                                L"S-1-5-21-9",      LR"(C:\Users\Old)",
+                                L"S-1-5-21-1",      LR"(C:\Users\A)"};
+    info.diagnostics.push_back({TraceDiagnosticCode::UserNotRemapped, L"S-1-5-21-2"});
+
+    const Json json = reparsed(to_json(info));
+    ASSERT_EQ(json["links"].size(), 2u);
+    EXPECT_EQ(json["links"][0]["matched_by"], "manual");
+    EXPECT_EQ(json["links"][0]["primary"], true);
+    EXPECT_EQ(json["links"][0]["uninstall_key"]["kind"], "registry-key");
+    EXPECT_TRUE(json["links"][0].contains("name_hex"));
+    EXPECT_EQ(json["links"][1]["matched_by"], "product-code");
+    EXPECT_TRUE(json["links"][1]["uninstall_key"].is_null());
+    EXPECT_EQ(json["unresolved_since"], "2026-10-25T09:01:00Z");
+    EXPECT_EQ(json["imported"]["origin_id"], "20261001-000000-00000001");
+    EXPECT_EQ(json["complete"], true);  // A diagnostic of the import doesn't make it incomplete
+    EXPECT_EQ(json["diagnostics"][0]["code"], "user-not-remapped");
+
+    TraceInfo read;
+    ASSERT_TRUE(from_json(json, read));
+    ASSERT_EQ(read.links.size(), 2u);
+    EXPECT_EQ(read.links[0].name, manual.name);
+    EXPECT_TRUE(platform::same_address(*read.links[0].uninstall_key, *manual.uninstall_key));
+    EXPECT_EQ(read.links[1].product_code, msi.product_code);
+    EXPECT_EQ(read.unresolved_since, info.unresolved_since);
+    ASSERT_TRUE(read.imported);
+    EXPECT_EQ(read.imported->time, info.imported->time);
+    EXPECT_EQ(read.imported->to_profile, LR"(C:\Users\A)");
+    EXPECT_EQ(to_json(read), to_json(info));
+
+    // As 5a wrote it.
+    Json old = json;
+    for (const char* field : {"links", "unresolved_since", "unresolved_since_unix", "imported"}) {
+        old.erase(field);
+    }
+    TraceInfo old_read;
+    ASSERT_TRUE(from_json(old, old_read));
+    EXPECT_TRUE(old_read.links.empty());
+    EXPECT_FALSE(old_read.unresolved_since);
+    EXPECT_FALSE(old_read.imported);
+
+    Json bad = json;
+    bad["links"][1]["matched_by"] = "guessed";
+    EXPECT_FALSE(from_json(bad, read));
+    bad = json;
+    bad["imported"] = Json::object();
+    EXPECT_FALSE(from_json(bad, read));
+}
+
 TEST(TraceRecordTest, TraceResultRoundTripsExactly) {
     using namespace leftovers;
     TraceResult result;
     TraceChange folder;
     folder.location = FileLocation{LR"(C:\Program Files\Contoso)", true};
-    folder.contents = 104;
+    folder.contents = 104;  // Only the count kept
     TraceChange odd;
     odd.location = FileLocation{std::wstring(LR"(C:\Data\odd )") + L'\xD800' + L".txt", false};
     odd.noise = NoiseReason::Temporary;
@@ -384,13 +640,22 @@ TEST(TraceRecordTest, TraceResultRoundTripsExactly) {
         RegistryValueLocation{{platform::Hive::Machine, L"", LR"(SOFTWARE\X)"}, std::wstring(L"Th\xDFFFme")};
     TraceChange empty_key;
     empty_key.location = RegistryKeyLocation{{platform::Hive::User, L"S-1-5-21-1", LR"(Software\Contoso)"}};
+    empty_key.inside.emplace();
+    TraceChange holder;
+    holder.location = RegistryKeyLocation{{platform::Hive::Machine, L"", LR"(SOFTWARE\Contoso)"}};
+    holder.contents = 3;
+    holder.inside = std::vector<ContainedItem>{
+        {L"", L"", false},
+        {L"Sub", std::nullopt, true},
+        {L"Sub", std::wstring(L"odd ") + L'\xD800', false},
+    };
     TraceChange service;
     service.location = ServiceLocation{L"ContosoSvc", true};
     TraceChange unresolved;
     unresolved.change = ChangeKind::Deleted;
     unresolved.location = FileLocation{LR"(C:\?\gone.txt)", false};
     unresolved.noise = NoiseReason::Unresolved;
-    result.changes = {folder, odd, renamed, replaced, value, empty_key, service, unresolved};
+    result.changes = {folder, odd, renamed, replaced, value, empty_key, service, unresolved, holder};
 
     KnownValueChange added;
     added.spot = KnownSpot::UserEnvironment;
@@ -415,6 +680,12 @@ TEST(TraceRecordTest, TraceResultRoundTripsExactly) {
     EXPECT_EQ(json["changes"][3]["replaced"], true);
     EXPECT_EQ(json["changes"][5]["contents"], 0);  // A created key, even an empty one
     EXPECT_FALSE(json["changes"][1].contains("contents"));
+    EXPECT_FALSE(json["changes"][0].contains("inside"));
+    EXPECT_EQ(json["changes"][5]["inside"], Json::array());
+    EXPECT_EQ(json["changes"][8]["inside"][1]["path"], "Sub");
+    EXPECT_EQ(json["changes"][8]["inside"][1]["container"], true);
+    EXPECT_EQ(json["changes"][8]["inside"][0]["value"], "");
+    EXPECT_TRUE(json["changes"][8]["inside"][2].contains("value_hex"));
     EXPECT_EQ(json["known_values"][1]["after"]["data"], "ff0080");
 
     TraceResult read;
@@ -429,6 +700,7 @@ TEST(TraceRecordTest, TraceResultRoundTripsExactly) {
         EXPECT_EQ(read.changes[i].contents, result.changes[i].contents) << i;
         EXPECT_EQ(read.changes[i].replaced, result.changes[i].replaced) << i;
         EXPECT_EQ(read.changes[i].noise, result.changes[i].noise) << i;
+        EXPECT_EQ(read.changes[i].inside, result.changes[i].inside) << i;
     }
     EXPECT_EQ(std::get<FileLocation>(read.changes[1].location).path,
               std::get<FileLocation>(odd.location).path);
@@ -442,6 +714,15 @@ TEST(TraceRecordTest, TraceResultRoundTripsExactly) {
 
     EXPECT_FALSE(from_json(Json::parse(R"({"changes": [{"change": "made"}], "known_values": []})"), read));
     EXPECT_FALSE(from_json(Json::parse(R"({"changes": []})"), read));
+    Json bad = json;
+    bad["changes"][8]["inside"] = "Sub";
+    EXPECT_FALSE(from_json(bad, read));
+    bad = json;
+    bad["changes"][8]["inside"][1]["value"] = "both";  // A subkey and a value at once
+    EXPECT_FALSE(from_json(bad, read));
+    bad = json;
+    bad["changes"][8]["inside"][1].erase("path");
+    EXPECT_FALSE(from_json(bad, read));
 }
 
 }  // namespace

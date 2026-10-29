@@ -7,9 +7,9 @@ function Describe($item) {
     $where = switch ($location.kind) {
         { $_ -in 'folder', 'file' } { $location.path }
         'registry-key' { $location.key }
-        'registry-value' { "$($location.key) : $($location.value)" }
+        { $_ -in 'registry-value', 'value-edit' } { "$($location.key) : $($location.value)" }
         { $_ -in 'service', 'driver' } { $location.service }
-        'task' { $location.task }
+        { $_ -in 'task', 'task-folder' } { $location.task }
         'package' { $location.package_full_name }
         default { $location.rule_id }
     }

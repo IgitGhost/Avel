@@ -8,9 +8,11 @@
 #include <string>
 
 #include "cli/change_output.h"
+#include "cli/command_options.h"
 #include "cli/console.h"
 #include "cli/leftover_output.h"
 #include "cli/program_lookup.h"
+#include "cli/trace_use.h"
 #include "core/changes/change_set.h"
 #include "core/force/force.h"
 #include "core/inventory/inventory.h"
@@ -18,6 +20,7 @@
 #include "core/platform/elevation.h"
 #include "core/platform/processes.h"
 #include "core/platform/text.h"
+#include "core/tracker/trace_source.h"
 #include "core/version.h"
 
 namespace avel::cli {
@@ -29,13 +32,15 @@ using platform::to_utf8;
 using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
-    "Usage: avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path>\n"
+    "Usage: avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path> | --trace <id>\n"
     "                      [--dry-run] [--yes] [--end-processes] [--deep] [--min-level <level>]\n"
-    "                      [--allow-irreversible] [--json]\n"
+    "                      [--allow-irreversible] [--no-trace] [--json]\n"
     "  <program>             an id from `avel-cli list --json`, or an exact display name\n"
     "  --folder <path>       a folder no Uninstall entry describes; --name is what its other\n"
     "                        leftovers are named after (the folder's name by default)\n"
     "  --exe <path>          a program file: the installed program it belongs to, or else its folder\n"
+    "  --trace <id>          revert what an install trace recorded (`avel-cli trace list`), also\n"
+    "                        when its program's entry is gone or the trace was imported\n"
     "  --dry-run             show what would be removed, change nothing\n"
     "  --yes                 don't ask for confirmation\n"
     "  --end-processes       end the programs' running processes (needed with --yes when any run)\n"
@@ -43,25 +48,13 @@ constexpr std::string_view kUsage =
     "                        what it finds alone is questionable and only shown\n"
     "  --min-level <level>   the least likely items to remove: good (default) or very-good\n"
     "  --allow-irreversible  also remove items undo can't put back (packages)\n"
+    "  --no-trace            don't use a program's install trace\n"
     "  --json                machine-readable output (needs --yes or --dry-run)\n"
     "Removes programs whose uninstaller is missing or broken without running it: ends their\n"
     "running processes once you agree, then removes their folder, their Uninstall entry, Windows\n"
     "Installer's registration and what they left elsewhere, backed up so `avel-cli undo` can put\n"
-    "it back. Run as administrator.\n";
-
-struct Options {
-    std::vector<std::wstring> programs;
-    std::wstring folder;
-    std::wstring name;
-    std::wstring exe;
-    bool dry_run = false;
-    bool yes = false;
-    bool end_processes = false;
-    Confidence min_level = Confidence::Good;
-    bool allow_irreversible = false;
-    bool json = false;
-    bool deep = false;
-};
+    "it back. A program that was installed with a trace is reverted by it: what the installer\n"
+    "created, and its edits to Path and SharedDLLs. Run as administrator.\n";
 
 struct StoppedProcess {
     platform::ProcessInfo process;
@@ -91,53 +84,15 @@ bool removed(const changes::ItemStatus& status) {
 }  // namespace
 
 int run_force_command(const std::vector<std::wstring_view>& arguments) {
-    Options options;
-    for (std::size_t i = 0; i < arguments.size(); ++i) {
-        const auto argument = arguments[i];
-        const bool has_value = i + 1 < arguments.size();
-        if (argument == L"--folder" && has_value) {
-            options.folder = arguments[++i];
-        } else if (argument == L"--name" && has_value) {
-            options.name = arguments[++i];
-        } else if (argument == L"--exe" && has_value) {
-            options.exe = arguments[++i];
-        } else if (argument == L"--dry-run") {
-            options.dry_run = true;
-        } else if (argument == L"--yes" || argument == L"-y") {
-            options.yes = true;
-        } else if (argument == L"--end-processes") {
-            options.end_processes = true;
-        } else if (argument == L"--deep") {
-            options.deep = true;
-        } else if (argument == L"--allow-irreversible") {
-            options.allow_irreversible = true;
-        } else if (argument == L"--json") {
-            options.json = true;
-        } else if (argument == L"--min-level" && has_value) {
-            const auto level = arguments[++i];
-            if (level == L"good") {
-                options.min_level = Confidence::Good;
-            } else if (level == L"very-good") {
-                options.min_level = Confidence::VeryGood;
-            } else {
-                print_error("force: --min-level is good or very-good\n");
-                return 2;
-            }
-        } else if (argument.starts_with(L"--")) {
-            print_error("force: unknown option " + to_utf8(argument) + "\n" + std::string(kUsage));
-            return 2;
-        } else {
-            options.programs.emplace_back(argument);
-        }
-    }
-    const int sources = !options.programs.empty() + !options.folder.empty() + !options.exe.empty();
-    if (sources != 1 || (!options.name.empty() && options.folder.empty())) {
-        print_error(kUsage);
+    ForceCommandOptions options;
+    if (const auto error = parse_force_options(arguments, options)) {
+        print_error(error->message + (error->usage ? std::string(kUsage) : std::string()));
         return 2;
     }
-    if (options.json && !options.yes && !options.dry_run) {
-        print_error("force: --json needs --yes or --dry-run (it can't ask for confirmation)\n");
-        return 2;
+    const bool elevated = platform::is_process_elevated();
+    if (!options.trace_id.empty() && !elevated) {
+        print_error("force: --trace needs administrator rights (the trace store is administrators' only)\n");
+        return 1;
     }
     std::unique_ptr<changes::ChangeStore> store;
     if (!options.dry_run && !(store = open_change_store())) {
@@ -148,6 +103,14 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
     const leftovers::LiveEnvironment live;
     const auto& environment = live.environment();
 
+    // Reverting by the trace (docs/force.md): what a program's install trace saw the installer
+    // create, and its value edits, join the plan. The trace store is administrators' only.
+    std::unique_ptr<tracker::TraceStore> traces;
+    std::optional<tracker::StoreTraceSource> trace_source;
+    if (options.trace && elevated && (traces = open_trace_store_for("force"))) {
+        trace_source.emplace(*traces, inventory);
+    }
+
     std::vector<leftovers::ScanTarget> targets;
     const auto add_program = [&](const inventory::Program& program) {
         if (program.source == inventory::Source::Appx) {
@@ -156,6 +119,9 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
             return false;
         }
         targets.push_back(leftovers::make_scan_target(program));
+        if (trace_source) {
+            trace_source->add_trace(program, targets.back());
+        }
         return true;
     };
     const auto add_folder = [&](const std::wstring& folder, const std::wstring& name,
@@ -183,6 +149,29 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
         if (!add_folder(options.folder, options.name, {})) {
             return 2;
         }
+    } else if (!options.trace_id.empty()) {
+        const std::string id = to_utf8(options.trace_id);
+        if (!trace_source) {
+            print_error(std::format("force: no install trace {} (nothing was ever traced here)\n", id));
+            return 2;
+        }
+        tracker::TraceError error = tracker::TraceError::None;
+        auto target = trace_source->trace_target(options.trace_id, error);
+        if (!target) {
+            switch (error) {
+                case tracker::TraceError::NotFound:
+                    print_error(std::format("force: no install trace {}; see `avel-cli trace list`\n", id));
+                    return 2;
+                case tracker::TraceError::NotFinished:
+                    print_error(std::format(
+                        "force: trace {} isn't finished; `avel-cli trace stop` finishes it\n", id));
+                    return 2;
+                default:
+                    print_error(std::format("force: the result of trace {} can't be read\n", id));
+                    return 1;
+            }
+        }
+        targets.push_back(std::move(*target));
     } else {
         const auto owner = force::owner_of(environment, inventory.programs, options.exe);
         if (owner.program) {
@@ -226,6 +215,9 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
             print(std::format(
                 "Forced removal of {}{}\n", to_utf8(target.display_name),
                 target.install_location.empty() ? "" : " (" + to_utf8(target.install_location) + ")"));
+            if (!target.trace_id.empty()) {
+                print(std::format("  reverted by install trace {}\n", to_utf8(target.trace_id)));
+            }
         }
         if (!processes.empty()) {
             print("\nRunning from its folder:\n");
@@ -280,17 +272,22 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
     } else if (!options.dry_run && !options.json) {
         print("Nothing to remove.\n");
     }
+    // The removed programs' traces are kept 30 days from now.
+    if (traces && removal) {
+        apply_trace_retention(*traces);
+    }
 
     if (options.json) {
         Json root;
         root["avel_version"] = kVersionString;
-        root["elevated"] = platform::is_process_elevated();
+        root["elevated"] = elevated;
         root["dry_run"] = options.dry_run;
         Json scanned = Json::array();
         for (const auto& target : targets) {
             scanned.push_back({{"id", to_utf8(target.program_id)},
                                {"name", to_utf8(target.display_name)},
-                               {"install_location", to_utf8(target.install_location)}});
+                               {"install_location", to_utf8(target.install_location)},
+                               {"trace", trace_id_json(target)}});
         }
         root["programs"] = std::move(scanned);
         Json running = Json::array();

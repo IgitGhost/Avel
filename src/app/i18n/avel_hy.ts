@@ -64,12 +64,32 @@
         <translation>Պլանավորված առաջադրանք</translation>
     </message>
     <message>
+        <source>Scheduled task folder</source>
+        <translation>Պլանավորված առաջադրանքների թղթապանակ</translation>
+    </message>
+    <message>
         <source>Package</source>
         <translation>Փաթեթ</translation>
     </message>
     <message>
         <source>Firewall rule</source>
         <translation>Հրապատի կանոն</translation>
+    </message>
+    <message>
+        <source>Shared DLL reference count</source>
+        <translation>Ընդհանուր DLL-ի հղումների հաշվիչ</translation>
+    </message>
+    <message>
+        <source>Entries in an environment variable</source>
+        <translation>Միջավայրի փոփոխականի տարրեր</translation>
+    </message>
+    <message>
+        <source>Environment variable to restore</source>
+        <translation>Վերականգնվող միջավայրի փոփոխական</translation>
+    </message>
+    <message>
+        <source>Environment variable</source>
+        <translation>Միջավայրի փոփոխական</translation>
     </message>
     <message>
         <source>(Default)</source>
@@ -102,6 +122,22 @@
     <message>
         <source>Windows Installer&apos;s registration of the program</source>
         <translation>Ծրագրի գրանցումը Windows Installer-ում</translation>
+    </message>
+    <message>
+        <source>Created by the program&apos;s installer, in its own folders or keys (install trace)</source>
+        <translation>Ստեղծել է ծրագրի տեղադրիչը՝ նրա սեփական թղթապանակներում կամ բանալիներում (տեղադրման հետագծում)</translation>
+    </message>
+    <message>
+        <source>Takes back exactly what the program&apos;s installer changed (install trace)</source>
+        <translation>Ճշգրիտ հետ է շրջում այն, ինչ փոխել է ծրագրի տեղադրիչը (տեղադրման հետագծում)</translation>
+    </message>
+    <message>
+        <source>Created during the installation, but not tied to the program (install trace)</source>
+        <translation>Ստեղծվել է տեղադրման ընթացքում, բայց կապված չէ ծրագրի հետ (տեղադրման հետագծում)</translation>
+    </message>
+    <message>
+        <source>Puts back the value from before the installation; the new one may be wanted (install trace)</source>
+        <translation>Վերադարձնում է տեղադրումից առաջվա արժեքը․ նորը կարող է պետք լինել (տեղադրման հետագծում)</translation>
     </message>
     <message>
         <source>Named in the program&apos;s registration</source>
@@ -179,12 +215,20 @@
         <translation>Ընդհանուր անուն, օրինակ՝ «data» կամ «config»</translation>
     </message>
     <message>
+        <source>Holds more than the installer put in it, which may be another program&apos;s (install trace)</source>
+        <translation>Պարունակում է ավելին, քան դրա մեջ դրել է տեղադրիչը, և ավելորդը կարող է պատկանել մեկ այլ ծրագրի (տեղադրման հետագծում)</translation>
+    </message>
+    <message>
         <source>Runs only once (RunOnce)</source>
         <translation>Գործարկվում է միայն մեկ անգամ (RunOnce)</translation>
     </message>
     <message>
         <source>Another installed program uses this folder</source>
         <translation>Այս թղթապանակն օգտագործում է մեկ այլ տեղադրված ծրագիր</translation>
+    </message>
+    <message>
+        <source>Another program still uses this shared DLL, or one inside it</source>
+        <translation>Այս ընդհանուր DLL-ը կամ դրա ներսի DLL-ը դեռ օգտագործում է մեկ այլ ծրագիր</translation>
     </message>
     <message>
         <source>Store app data, which Windows manages itself</source>
@@ -365,6 +409,14 @@
     <message>
         <source>an error occurred</source>
         <translation>սխալ առաջացավ</translation>
+    </message>
+    <message>
+        <source>the value has changed since</source>
+        <translation>արժեքն այդ ընթացքում փոխվել է</translation>
+    </message>
+    <message>
+        <source>the folder isn&apos;t empty</source>
+        <translation>թղթապանակը դատարկ չէ</translation>
     </message>
     <message>
         <source>Removed with the item that contains it</source>

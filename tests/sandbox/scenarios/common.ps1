@@ -42,12 +42,31 @@ function Where-Text($location) {
     switch ($location.kind) {
         { $_ -in 'folder', 'file' } { return $location.path }
         'registry-key' { return $location.key }
-        'registry-value' { return "$($location.key) : $($location.value)" }
+        { $_ -in 'registry-value', 'value-edit' } { return "$($location.key) : $($location.value)" }
         { $_ -in 'service', 'driver' } { return $location.service }
-        'task' { return $location.task }
+        { $_ -in 'task', 'task-folder' } { return $location.task }
         'package' { return $location.package_full_name }
         default { return $location.rule_id }
     }
+}
+
+# avel_state_dump's canonical text of `specs` (tests/helpers/state_dump.cpp: key:, value:, file:,
+# service:, task:), one "== spec" section each.
+function Get-StateDump([string[]]$specs) {
+    $output = & (Join-Path (Split-Path $cli) 'avel_state_dump.exe') @specs
+    if ($LASTEXITCODE -ne 0) { throw "avel_state_dump failed ($LASTEXITCODE)" }
+    return ($output -join "`n")
+}
+
+# Splits a dump into its "== spec" sections.
+function Split-StateDump([string]$dump) {
+    $sections = [ordered]@{}
+    $current = $null
+    foreach ($line in $dump -split "`n") {
+        if ($line.StartsWith('== ')) { $current = $line.Substring(3); $sections[$current] = '' }
+        elseif ($current) { $sections[$current] += $line + "`n" }
+    }
+    return $sections
 }
 
 # Compares two state dumps section by section; logs the first differences.

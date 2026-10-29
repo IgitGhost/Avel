@@ -125,6 +125,64 @@ bool get_address(const Json& json, platform::RegistryAddress& address) {
     return true;
 }
 
+// A value edit's value: {"type", "data"} (its name is the item's), or null when absent.
+Json edit_value_to_json(const std::optional<platform::RawValue>& value) {
+    if (!value) {
+        return nullptr;
+    }
+    Json json;
+    json["type"] = value->type;
+    json["data"] = to_hex(value->data);
+    return json;
+}
+
+bool edit_value_from_json(const Json& json, const std::wstring& name,
+                          std::optional<platform::RawValue>& value) {
+    if (json.is_null()) {
+        value.reset();
+        return true;
+    }
+    const auto type = json.is_object() ? json.find("type") : json.end();
+    const auto data = json.is_object() ? json.find("data") : json.end();
+    if (type == json.end() || !type->is_number_unsigned() || data == json.end() || !data->is_string()) {
+        return false;
+    }
+    auto bytes = from_hex(data->get_ref<const std::string&>());
+    if (!bytes) {
+        return false;
+    }
+    value = platform::RawValue{name, type->get<DWORD>(), std::move(*bytes)};
+    return true;
+}
+
+// Text list items: a string, or {"text_hex"} for one that UTF-8 can't carry (see put_text).
+Json text_list_to_json(const std::vector<std::wstring>& items) {
+    Json json = Json::array();
+    for (const auto& item : items) {
+        Json entry;
+        put_text(entry, "text", item);
+        json.push_back(entry.contains("text") ? entry["text"] : entry);
+    }
+    return json;
+}
+
+bool text_list_from_json(const Json& json, std::vector<std::wstring>& items) {
+    if (!json.is_array()) {
+        return false;
+    }
+    items.clear();
+    for (const auto& entry : json) {
+        const auto text = entry.is_string()
+                              ? std::optional(platform::to_utf16(entry.get_ref<const std::string&>()))
+                              : get_text(entry, "text");
+        if (!text) {
+            return false;
+        }
+        items.push_back(*text);
+    }
+    return true;
+}
+
 }  // namespace
 
 Json to_json(const leftovers::Location& location) {
@@ -152,13 +210,26 @@ Json to_json(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, TaskLocation>) {
                 json["kind"] = "task";
                 put_text(json, "path", item.path);
+                if (item.folder) {
+                    json["folder"] = true;
+                }
             } else if constexpr (std::is_same_v<T, PackageLocation>) {
                 json["kind"] = "package";
                 put_text(json, "full_name", item.full_name);
                 put_text(json, "user_sid", item.user_sid);
-            } else {
+            } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 json["kind"] = "firewall-rule";
                 put_text(json, "rule_id", item.rule_id);
+            } else {
+                static_assert(std::is_same_v<T, ValueEditLocation>);
+                json["kind"] = "value-edit";
+                put_address(json, item.key);
+                put_text(json, "value", item.value_name);
+                json["edit"] = to_string(item.kind);
+                json["expected"] = edit_value_to_json(item.expected);
+                json["desired"] = edit_value_to_json(item.desired);
+                json["entries"] = text_list_to_json(item.entries);
+                json["delta"] = item.delta;
             }
         },
         location);
@@ -195,7 +266,7 @@ bool from_json(const Json& json, leftovers::Location& location) {
         return true;
     }
     if (kind == "task" && text("path")) {
-        location = TaskLocation{*text("path")};
+        location = TaskLocation{*text("path"), json.value("folder", false)};
         return true;
     }
     if (kind == "package" && text("full_name") && text("user_sid")) {
@@ -204,6 +275,25 @@ bool from_json(const Json& json, leftovers::Location& location) {
     }
     if (kind == "firewall-rule" && text("rule_id")) {
         location = FirewallRuleLocation{*text("rule_id")};
+        return true;
+    }
+    if (kind == "value-edit") {
+        ValueEditLocation edit;
+        const auto value = text("value");
+        const auto delta = json.find("delta");
+        if (!get_address(json, edit.key) || !value || !parse(json.value("edit", std::string()), edit.kind) ||
+            !json.contains("expected") || !json.contains("desired") || !json.contains("entries") ||
+            delta == json.end() || !delta->is_number_integer()) {
+            return false;
+        }
+        edit.value_name = *value;
+        edit.delta = delta->get<std::int64_t>();
+        if (!edit_value_from_json(json["expected"], edit.value_name, edit.expected) ||
+            !edit_value_from_json(json["desired"], edit.value_name, edit.desired) ||
+            !text_list_from_json(json["entries"], edit.entries)) {
+            return false;
+        }
+        location = std::move(edit);
         return true;
     }
     return false;

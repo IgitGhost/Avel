@@ -196,6 +196,28 @@ a forced folder's, and the command is read-only: `force --folder <path>` removes
 development machine it lists 22 folders in 0.6 s, such as `C:\Program Files (x86)\Razer`,
 `C:\Program Files\EA Games` and `C:\ProgramData\FLEXnet`.
 
+## Reverting by the trace
+
+A program installed with Avel Trace is reverted by its trace ([trace.md](trace.md), "Uninstalling
+by the trace", mode 2). `force <program>` adds the program's newest trace to its target, so what
+the installer created and its edits to `Path` and `SharedDLLs` join the plan, alongside what the
+other scanners find. Its uninstaller still never runs.
+
+- **Confidence.** Items tied to the program (its own folders and keys) are VeryGood, untied ones
+  Questionable (Good when named like the program), so `--min-level good` removes what the
+  installer created for the program and leaves what merely happened during the install. Value
+  edits that take back the installer's change are Good or better; restoring a variable it
+  changed is Questionable. Only created items are offered: what existed before stays as it is.
+- **`force --trace <id>`** reverts one trace, also when no installed program answers to it: an
+  imported trace, or one whose Uninstall key is gone. Its program, while installed, is the target;
+  otherwise the name, publisher, install folder, Uninstall key and product code its link last
+  recorded stand in, with the program id `trace:<id>`. The processes running from that folder are
+  ended as for any target. An unknown or unfinished trace is a bad target (exit code 2).
+- **`--no-trace`** forces a program without its trace, as before 5b.
+- **Undo** restores the removed items and reverts the value edits exactly ([changes.md](changes.md)).
+- After the removal, the trace store's retention runs, so the trace's 30 days start.
+- The JSON's `programs[]` gain `trace` (the id, or `null`), and `leftover_scan` its `traces`.
+
 ## Drivers
 
 Services whose image lies in the program's folder were leftovers already. Drivers among them
@@ -207,9 +229,9 @@ drivers already (`backup_service` gives `protected`).
 ## The CLI
 
 ```
-avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path>
+avel-cli force <program>... | --folder <path> [--name <name>] | --exe <path> | --trace <id>
                [--dry-run] [--yes] [--end-processes] [--deep] [--min-level good|very-good]
-               [--allow-irreversible] [--json]
+               [--allow-irreversible] [--no-trace] [--json]
 avel-cli list --broken [--json]
 avel-cli orphans [--all-levels] [--json]
 avel-cli scan <program>... [--deep]
@@ -224,13 +246,15 @@ avel-cli scan <program>... [--deep]
 5. It exits 0 when every planned item was removed, 1 when something stayed or nothing was done,
    and 2 for a bad target (a protected folder, say).
 
-The JSON output has `programs`, `processes` (`pid`, `name`, `image`, `outcome`),
-`leftover_scan` and `leftover_removal`, the last two as in `uninstall --json`.
+The JSON output has `programs` (`id`, `name`, `install_location`, `trace`), `processes` (`pid`,
+`name`, `image`, `outcome`), `leftover_scan` and `leftover_removal`, the last two as in
+`uninstall --json`.
 
 ```
 avel-cli force "Contoso Fixture" --dry-run
 avel-cli force --exe "C:\Program Files\Contoso\app.exe" --end-processes
 avel-cli force --folder "D:\Tools\Old thing" --name "Old Thing"
+avel-cli force --trace 20261023-210501-1a2b3c4d --dry-run
 ```
 
 ## The GUI (`src/app`)

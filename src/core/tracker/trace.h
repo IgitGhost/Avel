@@ -45,7 +45,11 @@ struct TraceChange {
     leftovers::Location location;
     std::wstring old_path;       // Renamed files and folders: where it was at the start
     std::uint64_t contents = 0;  // Created folders and keys: items created inside (only roots are listed)
-    bool replaced = false;       // Modified file: a new file took the old one's place (temp-then-rename)
+    // ... and which ones, relative to it, sorted; nullopt when only the count is kept (more than
+    // leftovers::kMaxContainedItems, or some couldn't be read or resolved). The leftover scan
+    // offers a container whole only while it holds no more than this.
+    std::optional<std::vector<leftovers::ContainedItem>> inside;
+    bool replaced = false;     // Modified file: a new file took the old one's place (temp-then-rename)
     NoiseReason noise = NoiseReason::None;
 };
 

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -16,6 +17,7 @@
 #include "core/platform/record_folders.h"
 #include "core/platform/registry_address.h"
 #include "core/platform/text.h"
+#include "core/tracker/trace_store.h"
 #include "core/version.h"
 
 namespace avel::cli {
@@ -98,7 +100,46 @@ std::string describe_value(const std::optional<platform::RawValue>& value) {
                        value->data.size() > kShown ? "..." : "");
 }
 
-Json change_to_json(const tracker::TraceChange& change) {
+// The tying of change `index`, if it was tied at all (noise isn't).
+const tracker::TiedItem* tie_of(const std::vector<tracker::TiedItem>* tied, std::size_t index) {
+    if (!tied) {
+        return nullptr;
+    }
+    const auto found =
+        std::lower_bound(tied->begin(), tied->end(), index,
+                         [](const tracker::TiedItem& item, std::size_t i) { return item.change < i; });
+    return found != tied->end() && found->change == index ? &*found : nullptr;
+}
+
+Json link_to_json(const tracker::TraceLink& link) {
+    Json json;
+    json["program_id"] = to_utf8(link.program_id);
+    json["name"] = to_utf8(link.name);
+    json["publisher"] = to_utf8(link.publisher);
+    json["version"] = to_utf8(link.version);
+    json["uninstall_key"] =
+        link.uninstall_key ? Json(to_utf8(platform::display_path(*link.uninstall_key))) : Json(nullptr);
+    json["product_code"] = to_utf8(link.product_code);
+    json["install_location"] = to_utf8(link.install_location);
+    json["matched_by"] = tracker::to_string(link.matched_by);
+    json["primary"] = link.primary;
+    return json;
+}
+
+// "7-Zip 24.08 (x64) (24.08, Igor Pavlov) [created-key]".
+std::string describe_link(const tracker::TraceLink& link) {
+    std::string text = link.name.empty() ? to_utf8(link.program_id) : to_utf8(link.name);
+    std::string details = to_utf8(link.version);
+    if (!link.publisher.empty()) {
+        details += (details.empty() ? "" : ", ") + to_utf8(link.publisher);
+    }
+    if (!details.empty()) {
+        text += " (" + details + ")";
+    }
+    return text + std::format(" [{}]", tracker::to_string(link.matched_by));
+}
+
+Json change_to_json(const tracker::TraceChange& change, const tracker::TiedItem* tie) {
     Json json;
     json["change"] = tracker::to_string(change.change);
     json["location"] = location_to_json(change.location);
@@ -112,6 +153,10 @@ Json change_to_json(const tracker::TraceChange& change) {
         json["replaced"] = true;
     }
     json["noise"] = tracker::to_string(change.noise);
+    if (tie) {
+        json["tied"] = tie->tied;
+        json["tie"] = tracker::to_string(tie->reason);
+    }
     return json;
 }
 
@@ -210,6 +255,32 @@ Json trace_to_json(const TraceInfo& info) {
         json["watch"] = std::move(watch);
     }
     json["counts"] = {{"changes", info.counts.changes}, {"noise", info.counts.noise}};
+    json["links"] = Json::array();
+    for (const auto& link : info.links) {
+        json["links"].push_back(link_to_json(link));
+    }
+    json["unresolved_since"] =
+        info.unresolved_since ? Json(platform::iso_time(*info.unresolved_since)) : Json(nullptr);
+    if (info.imported) {
+        const auto& imported = *info.imported;
+        Json item;
+        item["time"] = platform::iso_time(imported.time);
+        item["origin_id"] = to_utf8(imported.origin_id);
+        item["remapped"] = imported.from_sid.empty() ? Json(nullptr)
+                                                     : Json{{"from_sid", to_utf8(imported.from_sid)},
+                                                            {"from_profile", to_utf8(imported.from_profile)},
+                                                            {"to_sid", to_utf8(imported.to_sid)},
+                                                            {"to_profile", to_utf8(imported.to_profile)}};
+        item["not_remapped"] = Json::array();
+        for (const auto& diagnostic : info.diagnostics) {
+            if (diagnostic.code == tracker::TraceDiagnosticCode::UserNotRemapped) {
+                item["not_remapped"].push_back(to_utf8(diagnostic.subject));
+            }
+        }
+        json["imported"] = std::move(item);
+    } else {
+        json["imported"] = nullptr;
+    }
     return json;
 }
 
@@ -220,12 +291,14 @@ Json trace_root_to_json(const TraceInfo& info) {
     return root;
 }
 
-Json trace_result_to_json(const TraceInfo& info, const tracker::TraceResult& result, bool all) {
+Json trace_result_to_json(const TraceInfo& info, const tracker::TraceResult& result, bool all,
+                          const std::vector<tracker::TiedItem>* tied) {
     Json root = trace_root_to_json(info);
     root["changes"] = Json::array();
-    for (const auto& change : result.changes) {
+    for (std::size_t i = 0; i < result.changes.size(); ++i) {
+        const auto& change = result.changes[i];
         if (all || change.noise == NoiseReason::None) {
-            root["changes"].push_back(change_to_json(change));
+            root["changes"].push_back(change_to_json(change, tie_of(tied, i)));
         }
     }
     root["known_values"] = Json::array();
@@ -291,18 +364,52 @@ void print_trace_header(const TraceInfo& info) {
             }
         }
     }
+    if (info.imported) {
+        const auto& imported = *info.imported;
+        text += std::format("  Imported:     {}, recorded as {}", platform::iso_time(imported.time),
+                            to_utf8(imported.origin_id));
+        if (!imported.from_sid.empty()) {
+            text += std::format("; {} ({}) moved to {} ({})", to_utf8(imported.from_sid),
+                                to_utf8(imported.from_profile), to_utf8(imported.to_sid),
+                                to_utf8(imported.to_profile));
+        }
+        text += '\n';
+        for (const auto& diagnostic : info.diagnostics) {
+            if (diagnostic.code == tracker::TraceDiagnosticCode::UserNotRemapped) {
+                text += std::format("                user {}'s items left as they were\n",
+                                    to_utf8(diagnostic.subject));
+            }
+        }
+    }
+    if (is_finished(info.state)) {
+        if (info.links.empty()) {
+            text += "  Linked to:    nothing (`avel-cli trace link` links it by hand)\n";
+        }
+        for (std::size_t i = 0; i < info.links.size(); ++i) {
+            text += std::format("  {:<14}{}\n", i == 0 ? "Linked to:" : "", describe_link(info.links[i]));
+        }
+        if (info.unresolved_since) {
+            text +=
+                std::format("  Uninstalled:  since {}; the trace is deleted {} days after\n",
+                            platform::iso_time(*info.unresolved_since),
+                            std::chrono::duration_cast<std::chrono::days>(tracker::kTraceRetention).count());
+        }
+    }
     print(text);
 }
 
-void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& result, bool all) {
+void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& result, bool all,
+                         const std::vector<tracker::TiedItem>* tied) {
     constexpr std::array kGroups{
         std::pair{ChangeKind::Created, "Created"}, std::pair{ChangeKind::Modified, "Modified"},
         std::pair{ChangeKind::Deleted, "Deleted"}, std::pair{ChangeKind::Renamed, "Renamed"}};
     std::string text;
+    std::size_t tied_count = 0;
     for (const auto& [kind, heading] : kGroups) {
         std::string lines;
         std::size_t count = 0;
-        for (const auto& change : result.changes) {
+        for (std::size_t i = 0; i < result.changes.size(); ++i) {
+            const auto& change = result.changes[i];
             if (change.change != kind || (!all && change.noise != NoiseReason::None)) {
                 continue;
             }
@@ -320,6 +427,10 @@ void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& resu
             }
             if (change.noise != NoiseReason::None) {
                 lines += std::format(" [noise: {}]", tracker::to_string(change.noise));
+            }
+            if (const auto* tie = tie_of(tied, i); tie && tie->tied) {
+                lines += std::format(" [tied: {}]", tracker::to_string(tie->reason));
+                ++tied_count;
             }
             lines += '\n';
         }
@@ -342,6 +453,9 @@ void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& resu
         text += std::format(" (shown by `avel-cli trace show {} --all`)", to_utf8(info.id));
     }
     text += '\n';
+    if (tied) {
+        text += std::format("{} tied to the program\n", tied_count);
+    }
     print(text);
 }
 
@@ -360,6 +474,16 @@ void print_trace_list(const std::vector<TraceInfo>& traces) {
                         tracker::to_string(info.mode), platform::iso_time(info.started), counts,
                         to_utf8(info.description.empty() ? info.command : info.description));
         line.erase(line.find_last_not_of(' ') + 1);
+        if (!info.links.empty()) {
+            line += " -> " + to_utf8(info.links.front().name.empty() ? info.links.front().program_id
+                                                                     : info.links.front().name);
+            if (info.unresolved_since) {
+                line += " (uninstalled)";
+            }
+        }
+        if (info.imported) {
+            line += " (imported)";
+        }
         text += line + '\n';
     }
     print(text);

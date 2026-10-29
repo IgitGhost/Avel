@@ -40,11 +40,24 @@ std::wstring identity(const Location& location) {
             } else if constexpr (std::is_same_v<T, ServiceLocation>) {
                 return L"service:" + platform::to_lower(item.name);
             } else if constexpr (std::is_same_v<T, TaskLocation>) {
-                return L"task:" + platform::to_lower(item.path);
+                return (item.folder ? L"task-folder:" : L"task:") + platform::to_lower(item.path);
             } else if constexpr (std::is_same_v<T, PackageLocation>) {
                 return L"package:" + platform::to_lower(item.user_sid) + L":" + platform::to_lower(item.full_name);
-            } else {
+            } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 return L"firewall:" + platform::to_lower(item.rule_id);
+            } else {
+                static_assert(std::is_same_v<T, ValueEditLocation>);
+                std::wstring text = L"edit:" + platform::to_lower(platform::display_path(item.key)) +
+                                    L"\\\\" + platform::to_lower(item.value_name) + L"|" +
+                                    platform::to_utf16(to_string(item.kind));
+                if (item.kind == ValueEditKind::RemovePathEntries) {
+                    for (std::size_t i = 0; i < item.entries.size(); ++i) {
+                        text += (i == 0 ? L"|" : L";") + platform::to_lower(item.entries[i]);
+                    }
+                } else if (item.delta != 0) {
+                    text += L"|" + std::to_wstring(item.delta);
+                }
+                return text;
             }
         },
         location);
@@ -76,7 +89,32 @@ std::wstring owner_sid(const Location& location) {
     if (const auto* package = std::get_if<PackageLocation>(&location)) {
         return package->user_sid;
     }
+    if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
+        return edit->key.sid;
+    }
     return {};
+}
+
+Category category_of(const Location& location) {
+    return std::visit(
+        [](const auto& item) {
+            using T = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<T, FileLocation>) {
+                return !item.directory && platform::iends_with(item.path, L".lnk") ? Category::Shortcuts
+                                                                                   : Category::Files;
+            } else if constexpr (std::is_same_v<T, ServiceLocation>) {
+                return Category::Services;
+            } else if constexpr (std::is_same_v<T, TaskLocation>) {
+                return Category::Tasks;
+            } else if constexpr (std::is_same_v<T, PackageLocation>) {
+                return Category::Packages;
+            } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
+                return Category::Firewall;
+            } else {
+                return Category::Registry;
+            }
+        },
+        location);
 }
 
 std::string_view to_string(Category category) {
@@ -129,8 +167,35 @@ std::string_view to_string(Scanner scanner) {
             return "deep-search";
         case Scanner::Orphans:
             return "orphans";
+        case Scanner::Trace:
+            return "trace";
     }
     return "unknown";
+}
+
+std::string_view to_string(ValueEditKind kind) {
+    switch (kind) {
+        case ValueEditKind::RemovePathEntries:
+            return "remove-path-entries";
+        case ValueEditKind::DecrementSharedDll:
+            return "decrement-shared-dll";
+        case ValueEditKind::DeleteValue:
+            return "delete-value";
+        case ValueEditKind::RestoreValue:
+            return "restore-value";
+    }
+    return "unknown";
+}
+
+bool parse(std::string_view text, ValueEditKind& kind) {
+    for (const auto candidate : {ValueEditKind::RemovePathEntries, ValueEditKind::DecrementSharedDll,
+                                 ValueEditKind::DeleteValue, ValueEditKind::RestoreValue}) {
+        if (to_string(candidate) == text) {
+            kind = candidate;
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace avel::leftovers

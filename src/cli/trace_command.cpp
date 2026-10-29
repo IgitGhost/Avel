@@ -15,14 +15,22 @@
 #include <system_error>
 
 #include "cli/console.h"
+#include "cli/program_lookup.h"
 #include "cli/trace_output.h"
+#include "core/changes/serialization.h"
+#include "core/inventory/inventory.h"
 #include "core/platform/elevation.h"
 #include "core/platform/paths.h"
 #include "core/platform/secure_folder.h"
 #include "core/platform/text.h"
+#include "core/platform/user_profiles.h"
 #include "core/tracker/install_trace.h"
+#include "core/tracker/linking.h"
+#include "core/tracker/trace_export.h"
+#include "core/tracker/trace_items.h"
 #include "core/tracker/trace_session.h"
 #include "core/tracker/trace_store.h"
+#include "core/version.h"
 
 namespace avel::cli {
 
@@ -42,24 +50,33 @@ constexpr std::string_view kUsage =
     "[<args>...]\n"
     "       avel-cli trace list   [--json]\n"
     "       avel-cli trace show   <id> [--all] [--json]\n"
+    "       avel-cli trace link   <id> <program> [--json]\n"
+    "       avel-cli trace export <id> <file>\n"
+    "       avel-cli trace import <file> [--json]\n"
     "       avel-cli trace cancel\n"
     "       avel-cli trace delete <id>\n"
     "  start                 open a trace; install the program, then run `avel-cli trace stop`\n"
-    "  stop                  finish the open trace and show what changed\n"
+    "  stop                  finish the open trace, link it to the program it installed, and show\n"
+    "                        what changed\n"
     "  run                   launch the installer, wait until the installation is over, then stop\n"
     "                        the trace; Ctrl+C stops the trace at once and leaves the installer\n"
     "                        running, a second Ctrl+C also ends the installer\n"
     "  list                  every trace, newest first\n"
-    "  show <id>             what a trace recorded\n"
+    "  show <id>             what a trace recorded, and what of it is tied to its program\n"
+    "  link <id> <program>   link a finished trace to an installed program (its id or exact name,\n"
+    "                        as `avel-cli list --all` shows them); it becomes the trace's program\n"
+    "  export <id> <file>    write a finished trace to one file, to import on another machine\n"
+    "  import <file>         add a trace that `trace export` wrote, and link it again\n"
     "  cancel                discard the open trace\n"
     "  delete <id>           delete a finished trace\n"
     "  --description <text>  what is being installed\n"
     "  --timeout <seconds>   stop waiting for the installer this long after launching it\n"
     "  --all                 also show the changes set aside as noise\n"
     "  --json                machine-readable output\n"
-    "Only one trace can be open at a time. Run as administrator.\n";
+    "Only one trace can be open at a time. A trace is kept while the program it's linked to is\n"
+    "installed, then 30 days after; an unlinked one, 30 days. Run as administrator.\n";
 
-enum class Command { Start, Stop, Run, List, Show, Cancel, Delete };
+enum class Command { Start, Stop, Run, List, Show, Link, Export, Import, Cancel, Delete };
 
 struct Options {
     Command command = Command::List;
@@ -67,7 +84,9 @@ struct Options {
     std::optional<std::chrono::seconds> timeout;
     bool json = false;
     bool all = false;
-    std::wstring id;                   // show, delete
+    std::wstring id;                   // show, link, export, delete
+    std::wstring program;              // link: its id or exact name
+    std::wstring file;                 // export, import
     std::wstring installer;            // run: the first argument after `--`
     std::wstring installer_arguments;  // run: the others, quoted again
 };
@@ -104,6 +123,15 @@ std::optional<Command> parse_command(std::wstring_view name) {
     }
     if (name == L"show") {
         return Command::Show;
+    }
+    if (name == L"link") {
+        return Command::Link;
+    }
+    if (name == L"export") {
+        return Command::Export;
+    }
+    if (name == L"import") {
+        return Command::Import;
     }
     if (name == L"cancel") {
         return Command::Cancel;
@@ -157,8 +185,21 @@ std::optional<std::chrono::seconds> parse_seconds(std::wstring_view text) {
 bool parse_options(const std::vector<std::wstring_view>& arguments, Options& options) {
     const Command command = options.command;
     const bool takes_description = command == Command::Start || command == Command::Run;
-    const bool takes_json = command != Command::Cancel && command != Command::Delete;
-    const bool takes_id = command == Command::Show || command == Command::Delete;
+    const bool takes_json =
+        command != Command::Cancel && command != Command::Delete && command != Command::Export;
+    // The arguments that aren't options, in order: the trace's id, then the program or the file.
+    std::vector<std::wstring*> wanted;
+    if (command == Command::Show || command == Command::Delete || command == Command::Link ||
+        command == Command::Export) {
+        wanted.push_back(&options.id);
+    }
+    if (command == Command::Link) {
+        wanted.push_back(&options.program);
+    }
+    if (command == Command::Export || command == Command::Import) {
+        wanted.push_back(&options.file);
+    }
+    std::size_t given = 0;
     const auto fail = [&](const std::string& message) {
         print_error(std::format("trace {}: {}\n{}", to_utf8(arguments[0]), message, kUsage));
         return false;
@@ -192,8 +233,8 @@ bool parse_options(const std::vector<std::wstring_view>& arguments, Options& opt
             options.all = true;
         } else if (argument.starts_with(L"--")) {
             return fail("unknown option " + to_utf8(argument));
-        } else if (takes_id && options.id.empty()) {
-            options.id = argument;
+        } else if (given < wanted.size() && !argument.empty()) {
+            *wanted[given++] = argument;
         } else {
             return fail("unexpected argument " + to_utf8(argument));
         }
@@ -201,8 +242,16 @@ bool parse_options(const std::vector<std::wstring_view>& arguments, Options& opt
     if (command == Command::Run && options.installer.empty()) {
         return fail("the installer goes after `--`");
     }
-    if (takes_id && options.id.empty()) {
-        return fail("which trace? (its id from `avel-cli trace list`)");
+    if (given < wanted.size()) {
+        const std::wstring* missing = wanted[given];
+        if (missing == &options.id) {
+            return fail("which trace? (its id from `avel-cli trace list`)");
+        }
+        if (missing == &options.program) {
+            return fail("which program? (its id or exact name from `avel-cli list --all`)");
+        }
+        return fail(command == Command::Export ? "where to? (the file to write)"
+                                               : "which file? (one that `avel-cli trace export` wrote)");
     }
     return true;
 }
@@ -223,9 +272,39 @@ std::string error_text(TraceError error) {
             return "a file of the trace couldn't be written or deleted";
         case TraceError::Busy:
             return "another Avel process holds the trace store; try again";
+        case TraceError::NotFinished:
+            return "it isn't finished yet (`avel-cli trace stop` finishes it)";
         default:
             return std::string(tracker::to_string(error));
     }
+}
+
+// What is installed, for linking and retention. Packaged apps are left out: Avel doesn't trace
+// their installation.
+inventory::Inventory installed_programs() {
+    inventory::ScanOptions scan;
+    scan.appx = false;
+    return inventory::scan_inventory(scan);
+}
+
+// Retention (docs/trace.md): traces whose programs are gone are deleted 30 days later. An
+// inventory that found nothing says nothing about what was uninstalled, so it's skipped then.
+void apply_retention(TraceStore& store, const inventory::Inventory& inventory) {
+    if (!inventory.programs.empty()) {
+        store.purge([&inventory](TraceInfo& info) { return tracker::refresh_links(info, inventory); });
+    }
+}
+
+// Which of a finished trace's changes are tied to its program; nullopt when the program isn't
+// installed (anymore), so nothing can be tied to it.
+std::optional<std::vector<tracker::TiedItem>> tie_items(const TraceInfo& info,
+                                                        const tracker::TraceResult& result,
+                                                        const inventory::Inventory& inventory) {
+    const auto resolved = tracker::resolve_trace_program(info, inventory);
+    if (!resolved) {
+        return std::nullopt;
+    }
+    return tracker::tie_trace_items(result, tracker::program_places(*resolved->program));
 }
 
 std::string_view step_text(tracker::SessionStep step) {
@@ -324,14 +403,35 @@ void report_resume_error(std::string_view verb, const TraceInfo& trace, TraceErr
 }
 
 // What `stop`, `run` and `show` print for a finished trace.
-void print_result(const TraceInfo& info, const tracker::TraceResult& result, bool json, bool all) {
+void print_result(const TraceInfo& info, const tracker::TraceResult& result, bool json, bool all,
+                  const std::vector<tracker::TiedItem>* tied) {
     if (json) {
-        print(trace_result_to_json(info, result, all).dump(2) + "\n");
+        print(trace_result_to_json(info, result, all, tied).dump(2) + "\n");
     } else {
         print_trace_header(info);
-        print_trace_changes(info, result, all);
+        print_trace_changes(info, result, all, tied);
     }
     warn_if_incomplete(info);
+}
+
+// A trace that just stopped, linked to what it installed (the inventory is taken now), with
+// retention applied; prints the result as `stop` and `run` do.
+void finish_stopped(TraceStore& store, TraceInfo info, const tracker::TraceResult& result, bool json) {
+    if (!json) {
+        print_error("Linking the trace to the installed program...\n");
+    }
+    const auto inventory = installed_programs();
+    TraceError error = TraceError::None;
+    if (auto linked = tracker::link_trace(store, info.id, result, inventory, error)) {
+        info = std::move(*linked);
+    } else {
+        print_error(
+            std::format("warning: trace {} couldn't be linked: {}; `avel-cli trace link` links it by hand\n",
+                        to_utf8(info.id), error_text(error)));
+    }
+    apply_retention(store, inventory);
+    const auto tied = tie_items(info, result, inventory);
+    print_result(info, result, json, false, tied ? &*tied : nullptr);
 }
 
 int start_trace(TraceStore& store, const Options& options) {
@@ -364,14 +464,18 @@ int stop_trace(TraceStore& store, const Options& options) {
         print_error("trace stop: no trace is open\n");
         return 1;
     }
-    TraceError error = TraceError::None;
-    const auto session = tracker::TraceSession::resume(store, open->id, error);
-    if (!session) {
-        report_resume_error("stop", *open, error);
-        return 1;
-    }
-    const auto result = session->stop(tracker::StopReason::Manual, step_printer(options.json));
-    const TraceInfo& info = session->info();
+    TraceInfo info;
+    tracker::TraceResult result;
+    {
+        TraceError error = TraceError::None;
+        const auto session = tracker::TraceSession::resume(store, open->id, error);
+        if (!session) {
+            report_resume_error("stop", *open, error);
+            return 1;
+        }
+        result = session->stop(tracker::StopReason::Manual, step_printer(options.json));
+        info = session->info();
+    }  // The session lets go of the trace, so it can be linked
     if (!is_finished(info.state)) {
         // Still `stopping`: everything it needs is on disk, so stopping again finishes it.
         print_error(std::format(
@@ -379,7 +483,7 @@ int stop_trace(TraceStore& store, const Options& options) {
             to_utf8(info.id)));
         return 1;
     }
-    print_result(info, result, options.json, false);
+    finish_stopped(store, std::move(info), result, options.json);
     return 0;
 }
 
@@ -482,11 +586,12 @@ int run_installer(TraceStore& store, const Options& options) {
             to_utf8(info.id)));
         return 1;
     }
-    print_result(info, result.result, options.json, false);
+    finish_stopped(store, info, result.result, options.json);
     return 0;
 }
 
-int list_traces(const TraceStore& store, const Options& options) {
+int list_traces(TraceStore& store, const Options& options) {
+    apply_retention(store, installed_programs());
     const auto traces = store.list();
     if (options.json) {
         Json root = Json::array();
@@ -500,7 +605,9 @@ int list_traces(const TraceStore& store, const Options& options) {
     return 0;
 }
 
-int show_trace(const TraceStore& store, const Options& options) {
+int show_trace(TraceStore& store, const Options& options) {
+    const auto inventory = installed_programs();
+    apply_retention(store, inventory);
     const auto info = store.read(options.id);
     if (!info) {
         print_error("trace show: no such trace: " + to_utf8(options.id) + "\n");
@@ -523,7 +630,136 @@ int show_trace(const TraceStore& store, const Options& options) {
         print_error("trace show: the result of trace " + to_utf8(options.id) + " can't be read\n");
         return 1;
     }
-    print_result(*info, *result, options.json, options.all);
+    const auto tied = tie_items(*info, *result, inventory);
+    print_result(*info, *result, options.json, options.all, tied ? &*tied : nullptr);
+    return 0;
+}
+
+int link_by_hand(TraceStore& store, const Options& options) {
+    const std::string id = to_utf8(options.id);
+    const auto inventory = installed_programs();
+    std::vector<const inventory::Program*> found;
+    if (!resolve(inventory, {options.program}, found)) {
+        return 1;
+    }
+    const inventory::Program& program = *found.front();
+    TraceError error = TraceError::None;
+    const auto info = store.update(
+        options.id,
+        [&](TraceInfo& trace) {
+            tracker::add_manual_link(trace, program);
+            return true;
+        },
+        error);
+    if (!info) {
+        print_error(std::format("trace link: trace {} can't be linked: {}\n", id, error_text(error)));
+        return 1;
+    }
+    apply_retention(store, inventory);
+    if (options.json) {
+        print(trace_root_to_json(*info).dump(2) + "\n");
+    } else {
+        print(std::format("Trace {} linked to {}.\n", id, name_of(program)));
+    }
+    return 0;
+}
+
+int export_to_file(const TraceStore& store, const Options& options) {
+    const std::string id = to_utf8(options.id);
+    TraceError error = TraceError::None;
+    const auto trace = tracker::read_export(store, options.id, platform::enumerate_user_profiles(), error);
+    if (!trace) {
+        switch (error) {
+            case TraceError::NotFound:
+                print_error("trace export: no such trace: " + id + "\n");
+                break;
+            case TraceError::NotFinished:
+                print_error(std::format(
+                    "trace export: trace {} isn't finished; only finished traces can be exported\n", id));
+                break;
+            default:
+                print_error(std::format("trace export: the files of trace {} can't be read\n", id));
+                break;
+        }
+        return 1;
+    }
+    std::wstring file = options.file;
+    std::error_code failed;
+    if (auto full = std::filesystem::absolute(file, failed); !failed) {
+        file = full.wstring();
+    }
+    const std::string text = tracker::to_json(*trace, std::chrono::system_clock::now()).dump(1, '\t');
+    if (!changes::write_file_durably(file, text, true)) {
+        print_error(std::format("trace export: {} couldn't be written\n", to_utf8(file)));
+        return 1;
+    }
+    if (const auto count = tracker::environment_values(*trace); count != 0) {
+        print_error(std::format(
+            "warning: {} includes {} environment value{} as they were on this machine (PATH and the other\n"
+            "variables the installer changed, before and after); share it only where those may be seen\n",
+            to_utf8(file), count, count == 1 ? "" : "s"));
+    }
+    print(std::format("Trace {} exported to {}.\n", id, to_utf8(file)));
+    return 0;
+}
+
+int import_from_file(TraceStore& store, const Options& options) {
+    const std::string file = to_utf8(options.file);
+    const auto text = changes::read_file(options.file);
+    if (!text) {
+        print_error(std::format("trace import: {} can't be read; nothing was imported\n", file));
+        return 1;
+    }
+    tracker::TraceExport trace;
+    int version = 0;
+    switch (tracker::parse_export(*text, trace, version)) {
+        case tracker::ImportError::None:
+            break;
+        case tracker::ImportError::OtherFormat:
+            print_error(
+                std::format("trace import: {} isn't an Avel trace (`avel-cli trace export` writes them); "
+                            "nothing was imported\n",
+                            file));
+            return 1;
+        case tracker::ImportError::OtherVersion:
+            print_error(
+                std::format("trace import: {} is an Avel trace of format version {}, which Avel {} can't "
+                            "read (it reads version {}); nothing was imported\n",
+                            file, version, kVersionString, tracker::kExportSchemaVersion));
+            return 1;
+        case tracker::ImportError::NotFinished:
+            print_error(std::format(
+                "trace import: the trace in {} was never finished; nothing was imported\n", file));
+            return 1;
+        case tracker::ImportError::Damaged:
+            print_error(
+                std::format("trace import: {} is damaged or incomplete; nothing was imported\n", file));
+            return 1;
+    }
+    const auto inventory = installed_programs();
+    TraceError error = TraceError::None;
+    const auto info =
+        tracker::import_trace(store, std::move(trace), inventory, tracker::live_import_options(), error);
+    if (!info) {
+        print_error(std::format("trace import: the trace couldn't be added: {}\n", error_text(error)));
+        return 1;
+    }
+    apply_retention(store, inventory);
+    for (const auto& diagnostic : info->diagnostics) {
+        if (diagnostic.code == tracker::TraceDiagnosticCode::UserNotRemapped) {
+            print_error(std::format(
+                "note: user {}'s items are left as they were recorded: only a trace of a single user whose\n"
+                "profile folder is known is moved to the importing user\n",
+                to_utf8(diagnostic.subject)));
+        }
+    }
+    if (options.json) {
+        print(trace_root_to_json(*info).dump(2) + "\n");
+    } else {
+        print_trace_header(*info);
+        print(std::format("\nTrace {} imported as {}.\n", to_utf8(info->imported->origin_id),
+                          to_utf8(info->id)));
+    }
     return 0;
 }
 
@@ -622,7 +858,8 @@ int run_trace_command(const std::vector<std::wstring_view>& arguments) {
         return 1;
     }
     // Deletes what traces that died while starting left, and damaged trace folders, and finishes
-    // tidying finished traces; finished traces themselves are kept (retention comes with 5b).
+    // tidying finished traces. Retention needs the inventory: the commands that take one (stop,
+    // run, list, show, link, import) apply it themselves.
     store->purge();
 
     switch (options.command) {
@@ -636,6 +873,12 @@ int run_trace_command(const std::vector<std::wstring_view>& arguments) {
             return list_traces(*store, options);
         case Command::Show:
             return show_trace(*store, options);
+        case Command::Link:
+            return link_by_hand(*store, options);
+        case Command::Export:
+            return export_to_file(*store, options);
+        case Command::Import:
+            return import_from_file(*store, options);
         case Command::Cancel:
             return cancel_trace(*store);
         case Command::Delete:

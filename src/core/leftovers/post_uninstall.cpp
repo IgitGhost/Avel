@@ -4,11 +4,15 @@
 
 namespace avel::leftovers {
 
-std::vector<ScanTarget> capture_targets(std::span<const inventory::Program* const> programs) {
+std::vector<ScanTarget> capture_targets(std::span<const inventory::Program* const> programs,
+                                        TraceSource* traces) {
     std::vector<ScanTarget> targets;
     targets.reserve(programs.size());
     for (const auto* program : programs) {
         targets.push_back(make_scan_target(*program));
+        if (traces) {
+            traces->add_trace(*program, targets.back());
+        }
     }
     return targets;
 }

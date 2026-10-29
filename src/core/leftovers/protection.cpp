@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 
+#include "core/leftovers/value_edits.h"
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
@@ -40,6 +42,11 @@ constexpr std::array<std::wstring_view, 10> kVolumeSystemFolders = {
     L"System Volume Information", L"$Recycle.Bin", L"Recovery", L"Config.Msi", L"$WinREAgent",
     L"$Windows.~BT",              L"$Windows.~WS", L"$SysReset", L"Boot",      L"EFI"};
 
+constexpr std::wstring_view kTaskCache =
+    LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache)";
+constexpr std::wstring_view kTaskCache32 =
+    LR"(SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache)";
+
 // HKLM's system hives: never touched through raw registry edits.
 constexpr std::array<std::wstring_view, 8> kSystemHives = {L"SYSTEM",   L"SECURITY",   L"SAM",     L"HARDWARE",
                                                            L"BCD00000000", L"COMPONENTS", L"DRIVERS", L"SCHEMA"};
@@ -69,6 +76,25 @@ constexpr std::array<std::wstring_view, 20> kCoreSoftwareKeys = {
     LR"(Microsoft\Windows NT\CurrentVersion)",
     LR"(Policies)",
     LR"(RegisteredApplications)"};
+
+// What Windows keeps for registered packages, below SOFTWARE (or a user's Software, whose Classes
+// is their classes hive): the deployment service writes it when a package is registered and
+// removes it with the package. A package goes through PackageLocation; this never goes as raw keys
+// or values, even when an install trace saw it created (an installer that registers a sparse
+// package, as Notepad++ does for its context menu, has Windows write it while the trace runs).
+// Nothing inside them may go, nor may their ancestors.
+constexpr std::array<std::wstring_view, 10> kPackageKeys = {
+    LR"(Classes\PackagedCom)",            // Packaged COM servers, and the index of their classes
+    LR"(Classes\ActivatableClasses)",     // Packaged Windows Runtime classes
+    LR"(Classes\Extensions\ContractId)",  // Packaged apps' extensions (launch, protocols, ...)
+    LR"(Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel)",
+    LR"(Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer)",
+    LR"(Microsoft\Windows\CurrentVersion\AppModel)",
+    LR"(Microsoft\Windows\CurrentVersion\Appx)",
+    LR"(Microsoft\Windows\CurrentVersion\AppHost\IndexedDB)",
+    LR"(Microsoft\Windows\CurrentVersion\BackgroundAccessApplications)",
+    LR"(Microsoft\SecurityManager\CapAuthz)",  // Packages' capabilities
+};
 
 template <size_t N>
 bool in_list(const std::array<std::wstring_view, N>& list, std::wstring_view name) {
@@ -108,9 +134,11 @@ bool key_path_leads_to(std::wstring_view key, std::wstring_view pattern) {
     }
 }
 
-std::vector<std::wstring> core_keys() {
+// The keys below SOFTWARE, with their WOW6432Node variants.
+template <size_t N>
+std::vector<std::wstring> software_keys(const std::array<std::wstring_view, N>& list) {
     std::vector<std::wstring> keys;
-    for (const auto key : kCoreSoftwareKeys) {
+    for (const auto key : list) {
         keys.push_back(LR"(SOFTWARE\)" + std::wstring(key));
         keys.push_back(LR"(SOFTWARE\WOW6432Node\)" + std::wstring(key));
         if (platform::istarts_with(key, LR"(Classes\)")) {
@@ -120,6 +148,44 @@ std::vector<std::wstring> core_keys() {
     return keys;
 }
 
+std::vector<std::wstring> core_keys() { return software_keys(kCoreSoftwareKeys); }
+
+// "AppX" and 32 letters and digits: the ProgID Windows makes for a package's file type or protocol.
+bool is_package_prog_id(std::wstring_view name) {
+    return name.size() == 36 && platform::istarts_with(name, L"AppX") &&
+           std::all_of(name.begin() + 4, name.end(), [](wchar_t c) {
+               return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
+           });
+}
+
+// The path below a hive's classes (SOFTWARE\Classes, and its WOW6432Node views), if it is there.
+std::optional<std::wstring_view> below_classes(std::wstring_view path) {
+    for (const std::wstring_view classes : {std::wstring_view(LR"(SOFTWARE\Classes\WOW6432Node\)"),
+                                            std::wstring_view(LR"(SOFTWARE\WOW6432Node\Classes\)"),
+                                            std::wstring_view(LR"(SOFTWARE\Classes\)")}) {
+        if (path.size() > classes.size() && platform::istarts_with(path, classes)) {
+            return path.substr(classes.size());
+        }
+    }
+    return std::nullopt;
+}
+
+// A registered package's own key or value (kPackageKeys, and its ProgIDs: Classes\AppX…, and the
+// values that name one, in a file type's OpenWithProgids). `value_name` is null for a key.
+bool is_package_registration(std::wstring_view path, const std::wstring* value_name) {
+    static const std::vector<std::wstring> kKeys = software_keys(kPackageKeys);
+    for (const auto& key : kKeys) {
+        if (key_path_is_under(path, key) || (!value_name && key_path_leads_to(path, key))) {
+            return true;
+        }
+    }
+    const auto classes = below_classes(path);
+    if (!classes) {
+        return false;
+    }
+    return is_package_prog_id(first_component(*classes)) || (value_name && is_package_prog_id(*value_name));
+}
+
 ProtectionReason check_key_path(platform::Hive hive, std::wstring_view path, bool is_value) {
     static const std::vector<std::wstring> kCoreKeys = core_keys();
     if (hive == platform::Hive::Machine && in_list(kSystemHives, first_component(path))) {
@@ -127,6 +193,12 @@ ProtectionReason check_key_path(platform::Hive hive, std::wstring_view path, boo
     }
     if (key_path_is_under(path, LR"(SOFTWARE\Avel)") || key_path_is_under(path, LR"(SOFTWARE\WOW6432Node\Avel)")) {
         return ProtectionReason::AvelData;
+    }
+    // The Task Scheduler's own records of its tasks: a task or task folder goes through the Task
+    // Scheduler (TaskLocation), never as raw keys or values.
+    if (hive == platform::Hive::Machine &&
+        (key_path_is_under(path, kTaskCache) || key_path_is_under(path, kTaskCache32))) {
+        return ProtectionReason::CoreRegistryKey;
     }
     if (is_value) {
         return ProtectionReason::None;  // A value in a core key (a Run entry, say) is fine on its own
@@ -212,6 +284,10 @@ std::string_view to_string(ProtectionReason reason) {
             return "system-registry";
         case ProtectionReason::WindowsTask:
             return "windows-task";
+        case ProtectionReason::PackageRegistration:
+            return "package-registration";
+        case ProtectionReason::NotEditable:
+            return "not-editable";
     }
     return "unknown";
 }
@@ -255,6 +331,8 @@ const HardFloor& HardFloor::live() {
                      {machine.common_desktop, ProtectionReason::KnownFolder}};
         data.subtrees = {{machine.program_files + LR"(\WindowsApps)", ProtectionReason::SystemArea},
                          {machine.program_data + LR"(\Package Cache)", ProtectionReason::SystemArea},
+                         // Packages' machine-wide data, which goes with the package
+                         {machine.program_data + LR"(\Packages)", ProtectionReason::SystemArea},
                          {machine.program_data + LR"(\Avel)", ProtectionReason::AvelData},
                          {module_directory(), ProtectionReason::AvelData}};
         for (const auto& profile : platform::enumerate_user_profiles()) {
@@ -311,14 +389,38 @@ ProtectionReason HardFloor::check(const Location& location) const {
         return ProtectionReason::None;
     }
     if (const auto* key = std::get_if<RegistryKeyLocation>(&location)) {
-        return check_key_path(key->key.hive, key->key.path, false);
+        const ProtectionReason reason = check_key_path(key->key.hive, key->key.path, false);
+        return reason == ProtectionReason::None && is_package_registration(key->key.path, nullptr)
+                   ? ProtectionReason::PackageRegistration
+                   : reason;
     }
     if (const auto* value = std::get_if<RegistryValueLocation>(&location)) {
-        return check_key_path(value->key.hive, value->key.path, true);
+        const ProtectionReason reason = check_key_path(value->key.hive, value->key.path, true);
+        return reason == ProtectionReason::None && is_package_registration(value->key.path, &value->value_name)
+                   ? ProtectionReason::PackageRegistration
+                   : reason;
     }
     if (const auto* task = std::get_if<TaskLocation>(&location)) {
+        if (task->folder &&
+            (task->path.empty() || task->path == L"\\" || platform::iequals(task->path, L"\\Microsoft"))) {
+            return ProtectionReason::WindowsTask;  // The root folder, or Windows' own
+        }
         return platform::istarts_with(task->path, LR"(\Microsoft\)") ? ProtectionReason::WindowsTask
                                                                      : ProtectionReason::None;
+    }
+    if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
+        // The only allow-list in the floor, and only for edits: the environment and SharedDLLs.
+        const auto spot = value_spot(edit->key);
+        if (!spot) {
+            return ProtectionReason::NotEditable;
+        }
+        if (*spot == ValueSpot::SharedDlls) {
+            return edit->kind == ValueEditKind::DecrementSharedDll || edit->kind == ValueEditKind::DeleteValue
+                       ? ProtectionReason::None
+                       : ProtectionReason::NotEditable;
+        }
+        return may_edit_variable(*spot, edit->value_name, edit->kind) ? ProtectionReason::None
+                                                                      : ProtectionReason::NotEditable;
     }
     return ProtectionReason::None;
 }

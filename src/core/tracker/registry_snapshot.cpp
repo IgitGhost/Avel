@@ -1082,6 +1082,35 @@ std::uint64_t count_contents(HKEY key, bool backup) {
     return count;
 }
 
+// What `key` holds, all the way down: each value and subkey, relative to it (`prefix` names the key
+// below the container). False when it holds more than kMaxContainedItems or part of it can't be
+// read: then only the count is kept.
+bool list_contents(HKEY key, bool backup, const std::wstring& prefix,
+                   std::vector<leftovers::ContainedItem>& inside) {
+    std::vector<platform::RawValue> values;
+    if (platform::read_raw_values(key, values) != ERROR_SUCCESS) {
+        return false;
+    }
+    for (auto& value : values) {
+        inside.push_back({prefix, std::move(value.name), false});
+    }
+    std::vector<platform::SubkeyInfo> subkeys;
+    if (platform::enum_subkeys(key, subkeys) != ERROR_SUCCESS) {
+        return false;
+    }
+    for (const auto& subkey : subkeys) {
+        std::wstring path = prefix.empty() ? subkey.name : prefix + L"\\" + subkey.name;
+        inside.push_back({path, std::nullopt, true});
+        wil::unique_hkey child;
+        if (inside.size() > leftovers::kMaxContainedItems ||
+            open_subkey(key, subkey.name, backup, child) != ERROR_SUCCESS ||
+            !list_contents(child.get(), backup, path, inside)) {
+            return false;
+        }
+    }
+    return inside.size() <= leftovers::kMaxContainedItems;
+}
+
 class Differ {
 public:
     Differ(const RegistrySnapshot& snapshot, std::span<const SnapshotRoot> roots, unsigned threads)
@@ -1179,11 +1208,13 @@ private:
     }
 
     void report(Worker& worker, std::uint32_t root, std::wstring path, std::wstring value, bool is_value,
-                ChangeKind change, leftovers::Location location, std::uint64_t contents = 0) {
+                ChangeKind change, leftovers::Location location, std::uint64_t contents = 0,
+                std::optional<std::vector<leftovers::ContainedItem>> inside = std::nullopt) {
         TraceChange item;
         item.change = change;
         item.location = std::move(location);
         item.contents = contents;
+        item.inside = std::move(inside);
         worker.reports.push_back({root, std::move(path), std::move(value), is_value, std::move(item)});
     }
 
@@ -1447,25 +1478,42 @@ private:
             }
             return;
         }
-        const std::uint64_t contents = key ? count_contents(key.get(), backup_) : 0;
-        leftovers::Location location;
         if (parent_zone == Zone::Services) {
-            location = leftovers::ServiceLocation{name, key && is_driver(key.get())};
-        } else {
-            location = leftovers::RegistryKeyLocation{address(root, path)};
+            const std::uint64_t contents = key ? count_contents(key.get(), backup_) : 0;
+            leftovers::Location location = leftovers::ServiceLocation{name, key && is_driver(key.get())};
+            report(worker, root, std::move(path), {}, false, ChangeKind::Created, std::move(location), contents);
+            return;
         }
-        report(worker, root, std::move(path), {}, false, ChangeKind::Created, std::move(location), contents);
+        // What it holds, by name, so the leftover scan can tell whether someone added to it since.
+        std::uint64_t contents = 0;
+        std::optional<std::vector<leftovers::ContainedItem>> inside;
+        if (key) {
+            std::vector<leftovers::ContainedItem> items;
+            if (list_contents(key.get(), backup_, L"", items)) {
+                std::sort(items.begin(), items.end());
+                contents = items.size();
+                inside = std::move(items);
+            } else {
+                contents = count_contents(key.get(), backup_);
+            }
+        } else if (empty) {
+            inside.emplace();
+        }
+        leftovers::Location location = leftovers::RegistryKeyLocation{address(root, path)};
+        report(worker, root, std::move(path), {}, false, ChangeKind::Created, std::move(location), contents,
+               std::move(inside));
     }
 
-    // A created key in TaskCache\Tree: every key in it with an Id value is a task; folders are
-    // left out.
+    // A created key in TaskCache\Tree: every key in it with an Id value is a task, and every other
+    // one a task folder (removed only once empty, after its tasks).
     void find_tasks(Worker& worker, std::uint32_t root, HKEY key, const std::wstring& path) {
         platform::RawValue id;
-        if (platform::query_raw_value(key, L"Id", id) == ERROR_SUCCESS) {
-            const std::wstring task = below(path, kTaskTree).has_value()
-                                          ? path.substr(kTaskTree.size())
-                                          : path.substr(path.find_last_of(L'\\'));
-            report(worker, root, path, {}, false, ChangeKind::Created, leftovers::TaskLocation{task},
+        const bool task = platform::query_raw_value(key, L"Id", id) == ERROR_SUCCESS;
+        const bool inside = below(path, kTaskTree).has_value();
+        if (task || inside) {
+            const std::wstring name =
+                inside ? path.substr(kTaskTree.size()) : path.substr(path.find_last_of(L'\\'));
+            report(worker, root, path, {}, false, ChangeKind::Created, leftovers::TaskLocation{name, !task},
                    count_contents(key, backup_));
         }
         std::vector<platform::SubkeyInfo> subkeys;

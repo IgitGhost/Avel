@@ -64,12 +64,32 @@
         <translation>Задача планировщика</translation>
     </message>
     <message>
+        <source>Scheduled task folder</source>
+        <translation>Папка задач планировщика</translation>
+    </message>
+    <message>
         <source>Package</source>
         <translation>Пакет</translation>
     </message>
     <message>
         <source>Firewall rule</source>
         <translation>Правило брандмауэра</translation>
+    </message>
+    <message>
+        <source>Shared DLL reference count</source>
+        <translation>Счётчик ссылок общей DLL</translation>
+    </message>
+    <message>
+        <source>Entries in an environment variable</source>
+        <translation>Элементы переменной среды</translation>
+    </message>
+    <message>
+        <source>Environment variable to restore</source>
+        <translation>Переменная среды для восстановления</translation>
+    </message>
+    <message>
+        <source>Environment variable</source>
+        <translation>Переменная среды</translation>
     </message>
     <message>
         <source>(Default)</source>
@@ -102,6 +122,22 @@
     <message>
         <source>Windows Installer&apos;s registration of the program</source>
         <translation>Регистрация программы в Windows Installer</translation>
+    </message>
+    <message>
+        <source>Created by the program&apos;s installer, in its own folders or keys (install trace)</source>
+        <translation>Создано установщиком программы в её собственных папках или разделах (отслеживание установки)</translation>
+    </message>
+    <message>
+        <source>Takes back exactly what the program&apos;s installer changed (install trace)</source>
+        <translation>Точно отменяет то, что изменил установщик программы (отслеживание установки)</translation>
+    </message>
+    <message>
+        <source>Created during the installation, but not tied to the program (install trace)</source>
+        <translation>Создано во время установки, но не связано с программой (отслеживание установки)</translation>
+    </message>
+    <message>
+        <source>Puts back the value from before the installation; the new one may be wanted (install trace)</source>
+        <translation>Возвращает значение, которое было до установки; новое может быть нужным (отслеживание установки)</translation>
     </message>
     <message>
         <source>Named in the program&apos;s registration</source>
@@ -180,12 +216,20 @@
         <translation>Общее имя вроде «data» или «config»</translation>
     </message>
     <message>
+        <source>Holds more than the installer put in it, which may be another program&apos;s (install trace)</source>
+        <translation>Содержит больше, чем поместил в него установщик, и лишнее может принадлежать другой программе (отслеживание установки)</translation>
+    </message>
+    <message>
         <source>Runs only once (RunOnce)</source>
         <translation>Запускается один раз (RunOnce)</translation>
     </message>
     <message>
         <source>Another installed program uses this folder</source>
         <translation>Эту папку использует другая установленная программа</translation>
+    </message>
+    <message>
+        <source>Another program still uses this shared DLL, or one inside it</source>
+        <translation>Эту общую DLL или DLL внутри неё ещё использует другая программа</translation>
     </message>
     <message>
         <source>Store app data, which Windows manages itself</source>
@@ -366,6 +410,14 @@
     <message>
         <source>an error occurred</source>
         <translation>произошла ошибка</translation>
+    </message>
+    <message>
+        <source>the value has changed since</source>
+        <translation>значение с тех пор изменилось</translation>
+    </message>
+    <message>
+        <source>the folder isn&apos;t empty</source>
+        <translation>папка не пуста</translation>
     </message>
     <message>
         <source>Removed with the item that contains it</source>

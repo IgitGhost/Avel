@@ -19,9 +19,11 @@ constexpr std::array kStates{TraceState::Starting, TraceState::Open, TraceState:
 constexpr std::array kModes{TraceMode::Manual, TraceMode::Launch};
 constexpr std::array kStopReasons{StopReason::None,    StopReason::Manual,   StopReason::InstallerDone,
                                   StopReason::Stopped, StopReason::TimedOut, StopReason::RebootPending};
-constexpr std::array kDiagnostics{TraceDiagnosticCode::CheckpointDamaged,
-                                  TraceDiagnosticCode::SnapshotDamaged,
-                                  TraceDiagnosticCode::SavedValuesDamaged};
+constexpr std::array kDiagnostics{
+    TraceDiagnosticCode::CheckpointDamaged, TraceDiagnosticCode::SnapshotDamaged,
+    TraceDiagnosticCode::SavedValuesDamaged, TraceDiagnosticCode::UserNotRemapped};
+constexpr std::array kLinkMatches{LinkMatch::CreatedKey, LinkMatch::ChangedKey, LinkMatch::ProductCode,
+                                  LinkMatch::Manual};
 constexpr std::array kChanges{ChangeKind::Created, ChangeKind::Deleted, ChangeKind::Modified,
                               ChangeKind::Renamed};
 constexpr std::array kNoise{NoiseReason::None,        NoiseReason::SystemActivity, NoiseReason::UserActivity,
@@ -232,6 +234,46 @@ Json unix_json(const std::optional<std::chrono::system_clock::time_point>& time)
     return time ? Json(platform::unix_seconds(*time)) : Json(nullptr);
 }
 
+// A time kept as `<field>_unix` (and `<field>` in ISO 8601 for people); null or missing is nullopt.
+bool time_from(const Json& json, const std::string& field,
+               std::optional<std::chrono::system_clock::time_point>& time) {
+    const auto found = json.find(field + "_unix");
+    if (found == json.end() || found->is_null()) {
+        return true;
+    }
+    if (!found->is_number_integer()) {
+        return false;
+    }
+    time = platform::from_unix(found->get<std::int64_t>());
+    return true;
+}
+
+Json import_json(const TraceImport& imported) {
+    Json json;
+    json["time"] = platform::iso_time(imported.time);
+    json["time_unix"] = platform::unix_seconds(imported.time);
+    put_text(json, "origin_id", imported.origin_id);
+    put_text(json, "from_sid", imported.from_sid);
+    put_text(json, "from_profile", imported.from_profile);
+    put_text(json, "to_sid", imported.to_sid);
+    put_text(json, "to_profile", imported.to_profile);
+    return json;
+}
+
+bool import_from(const Json& json, TraceImport& imported) {
+    std::optional<std::chrono::system_clock::time_point> time;
+    if (!json.is_object() || !time_from(json, "time", time) || !time) {
+        return false;
+    }
+    imported.time = *time;
+    imported.origin_id = get_text(json, "origin_id").value_or(L"");
+    imported.from_sid = get_text(json, "from_sid").value_or(L"");
+    imported.from_profile = get_text(json, "from_profile").value_or(L"");
+    imported.to_sid = get_text(json, "to_sid").value_or(L"");
+    imported.to_profile = get_text(json, "to_profile").value_or(L"");
+    return true;
+}
+
 }  // namespace
 
 std::vector<IncompleteReason> incomplete_reasons(const TraceInfo& info) {
@@ -316,8 +358,60 @@ std::string_view to_string(TraceDiagnosticCode code) {
             return "snapshot-damaged";
         case TraceDiagnosticCode::SavedValuesDamaged:
             return "saved-values-damaged";
+        case TraceDiagnosticCode::UserNotRemapped:
+            return "user-not-remapped";
     }
     return "unknown";
+}
+
+std::string_view to_string(LinkMatch match) {
+    switch (match) {
+        case LinkMatch::CreatedKey:
+            return "created-key";
+        case LinkMatch::ChangedKey:
+            return "changed-key";
+        case LinkMatch::ProductCode:
+            return "product-code";
+        case LinkMatch::Manual:
+            return "manual";
+    }
+    return "unknown";
+}
+
+Json to_json(const TraceLink& link) {
+    Json json;
+    put_text(json, "program_id", link.program_id);
+    put_text(json, "name", link.name);
+    put_text(json, "publisher", link.publisher);
+    put_text(json, "version", link.version);
+    json["uninstall_key"] = link.uninstall_key ? key_json(*link.uninstall_key) : Json(nullptr);
+    put_text(json, "product_code", link.product_code);
+    put_text(json, "install_location", link.install_location);
+    json["matched_by"] = to_string(link.matched_by);
+    json["primary"] = link.primary;
+    return json;
+}
+
+bool from_json(const Json& json, TraceLink& link) {
+    TraceLink parsed;
+    const auto id = json.is_object() ? get_text(json, "program_id") : std::nullopt;
+    if (!id || !get_enum(json, "matched_by", kLinkMatches, parsed.matched_by) ||
+        !get_bool(json, "primary", parsed.primary)) {
+        return false;
+    }
+    if (const auto key = json.find("uninstall_key"); key != json.end() && !key->is_null()) {
+        if (!key_from(*key, parsed.uninstall_key.emplace())) {
+            return false;
+        }
+    }
+    parsed.program_id = *id;
+    parsed.name = get_text(json, "name").value_or(L"");
+    parsed.publisher = get_text(json, "publisher").value_or(L"");
+    parsed.version = get_text(json, "version").value_or(L"");
+    parsed.product_code = get_text(json, "product_code").value_or(L"");
+    parsed.install_location = get_text(json, "install_location").value_or(L"");
+    link = std::move(parsed);
+    return true;
 }
 
 Json to_json(const TraceChange& change) {
@@ -330,6 +424,20 @@ Json to_json(const TraceChange& change) {
     if (change.contents != 0 || (change.change == ChangeKind::Created && is_container(change.location))) {
         json["contents"] = change.contents;
     }
+    if (change.inside) {
+        Json& inside = json["inside"] = Json::array();
+        for (const auto& item : *change.inside) {
+            Json entry;
+            put_text(entry, "path", item.path);
+            if (item.value) {
+                put_text(entry, "value", *item.value);
+            }
+            if (item.container) {
+                entry["container"] = true;
+            }
+            inside.push_back(std::move(entry));
+        }
+    }
     if (change.replaced) {
         json["replaced"] = true;
     }
@@ -337,12 +445,41 @@ Json to_json(const TraceChange& change) {
     return json;
 }
 
+// A created container's inventory ("inside"); absent in traces that kept only the count.
+static bool inside_from_json(const Json& json, std::optional<std::vector<leftovers::ContainedItem>>& inside) {
+    const auto found = json.find("inside");
+    if (found == json.end() || found->is_null()) {
+        return true;
+    }
+    if (!found->is_array()) {
+        return false;
+    }
+    std::vector<leftovers::ContainedItem> items;
+    items.reserve(found->size());
+    for (const auto& entry : *found) {
+        leftovers::ContainedItem item;
+        auto path = entry.is_object() ? get_text(entry, "path") : std::nullopt;
+        if (!path || !get_bool(entry, "container", item.container)) {
+            return false;
+        }
+        item.path = std::move(*path);
+        item.value = get_text(entry, "value");
+        if (item.value && item.container) {
+            return false;
+        }
+        items.push_back(std::move(item));
+    }
+    inside = std::move(items);
+    return true;
+}
+
 bool from_json(const Json& json, TraceChange& change) {
     TraceChange parsed;
     const auto location = json.is_object() ? json.find("location") : json.end();
     if (!json.is_object() || !get_enum(json, "change", kChanges, parsed.change) || location == json.end() ||
         !changes::from_json(*location, parsed.location) || !get_number(json, "contents", parsed.contents) ||
-        !get_bool(json, "replaced", parsed.replaced) || !get_enum(json, "noise", kNoise, parsed.noise)) {
+        !get_bool(json, "replaced", parsed.replaced) || !get_enum(json, "noise", kNoise, parsed.noise) ||
+        !inside_from_json(json, parsed.inside)) {
         return false;
     }
     parsed.old_path = get_text(json, "old_path").value_or(L"");
@@ -389,6 +526,13 @@ Json to_json(const TraceInfo& info) {
         }
         json["diagnostics"].push_back(std::move(item));
     }
+    json["links"] = Json::array();
+    for (const auto& link : info.links) {
+        json["links"].push_back(to_json(link));
+    }
+    json["unresolved_since"] = time_json(info.unresolved_since);
+    json["unresolved_since_unix"] = unix_json(info.unresolved_since);
+    json["imported"] = info.imported ? import_json(*info.imported) : Json(nullptr);
     return json;
 }
 
@@ -449,6 +593,22 @@ bool from_json(const Json& json, TraceInfo& info) {
             }
             diagnostic.subject = get_text(item, "subject").value_or(L"");
             parsed.diagnostics.push_back(std::move(diagnostic));
+        }
+    }
+    // 5b; a trace.json from 5a has none of these.
+    if (const Json* links = get_array(json, "links")) {
+        for (const auto& item : *links) {
+            if (!from_json(item, parsed.links.emplace_back())) {
+                return false;
+            }
+        }
+    }
+    if (!time_from(json, "unresolved_since", parsed.unresolved_since)) {
+        return false;
+    }
+    if (const auto imported = json.find("imported"); imported != json.end() && !imported->is_null()) {
+        if (!import_from(*imported, parsed.imported.emplace())) {
+            return false;
         }
     }
     info = std::move(parsed);

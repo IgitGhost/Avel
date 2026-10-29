@@ -12,6 +12,13 @@ int points(const Record& record) {
         case Evidence::UninstallerKey:
         case Evidence::InstallerRegistration:
             return 20;
+        case Evidence::TracedInstallRoot:
+            return 5;
+        case Evidence::TracedValueUndo:
+            return 3;
+        case Evidence::TracedCreated:
+        case Evidence::TracedValueRestore:
+            return 1;
         case Evidence::ExplicitConnection:
         case Evidence::PathReference:
         case Evidence::CompanyNameMatch:
@@ -33,9 +40,12 @@ int points(const Record& record) {
             return -2;
         case Evidence::QuestionableDirectoryName:
             return -3;
+        case Evidence::ContainerHoldsMore:
+            return -4;
         case Evidence::StartupIsRunOnce:
             return -5;
         case Evidence::DirectoryStillUsed:
+        case Evidence::SharedDllStillUsed:
             return -7;
         case Evidence::StoreApp:
             return -10;
@@ -43,6 +53,12 @@ int points(const Record& record) {
             return 0;
     }
     return 0;
+}
+
+bool is_trace_evidence(Evidence evidence) {
+    return evidence == Evidence::TracedInstallRoot || evidence == Evidence::TracedCreated ||
+           evidence == Evidence::TracedValueUndo || evidence == Evidence::TracedValueRestore ||
+           evidence == Evidence::ContainerHoldsMore;
 }
 
 int score(std::span<const Record> records) {
@@ -83,6 +99,14 @@ std::string_view to_string(Evidence evidence) {
             return "uninstaller-key";
         case Evidence::InstallerRegistration:
             return "installer-registration";
+        case Evidence::TracedInstallRoot:
+            return "traced-install-root";
+        case Evidence::TracedValueUndo:
+            return "traced-value-undo";
+        case Evidence::TracedCreated:
+            return "traced-created";
+        case Evidence::TracedValueRestore:
+            return "traced-value-restore";
         case Evidence::ExplicitConnection:
             return "explicit-connection";
         case Evidence::PathReference:
@@ -113,10 +137,14 @@ std::string_view to_string(Evidence evidence) {
             return "other-user-data";
         case Evidence::QuestionableDirectoryName:
             return "questionable-directory-name";
+        case Evidence::ContainerHoldsMore:
+            return "container-holds-more";
         case Evidence::StartupIsRunOnce:
             return "startup-is-run-once";
         case Evidence::DirectoryStillUsed:
             return "directory-still-used";
+        case Evidence::SharedDllStillUsed:
+            return "shared-dll-still-used";
         case Evidence::StoreApp:
             return "store-app";
     }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -8,6 +10,7 @@
 #include <vector>
 
 #include "core/leftovers/confidence.h"
+#include "core/platform/nt_registry.h"
 #include "core/platform/registry_address.h"
 
 namespace avel::leftovers {
@@ -32,7 +35,8 @@ struct ServiceLocation {
 };
 
 struct TaskLocation {
-    std::wstring path;  // e.g. \Contoso\Updater
+    std::wstring path;    // e.g. \Contoso\Updater
+    bool folder = false;  // A task folder (\Contoso): removed only when empty
 };
 
 struct PackageLocation {
@@ -44,11 +48,33 @@ struct FirewallRuleLocation {
     std::wstring rule_id;  // The value name under FirewallPolicy\FirewallRules
 };
 
-using Location = std::variant<FileLocation, RegistryKeyLocation, RegistryValueLocation, ServiceLocation, TaskLocation,
-                              PackageLocation, FirewallRuleLocation>;
+// How a value that other programs share is edited (see value_edits.h).
+enum class ValueEditKind : std::uint8_t {
+    RemovePathEntries,   // Take the installer's entries out of a ;-separated list such as Path
+    DecrementSharedDll,  // Lower a SharedDLLs reference count by the installer's increment
+    DeleteValue,         // Delete a value the installer created
+    RestoreValue,        // Put back the value as it was before the install
+};
+
+// An edit to a value in the environment or SharedDLLs, rather than its removal. It is applied only
+// while the value is still `expected` (compare-and-set), so nothing changed since is overwritten.
+struct ValueEditLocation {
+    platform::RegistryAddress key;
+    std::wstring value_name;
+    ValueEditKind kind = ValueEditKind::RestoreValue;
+    std::optional<platform::RawValue> expected;  // The value it applies to; nullopt: the value is absent
+    std::optional<platform::RawValue> desired;   // The value written; nullopt: the value is deleted
+    std::vector<std::wstring> entries;           // RemovePathEntries: the entries taken out, as written
+    std::int64_t delta = 0;                      // SharedDLLs: how much the count goes down
+};
+
+using Location = std::variant<FileLocation, RegistryKeyLocation, RegistryValueLocation, ServiceLocation,
+                              TaskLocation, PackageLocation, FirewallRuleLocation, ValueEditLocation>;
 
 // A case-insensitive key identifying the item, used to merge what several scanners found:
-// "file:c:\x", "key:hklm\software\x", "value:hku\s-1-5-21-…\software\x\name", ...
+// "file:c:\x", "key:hklm\software\x", "value:hku\s-1-5-21-…\software\x\name", ... A value edit's
+// key also holds what it does ("edit:hklm\…\environment\\path|remove-path-entries|c:\x\bin"), so
+// two traces' edits to one value stay two items.
 std::wstring identity(const Location& location);
 
 // `outer` contains `inner`: a folder and something below it, or a key and a subkey or value of it.
@@ -56,6 +82,20 @@ bool contains(const Location& outer, const Location& inner);
 
 // The user whose profile or hive holds the item; empty for machine-wide items.
 std::wstring owner_sid(const Location& location);
+
+// One item a created folder or key held when its install trace stopped, relative to it: a file or
+// folder ("bin\app.exe"), a subkey ("Shell\Open"), or a value (`value` set: a value of the key at
+// `path`, which is empty for the container itself; an empty name is the key's default value).
+struct ContainedItem {
+    std::wstring path;
+    std::optional<std::wstring> value;
+    bool container = false;  // A folder or a subkey
+
+    auto operator<=>(const ContainedItem&) const = default;
+};
+
+// A created container's inventory is kept up to this many items; a larger one only by its count.
+inline constexpr std::size_t kMaxContainedItems = 10000;
 
 // How the item is grouped for review.
 enum class Category : std::uint8_t {
@@ -84,6 +124,7 @@ enum class Scanner : std::uint8_t {
     MsiRegistration,  // Windows Installer's keys for the program's product code
     DeepSearch,       // Folders named after the program anywhere on the fixed volumes (ScanOptions::deep)
     Orphans,          // Folders no installed program owns (find_orphans)
+    Trace,            // What the program's install trace recorded (ScanTarget::traced, traced_values)
 };
 
 struct Leftover {
@@ -95,7 +136,13 @@ struct Leftover {
     std::optional<std::size_t> inside;    // Index of the nearest leftover that contains this one
 };
 
+// The group an item falls in by its kind alone: .lnk files are shortcuts, value edits and other
+// keys and values registry, and so on.
+Category category_of(const Location& location);
+
 std::string_view to_string(Category category);
 std::string_view to_string(Scanner scanner);
+std::string_view to_string(ValueEditKind kind);
+bool parse(std::string_view text, ValueEditKind& kind);
 
 }  // namespace avel::leftovers

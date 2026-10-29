@@ -63,11 +63,48 @@ enum class TraceDiagnosticCode : std::uint8_t {
                          // counts as unreadable)
     SnapshotDamaged,     // registry.snapshot was missing or damaged: the registry wasn't compared
     SavedValuesDamaged,  // saved_values.json was missing or damaged: the known values weren't compared
+    // Imported: the trace holds several users' items (or a user whose profile is unknown), so they
+    // were left under the user they were recorded for
+    UserNotRemapped,
 };
 
 struct TraceDiagnostic {
     TraceDiagnosticCode code = TraceDiagnosticCode::CheckpointDamaged;
-    std::wstring subject;  // CheckpointDamaged: the volume's root
+    std::wstring subject;  // CheckpointDamaged: the volume's root; UserNotRemapped: the user's SID
+};
+
+// How a trace was linked to a program (linking.h).
+enum class LinkMatch : std::uint8_t {
+    CreatedKey,   // The trace created its Uninstall key, or a key that holds it
+    ChangedKey,   // Its Uninstall key existed, and the trace changed its values (an upgrade)
+    ProductCode,  // The trace registered its Windows Installer product
+    Manual,       // Linked by hand (`trace link`)
+};
+
+// A program the trace installed, as it was when it was last found. Enough is kept to find it again
+// after an upgrade (another version, product code or even Uninstall key) and to name it once it's
+// gone.
+struct TraceLink {
+    std::wstring program_id;  // inventory::Program::id
+    std::wstring name;        // Its display name
+    std::wstring publisher;
+    std::wstring version;
+    std::optional<platform::RegistryAddress> uninstall_key;
+    std::wstring product_code;      // "{GUID}" of a Windows Installer product
+    std::wstring install_location;  // Normalized
+    LinkMatch matched_by = LinkMatch::CreatedKey;
+    bool primary = false;  // The program the trace is for: the first link, preferably an entry Settings lists
+};
+
+// A trace brought in from another machine (`trace import`).
+struct TraceImport {
+    std::chrono::system_clock::time_point time{};
+    std::wstring origin_id;  // Its id where it was recorded
+    // The user its per-user items were moved from and to; empty when nothing was remapped.
+    std::wstring from_sid;
+    std::wstring from_profile;
+    std::wstring to_sid;
+    std::wstring to_profile;
 };
 
 // trace.json.
@@ -88,6 +125,13 @@ struct TraceInfo {
     std::optional<WatchResult> watch;  // Install and trace
     TraceCounts counts;
     std::vector<TraceDiagnostic> diagnostics;
+    // The programs it installed, the primary one first (linking.h); empty until it's linked. A
+    // trace.json from 5a has none.
+    std::vector<TraceLink> links;
+    // Retention: when the links were first found to lead to no installed program; cleared once
+    // they do again (an undo that restores the program restores the link).
+    std::optional<std::chrono::system_clock::time_point> unresolved_since;
+    std::optional<TraceImport> imported;
 };
 
 // Why a stopped trace is incomplete: a volume whose journal couldn't be followed to the end, or a
@@ -118,6 +162,12 @@ std::string_view to_string(TraceState state);
 std::string_view to_string(TraceMode mode);
 std::string_view to_string(StopReason reason);  // None is "none"; the JSON writes null for it
 std::string_view to_string(TraceDiagnosticCode code);
+std::string_view to_string(LinkMatch match);
+
+// {"program_id", "name", "publisher", "version", "uninstall_key" (a registry-key location or
+// null), "product_code", "install_location", "matched_by", "primary"}, exact.
+changes::Json to_json(const TraceLink& link);
+bool from_json(const changes::Json& json, TraceLink& link);
 
 // {"change", "location" (changes::to_json, exact), "old_path", "contents", "replaced", "noise"}.
 changes::Json to_json(const TraceChange& change);

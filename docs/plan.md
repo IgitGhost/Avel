@@ -204,7 +204,7 @@ D:\Avel\
   - In place: CMake presets with vcpkg, `avel_core`, `avel-cli` and `avel` (elevated manifest), and the EN/RU/HY translation infrastructure with live switching (checked through UI Automation).
   - Also in place: GoogleTest (7 tests passing), the `deploy` target (a self-contained `bin`, about 30 MB), the Sandbox harness, the CI workflow, LICENSE/NOTICE and the docs.
   - The Sandbox smoke test passes: `Start-AvelSandbox.ps1 -WaitForReport` reports that `avel-cli` and the GUI run in a clean sandbox.
-  - Still open: the first push to GitHub so CI can run.
+  - **GitHub:** the first push was on 2026-10-29 (`main` only, to `github.com/IgitGhost/Avel`). Its CI run failed at the "Install Qt" step (`jurplel/install-qt-action`, Qt 6.12.0, `win64_msvc2022_64`), before anything was built. Still open: a green CI run.
 - **Phase 1 (inventory): done and verified locally.**
   - **Sources:** registry (HKLM in both views, plus every user profile, with signed-out users' hives loaded read-only), Windows Installer and packaged apps. They are merged with Bulk Crap Uninstaller's relatedness scoring, which is ported and checked against reference values from BCU's own C# code. See [inventory.md](inventory.md).
   - **Settings parity:** `scripts/Compare-SettingsApps.ps1` finds all 172 Settings entries identical in Avel (name, version, publisher, date). Avel shows 28 extra packaged apps that Settings hides by an internal policy; they are documented in inventory.md.
@@ -212,7 +212,6 @@ D:\Avel\
   - **CLI:** `avel-cli list [--all] [--json] [--timing]`.
   - **GUI:** program table with icons, search, categories, a details pane, F5 refresh and diagnostics in the status bar. All of it is translated to RU and HY (71 strings) and was checked through UI Automation in all three languages.
   - **Tests:** 55 unit tests pass, including the registry fixture tests in a volatile HKCU key and a read-only smoke scan.
-  - Still open from Phase 0: the first push to GitHub.
 - **Phase 2 (uninstall): done and verified in Windows Sandbox.** Details in [uninstall.md](uninstall.md).
   - **Core** (`src/core/uninstall`):
     - per-program plans: MSI via `msiexec /x`; silent switches for Inno, NSIS, WiX Burn, Squirrel and SdbInst; packages via PackageManager;
@@ -242,7 +241,6 @@ D:\Avel\
     - **GUI:** 7-Zip (silent, with a restore point) and the MSIX were removed.
     - **Known leftover:** Notepad++'s uninstaller, silent or not, removes the app but leaves its Windows 11 context-menu sparse package ("Notepad++") registered. The scenario reports it as `KNOWN` rather than a failure. It's a leftover for Phase 3, and a candidate for offering related packages together with their app.
     - **Clicker fix (2026-10-19):** managed UI Automation reports classic Win32 buttons as panes, so the old clicker found none. It now finds them with `EnumChildWindows` and presses them by posting `WM_COMMAND`. See `tests/sandbox/README.md`.
-  - Still open from Phase 0: the push to GitHub. The first local commit exists.
 - **Phase 3 (leftovers, safety and undo): done and verified in Windows Sandbox, in three sub-phases.** Plan approved 2026-10-19.
   - **3a (read-only scan): done.** Details in [leftovers.md](leftovers.md).
     - **Core** (`src/core/leftovers`):
@@ -406,4 +404,32 @@ D:\Avel\
         - signed-out users' hives weren't loaded;
         - the trace's per-user noise rules missed.
       - **Fix:** `find_value` no longer accepts a temporary list, so the compiler rejects the pattern. Unit tests now check the live hard floor for the current user's profile.
-  - **Next: 5b** (linking, uninstall by trace, value edits, export and import), then **5c** (GUI and RU/HY).
+  - **5b (linking, uninstall by trace, value edits, export and import): done.** The Sandbox `trace` scenario passes (run 4, 2026-10-29 21:13; see below). Details in [trace.md](trace.md) ("Linking", "Tying", "Uninstalling by the trace", "Export and import"), [leftovers.md](leftovers.md) and [changes.md](changes.md).
+    - **Value edits:** a ChangeSet can now change one value instead of removing it (`ValueEditLocation`). The executor writes it only while the value still holds what the plan saw, and the hard floor allows exactly these edits in the known spots. Undo takes back the installer's part of `Path` and the SharedDLLs counts.
+    - **Linking:** a finished trace is linked to the program it installed by itself, or by hand. It is kept while that program is installed and for 30 days after it is uninstalled. `trace export` and `trace import` move a trace to another machine.
+    - **Uninstall by trace:**
+      - `uninstall` uses the program's trace by default (`--no-trace` leaves it out). After the uninstaller, the trace's items and value edits join the leftover review.
+      - `force` reverts a program by its trace without any uninstaller. `force --trace <id>` reverts a trace whose program's entry is gone or that was imported.
+      - Only items tied to the program are VeryGood. What existed before the install is never offered.
+    - **Containers that hold more than the trace saw:** a folder or key the installer created whole, holding since then what other programs put there (another program's handler in 7-Zip's `DragDropHandlers` key), is no longer offered whole. The trace offers the items it saw in it instead. A package's own registration (Notepad++'s sparse package) goes only through the package's removal.
+    - **Windows Sandbox,** scenario `trace` with new 5b parts:
+      - round 1 reverts `Contoso Trace Fixture` by force and undoes it, then exports, imports and reverts by `force --trace`;
+      - rounds 2 to 4 uninstall 7-Zip, Notepad++ and Inno Setup with their traces.
+      - **Tuning (2026-10-25 to 29), four runs:** 6, 11 and 1 problems, then **RESULT: PASS** (run 4, 2026-10-29 21:13).
+        - **Two product bugs** (run 1, Notepad++):
+          - During Notepad++'s install, Windows installed its compatibility fix database `{22221111-…}.sdb`, an Uninstall entry Settings lists. The trace linked it as the primary program, so `uninstall` ran `sdbinst -u` on Windows' own database. The database is now noise, and among the entries Settings lists, linking puts first the one whose install folder, uninstaller or icon is in a folder the trace created.
+          - `sdbinst` wrote into avel-cli's redirected `--json` output: Windows gives a console child the parent's standard handles even when they aren't inherited. A console uninstaller now gets a console of its own whenever Avel's output is redirected.
+        - **Noise found by the rounds:** the user's `MrtCache` (names and logos of packages, filled by reading the inventory), Explorer's `ParseAutoexec` after an environment broadcast, the compatibility appraiser and its telemetry, Storage Sense's free-space reading, two of Explorer's empty keys, and Windows' feature configuration (`CurrentVersion\Fcon`, written by its `Flighting\FeatureConfig` tasks on their own schedule). A created folder or key that holds nothing but noise is noise too.
+        - **Scenario fixes:**
+          - a script variable shadowed by a local one (`$results`);
+          - a deleted key or value dated by the last write of the key that held it (7-Zip's `MuiCache`);
+          - the shell's records of a restored shortcut and of the file types it has seen (`UFH\SHC`, `FileExts`) are KNOWN at undo;
+          - a package's registration is KNOWN while the package stays registered. The scan offers Notepad++'s sparse package at Good, but removing a package needs `--allow-irreversible`, which the rounds don't pass.
+        - `leftovers`, `removal` and `force` pass on the final code (2026-10-29, 21:13 to 21:26).
+    - **Tests:** 398 unit tests; 393 pass on the host, and the 5 that need administrator rights run in the Sandbox (28 elevated tests pass there).
+    - **Follow-ups:**
+      - The scenario's KNOWN rule "left below the removal threshold, untied" is broad. Today only Windows' own activity falls under it, but an installer's item that linking failed to tie would pass too. It could accept only items outside the program's names, folders and keys.
+      - `LeftoverSmokeTest` sometimes exceeds its 20 s budget on the development machine (602 programs, 24 to 25 s).
+      - A console uninstaller run while avel-cli's output is redirected opens a visible console window.
+      - A created task's file in `System32\Tasks` is reported as a created file next to the task. FAT and exFAT volumes aren't listed as `untracked`; only NTFS volumes are looked at. ADR 0004 still names SQLite for trace logs.
+  - **Next: 5c** (GUI and RU/HY).

@@ -36,11 +36,18 @@ inline constexpr std::wstring_view kChangesFile = L"changes.json";
 // volume-<n>.checkpoint, for the volume at index `volume` of TraceInfo::volumes.
 std::wstring checkpoint_file(std::size_t volume);
 
+// How long a finished trace is kept once its links lead to no installed program, and an unlinked
+// one after it stopped (or was imported).
+inline constexpr std::chrono::hours kTraceRetention = std::chrono::days(30);
+
+struct KnownValues;
+
 enum class TraceError : std::uint8_t {
     None,
     AlreadyOpen,   // Another trace is starting, open or stopping
     NotFound,      // No trace has that id
     NotOpen,       // The trace is finished (or damaged while starting)
+    NotFinished,   // The trace is still starting, open or stopping
     InUse,         // Another process drives the trace (it holds its lock file)
     Damaged,       // The trace's files can't be read
     WriteFailed,   // A file of the trace couldn't be written
@@ -56,7 +63,7 @@ struct TraceStoreOptions {
     // Serializes creating, opening and removing traces across processes.
     std::wstring mutex_name = LR"(Global\Avel.TraceStore)";
     platform::FolderPolicy policy = platform::admin_only_folder_policy();
-    // Tests set the time traces are created at.
+    // Tests set the time traces are created at, and the time retention counts from.
     std::function<std::chrono::system_clock::time_point()> clock = [] {
         return std::chrono::system_clock::now();
     };
@@ -114,9 +121,22 @@ public:
     // trace is starting, open or stopping (a damaged `starting` one is removed first).
     std::unique_ptr<TraceFolder> create(TraceInfo& info, TraceError& error);
 
+    // Adds a finished trace recorded elsewhere (`trace import`): a new folder and id (from the
+    // store's clock, filled into `info`) with saved_values.json, changes.json, and trace.json last,
+    // as `info` says otherwise. NotFinished if `info` isn't finished; WriteFailed (the folder
+    // removed again) if a file can't be written. Allowed while another trace is open.
+    std::unique_ptr<TraceFolder> add_finished(TraceInfo& info, const TraceResult& result,
+                                              const KnownValues& saved, TraceError& error);
+
     // Holds an existing trace's folder. InUse if another process holds it, NotFound if there is
     // no such trace.
     std::unique_ptr<TraceFolder> open_folder(const std::wstring& id, TraceError& error);
+
+    // Reads a finished trace's trace.json, lets `change` edit it, and writes it back if `change`
+    // returns true; returns the trace as it is now. Fails with NotFound, InUse, Damaged,
+    // NotFinished or WriteFailed.
+    std::optional<TraceInfo> update(const std::wstring& id,
+                                    const std::function<bool(TraceInfo& info)>& change, TraceError& error);
 
     // Whether a process holds the trace's lock file.
     bool held(const std::wstring& id) const;
@@ -127,16 +147,28 @@ public:
     // Removes traces that died while starting (no process holds them) and trace folders whose
     // trace.json is gone or unreadable (folders not named like a trace, and trace.json files of
     // another schema version, are left alone), and finishes tidying finished traces whose process
-    // died before deleting their snapshot and checkpoints. A finished trace is deleted only if
-    // `keep` is set and returns false for it (retention depends on program links, 5b); open,
-    // stopping and held traces are never touched. Returns how many traces were deleted.
-    std::size_t purge(const std::function<bool(const TraceInfo&)>& keep = {});
+    // died before deleting their snapshot and checkpoints. Open, stopping and held traces are
+    // never touched. Returns how many traces were deleted.
+    //
+    // With `installed`, it also applies retention to every finished trace. `installed` says
+    // whether the trace's links lead to an installed program now, and may bring the links up to
+    // date (refresh_links in linking.h); trace.json is rewritten when the trace changed.
+    //   - Linked: the first time its links lead nowhere, `unresolved_since` is set to now (the
+    //     store's clock); once they lead somewhere again, it's cleared. kTraceRetention after
+    //     `unresolved_since`, the trace is deleted.
+    //   - Unlinked: deleted kTraceRetention after it stopped, or after it was imported.
+    std::size_t purge(const std::function<bool(TraceInfo& info)>& installed = {});
 
     std::wstring folder_of(const std::wstring& id) const { return options_.root + L"\\" + id; }
     const TraceStoreOptions& options() const { return options_; }
 
 private:
     explicit TraceStore(TraceStoreOptions options);
+
+    // A new, empty trace folder with a fresh id, its lock file held. Under the mutex.
+    std::unique_ptr<TraceFolder> new_folder(std::chrono::system_clock::time_point now, TraceError& error);
+    // Retention for one finished trace whose folder is held: true if it's to be deleted.
+    bool expired(TraceFolder& folder, TraceInfo info, const std::function<bool(TraceInfo& info)>& installed);
 
     TraceStoreOptions options_;
     wil::unique_mutex_nothrow mutex_;

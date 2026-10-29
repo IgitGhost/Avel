@@ -69,7 +69,7 @@ std::wstring describe(const TraceChange& change) {
             } else if constexpr (std::is_same_v<T, leftovers::ServiceLocation>) {
                 text += L"service " + item.name + (item.driver ? L" (driver)" : L"");
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
-                text += L"task " + item.path;
+                text += (item.folder ? L"task folder " : L"task ") + item.path;
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 text += L"firewall " + item.rule_id;
             } else {
@@ -199,6 +199,38 @@ TEST(RegistrySnapshotTest, FindsCreatedDeletedAndModifiedItems) {
                                                        LR"(deleted key HKLM\SOFTWARE\B)",
                                                        LR"(modified value HKLM\SOFTWARE : changed)",
                                                    }));
+}
+
+// What a created key holds is kept by name, so the leftover scan can tell what was added since.
+TEST(RegistrySnapshotTest, ACreatedKeyKeepsWhatItHolds) {
+    testing::ScratchKey scratch;
+    scratch.create(L"Root");
+    const std::vector roots{root_at(scratch, L"Root", kSoftware)};
+    const RegistrySnapshot snapshot = snapshot_of(roots);
+
+    next_clock_tick();
+    scratch.set_string(LR"(Root\C)", L"", L"default");
+    scratch.set_dword(LR"(Root\C\D)", L"one", 1);
+    scratch.create(LR"(Root\C\D\Empty)");
+    scratch.create(LR"(Root\E)");
+    std::vector<SnapshotDiagnostic> diagnostics;
+    const auto changes = diff_registry(snapshot, roots, {}, diagnostics);
+    EXPECT_EQ(describe(diagnostics), std::vector<std::wstring>());
+    ASSERT_EQ(changes.size(), 2u);
+    const auto& c = changes[0];
+    ASSERT_EQ(describe(c), LR"(created key HKLM\SOFTWARE\C [4])");
+    ASSERT_TRUE(c.inside.has_value());
+    const std::vector<leftovers::ContainedItem> expected = {
+        {L"", L"", false},
+        {L"D", std::nullopt, true},
+        {L"D", L"one", false},
+        {LR"(D\Empty)", std::nullopt, true},
+    };
+    EXPECT_EQ(*c.inside, expected);
+    // An empty key holds nothing, which is known too.
+    ASSERT_EQ(describe(changes[1]), LR"(created key HKLM\SOFTWARE\E)");
+    ASSERT_TRUE(changes[1].inside.has_value());
+    EXPECT_TRUE(changes[1].inside->empty());
 }
 
 TEST(RegistrySnapshotTest, RewritingAValueWithTheSameDataIsNoChange) {
@@ -454,7 +486,7 @@ TEST(RegistrySnapshotTest, ServicesTasksAndFirewallRulesAreNamed) {
     scratch.set_string(kRules, L"rule-new", L"v2.31|Action=Allow|");
     scratch.set_string(kRules, L"rule-changed", L"v2.31|Action=Block|");
     delete_value(scratch, kRules, L"rule-deleted");
-    // A task folder is no task; only keys with an Id are.
+    // Keys with an Id are tasks; the others task folders, reported apart from their tasks.
     scratch.set_string(std::wstring(kTaskCache) + LR"(\Tree\Contoso\Updater)", L"Id", L"{2}");
     scratch.set_dword(std::wstring(kTaskCache) + LR"(\Tree\Contoso\Updater)", L"Index", 3);
     scratch.set_string(std::wstring(kTaskCache) + LR"(\Tree\Solo)", L"Id", L"{3}");
@@ -468,6 +500,7 @@ TEST(RegistrySnapshotTest, ServicesTasksAndFirewallRulesAreNamed) {
                   L"created firewall rule-new",
                   L"modified firewall rule-changed",
                   L"deleted firewall rule-deleted",
+                  LR"(created task folder \Contoso [3])",
                   LR"(created task \Contoso\Updater [2])",
                   LR"(created task \Solo [1])",
               }));

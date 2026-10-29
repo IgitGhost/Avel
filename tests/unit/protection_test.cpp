@@ -4,6 +4,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "core/leftovers/protection.h"
 #include "core/platform/known_folders.h"
@@ -132,6 +133,137 @@ TEST(HardFloorTest, GuardsWindowsTasks) {
     const HardFloor floor = fixture_floor();
     EXPECT_EQ(floor.check(TaskLocation{LR"(\Microsoft\Windows\Defrag\ScheduledDefrag)"}), Reason::WindowsTask);
     EXPECT_EQ(floor.check(TaskLocation{LR"(\Contoso\Updater)"}), Reason::None);
+    // Task folders: the root and Windows' own never go.
+    EXPECT_EQ(floor.check(TaskLocation{LR"(\Contoso)", true}), Reason::None);
+    EXPECT_EQ(floor.check(TaskLocation{LR"(\Contoso\Nested)", true}), Reason::None);
+    for (const auto* path : {L"", L"\\", L"\\Microsoft", L"\\microsoft", L"\\Microsoft\\Windows"}) {
+        EXPECT_EQ(floor.check(TaskLocation{path, true}), Reason::WindowsTask) << platform::to_utf8(path);
+    }
+}
+
+TEST(HardFloorTest, GuardsTheTaskSchedulersOwnKeys) {
+    const HardFloor floor = fixture_floor();
+    constexpr wchar_t kTaskCache[] = LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache)";
+    for (const auto* suffix : {L"", LR"(\Tree\Contoso)", LR"(\Tree\Contoso\Updater)", LR"(\Tasks\{0E4D5C66})",
+                               LR"(\Plain\{0E4D5C66})"}) {
+        EXPECT_EQ(floor.check(key(Hive::Machine, kTaskCache + std::wstring(suffix))), Reason::CoreRegistryKey)
+            << platform::to_utf8(suffix);
+    }
+    EXPECT_EQ(
+        floor.check(value(Hive::Machine, kTaskCache + std::wstring(LR"(\Tree\Contoso\Updater)"), L"Id")),
+        Reason::CoreRegistryKey);
+    EXPECT_EQ(floor.check(
+                  key(Hive::Machine, LR"(SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCacheX)")),
+              Reason::None);
+}
+
+TEST(HardFloorTest, GuardsWhatWindowsKeepsForRegisteredPackages) {
+    const HardFloor floor = fixture_floor();
+    constexpr wchar_t kPackage[] = L"NotepadPlusPlus_1.0.0.0_neutral__7njy0v32s6xk6";
+    const std::wstring local_settings = LR"(Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion)";
+    for (const std::wstring& path : std::vector<std::wstring>{
+             LR"(Classes\PackagedCom)", LR"(Classes\PackagedCom\Package\)" + std::wstring(kPackage),
+             LR"(Classes\PackagedCom\ClassIndex\{B298D29A-A6ED-11DE-BA8C-A68E55D89593}\)" + std::wstring(kPackage),
+             LR"(Classes\ActivatableClasses\Package\)" + std::wstring(kPackage),
+             LR"(Classes\Extensions\ContractId\Windows.Launch\PackageId\)" + std::wstring(kPackage),
+             local_settings + LR"(\AppModel\Repository\Packages\)" + kPackage,
+             local_settings + LR"(\AppContainer\Mappings\S-1-15-2-1-2-3)",
+             LR"(Classes\AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9\Shell\Open)",
+         }) {
+        EXPECT_EQ(floor.check(key(Hive::User, L"Software\\" + path)), Reason::PackageRegistration)
+            << platform::to_utf8(path);
+        EXPECT_EQ(floor.check(key(Hive::Machine, L"SOFTWARE\\" + path)), Reason::PackageRegistration)
+            << platform::to_utf8(path);
+        EXPECT_EQ(floor.check(value(Hive::User, L"Software\\" + path, L"DllPath")), Reason::PackageRegistration)
+            << platform::to_utf8(path);
+    }
+    constexpr wchar_t kCurrentVersion[] = LR"(Software\Microsoft\Windows\CurrentVersion)";
+    for (const auto* below : {LR"(\AppHost\IndexedDB\Contoso_abc)", LR"(\BackgroundAccessApplications\Contoso_abc)"}) {
+        const std::wstring path = kCurrentVersion + std::wstring(below);
+        EXPECT_EQ(floor.check(key(Hive::User, path)), Reason::PackageRegistration) << platform::to_utf8(path);
+    }
+    for (const auto* path : {LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\AppModel\StateChange)",
+                             LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore)",
+                             LR"(SOFTWARE\Microsoft\SecurityManager\CapAuthz\ApplicationsEx\Contoso_abc)",
+                             LR"(SOFTWARE\Microsoft\SecurityManager)",  // An ancestor
+                             LR"(SOFTWARE\Classes\WOW6432Node\PackagedCom)"}) {
+        EXPECT_EQ(floor.check(key(Hive::Machine, path)), Reason::PackageRegistration) << platform::to_utf8(path);
+    }
+    // A package's ProgID named in a file type's list goes with the package too; others' don't.
+    EXPECT_EQ(floor.check(value(Hive::User, LR"(Software\Classes\.txt\OpenWithProgids)",
+                                L"AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9")),
+              Reason::PackageRegistration);
+    EXPECT_EQ(floor.check(value(Hive::User, LR"(Software\Classes\.txt\OpenWithProgids)", L"Contoso.Text")),
+              Reason::None);
+    // Their ancestors may not go either, but a value in one isn't the package's; nor are look-alikes.
+    EXPECT_EQ(floor.check(key(Hive::User, LR"(Software\Classes\Extensions)")), Reason::PackageRegistration);
+    EXPECT_EQ(floor.check(value(Hive::User, LR"(Software\Classes\Extensions)", L"Contoso")), Reason::None);
+    for (const auto* path : {LR"(Software\Classes\PackagedComX)", LR"(Software\Classes\Contoso.Document)",
+                             LR"(Software\Classes\AppXShort)", LR"(Software\Contoso\Classes\PackagedCom)",
+                             LR"(Software\Classes\Directory\shellex\DragDropHandlers\Contoso)"}) {
+        EXPECT_EQ(floor.check(key(Hive::User, path)), Reason::None) << platform::to_utf8(path);
+    }
+}
+
+ValueEditLocation edit_of(platform::RegistryAddress key, std::wstring name, ValueEditKind kind) {
+    return {std::move(key), std::move(name), kind, std::nullopt, std::nullopt, {}, 0};
+}
+
+TEST(HardFloorTest, AllowsValueEditsOnlyInTheEnvironmentAndSharedDlls) {
+    const HardFloor floor = fixture_floor();
+    const RegistryAddress machine{Hive::Machine, L"",
+                                  LR"(SYSTEM\CurrentControlSet\Control\Session Manager\Environment)"};
+    const RegistryAddress user{Hive::User, L"S-1-5-21-1-2-3-1001", L"Environment"};
+    const RegistryAddress shared{Hive::Machine, L"",
+                                 LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\SharedDLLs)"};
+    const RegistryAddress shared32{Hive::Machine, L"",
+                                   LR"(SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\SharedDLLs)"};
+    const auto check = [&](const RegistryAddress& key, const wchar_t* name, ValueEditKind kind) {
+        return floor.check(edit_of(key, name, kind));
+    };
+    // The environment: lists lose entries, a created variable goes, a changed one comes back.
+    EXPECT_EQ(check(machine, L"Path", ValueEditKind::RemovePathEntries), Reason::None);
+    EXPECT_EQ(check(machine, L"PATHEXT", ValueEditKind::RemovePathEntries), Reason::None);
+    EXPECT_EQ(check(user, L"Path", ValueEditKind::RemovePathEntries), Reason::None);
+    EXPECT_EQ(check(user, L"Path", ValueEditKind::DeleteValue), Reason::None);
+    EXPECT_EQ(check(machine, L"CONTOSO_HOME", ValueEditKind::DeleteValue), Reason::None);
+    EXPECT_EQ(check(machine, L"CONTOSO_THEME", ValueEditKind::RestoreValue), Reason::None);
+    EXPECT_EQ(check(machine, L"PYTHONPATH", ValueEditKind::DeleteValue), Reason::None);
+    // ... but never Windows' own variables, the machine's lists as a whole, or a count.
+    EXPECT_EQ(check(machine, L"Path", ValueEditKind::DeleteValue), Reason::NotEditable);
+    EXPECT_EQ(check(machine, L"Path", ValueEditKind::RestoreValue), Reason::NotEditable);
+    EXPECT_EQ(check(user, L"PATHEXT", ValueEditKind::RestoreValue), Reason::NotEditable);
+    EXPECT_EQ(check(machine, L"PYTHONPATH", ValueEditKind::RestoreValue), Reason::NotEditable);
+    EXPECT_EQ(check(machine, L"ComSpec", ValueEditKind::RestoreValue), Reason::NotEditable);
+    EXPECT_EQ(check(user, L"TEMP", ValueEditKind::DeleteValue), Reason::NotEditable);
+    EXPECT_EQ(check(machine, L"windir", ValueEditKind::RemovePathEntries), Reason::NotEditable);
+    EXPECT_EQ(check(machine, L"CONTOSO_HOME", ValueEditKind::DecrementSharedDll), Reason::NotEditable);
+    // SharedDLLs: counts go down, or go.
+    for (const auto& key : {shared, shared32}) {
+        EXPECT_EQ(check(key, LR"(C:\Shared\x.dll)", ValueEditKind::DecrementSharedDll), Reason::None);
+        EXPECT_EQ(check(key, LR"(C:\Shared\x.dll)", ValueEditKind::DeleteValue), Reason::None);
+        EXPECT_EQ(check(key, LR"(C:\Shared\x.dll)", ValueEditKind::RestoreValue), Reason::NotEditable);
+        EXPECT_EQ(check(key, LR"(C:\Shared\x.dll)", ValueEditKind::RemovePathEntries), Reason::NotEditable);
+    }
+    // Anywhere else, nothing: other keys, other control sets, a user's classes or volatile environment.
+    for (const auto& key :
+         {RegistryAddress{Hive::Machine, L"", LR"(SOFTWARE\Contoso)"},
+          RegistryAddress{Hive::Machine, L"", LR"(SYSTEM\ControlSet001\Control\Session Manager\Environment)"},
+          RegistryAddress{Hive::Machine, L"", LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Run)"},
+          RegistryAddress{Hive::Machine, L"", L"Environment"},
+          RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001_Classes", L"Environment"},
+          RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001", L"Volatile Environment"},
+          RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001",
+                          LR"(Software\Microsoft\Windows\CurrentVersion\SharedDLLs)"}}) {
+        for (const auto kind : {ValueEditKind::RemovePathEntries, ValueEditKind::DecrementSharedDll,
+                                ValueEditKind::DeleteValue, ValueEditKind::RestoreValue}) {
+            EXPECT_EQ(floor.check(edit_of(key, L"Contoso", kind)), Reason::NotEditable)
+                << platform::to_utf8(platform::display_path(key));
+        }
+    }
+    // The other layer has nothing to say about edits.
+    const ProtectedPolicy policy({LR"(C:\Users\me\AppData\Roaming)"});
+    EXPECT_EQ(policy.check(edit_of(machine, L"Path", ValueEditKind::RemovePathEntries)), Reason::None);
 }
 
 TEST(HardFloorTest, LiveFloorGuardsThisMachine) {

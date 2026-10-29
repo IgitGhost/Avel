@@ -5,13 +5,16 @@
 #include <format>
 #include <string>
 
+#include "cli/command_options.h"
 #include "cli/console.h"
 #include "cli/leftover_output.h"
 #include "cli/program_lookup.h"
+#include "cli/trace_use.h"
 #include "core/inventory/inventory.h"
 #include "core/leftovers/scan.h"
 #include "core/platform/elevation.h"
 #include "core/platform/text.h"
+#include "core/tracker/trace_source.h"
 #include "core/version.h"
 
 namespace avel::cli {
@@ -24,6 +27,7 @@ using Json = nlohmann::ordered_json;
 
 constexpr std::string_view kUsage =
     "Usage: avel-cli scan <program>... | --all [--deep] [--json] [--min-level <level>] [--all-levels] [--timing]\n"
+    "                     [--no-trace]\n"
     "  <program>            an id from `avel-cli list --json`, or an exact display name\n"
     "  --all                every program Settings > Apps lists\n"
     "  --deep               also search every fixed drive for folders named after them (administrator)\n"
@@ -31,59 +35,17 @@ constexpr std::string_view kUsage =
     "  --min-level <level>  questionable (default), good or very-good\n"
     "  --all-levels         also show unlikely matches (confidence \"bad\")\n"
     "  --timing             show how long each stage took\n"
-    "Shows what the programs would leave behind if their uninstallers removed nothing.\n"
+    "  --no-trace           leave out what the programs' install traces recorded\n"
+    "Shows what the programs would leave behind if their uninstallers removed nothing. With\n"
+    "administrator rights, a program's install trace adds what it saw the installer create.\n"
     "Read-only: nothing is changed. Run as administrator to include other users' data.\n";
-
-struct Options {
-    std::vector<std::wstring> programs;
-    bool all = false;
-    bool deep = false;
-    bool json = false;
-    bool timing = false;
-    Confidence min_level = Confidence::Questionable;
-};
-
-bool parse_level(std::wstring_view text, Confidence& level) {
-    if (text == L"questionable") {
-        level = Confidence::Questionable;
-    } else if (text == L"good") {
-        level = Confidence::Good;
-    } else if (text == L"very-good") {
-        level = Confidence::VeryGood;
-    } else {
-        return false;
-    }
-    return true;
-}
 
 }  // namespace
 
 int run_scan_command(const std::vector<std::wstring_view>& arguments) {
-    Options options;
-    for (std::size_t i = 0; i < arguments.size(); ++i) {
-        const auto argument = arguments[i];
-        if (argument == L"--all") {
-            options.all = true;
-        } else if (argument == L"--deep") {
-            options.deep = true;
-        } else if (argument == L"--json") {
-            options.json = true;
-        } else if (argument == L"--timing") {
-            options.timing = true;
-        } else if (argument == L"--all-levels") {
-            options.min_level = Confidence::Bad;
-        } else if (argument == L"--min-level" && i + 1 < arguments.size() &&
-                   parse_level(arguments[i + 1], options.min_level)) {
-            ++i;
-        } else if (argument.starts_with(L"--")) {
-            print_error(kUsage);
-            return 2;
-        } else {
-            options.programs.emplace_back(argument);
-        }
-    }
-    if (options.all == !options.programs.empty()) {
-        print_error(kUsage);
+    ScanCommandOptions options;
+    if (const auto error = parse_scan_options(arguments, options)) {
+        print_error(error->message + (error->usage ? std::string(kUsage) : std::string()));
         return 2;
     }
 
@@ -99,9 +61,19 @@ int run_scan_command(const std::vector<std::wstring_view>& arguments) {
         return 2;
     }
 
+    // A program's install trace shows what its installer created (the trace store is
+    // administrators' only, so an unelevated scan doesn't see it).
+    std::unique_ptr<tracker::TraceStore> traces;
+    std::optional<tracker::StoreTraceSource> trace_source;
+    if (options.trace && platform::is_process_elevated() && (traces = open_trace_store_for("scan"))) {
+        trace_source.emplace(*traces, inventory);
+    }
     std::vector<leftovers::ScanTarget> targets;
     for (const auto* program : programs) {
         targets.push_back(leftovers::make_scan_target(*program));
+        if (trace_source) {
+            trace_source->add_trace(*program, targets.back());
+        }
     }
     const leftovers::LiveEnvironment environment;
     const auto result =
@@ -112,8 +84,10 @@ int run_scan_command(const std::vector<std::wstring_view>& arguments) {
         root["avel_version"] = kVersionString;
         root["elevated"] = platform::is_process_elevated();
         Json scanned = Json::array();
-        for (const auto* program : programs) {
-            scanned.push_back({{"id", to_utf8(program->id)}, {"name", to_utf8(program->display_name)}});
+        for (std::size_t i = 0; i < programs.size(); ++i) {
+            scanned.push_back({{"id", to_utf8(programs[i]->id)},
+                               {"name", to_utf8(programs[i]->display_name)},
+                               {"trace", trace_id_json(targets[i])}});
         }
         root["programs"] = std::move(scanned);
         root.update(leftovers_to_json(result, options.min_level));

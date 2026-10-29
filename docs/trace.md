@@ -16,14 +16,19 @@ the system after the installation with the system before it.
 How traces are stored and what the snapshot holds is decided in
 [ADR 0006](adr/0006-trace-folders-registry-snapshot.md).
 
-Phase 5a, described here, records and reports. Linking a trace to the program it installed,
-uninstalling by the trace, undoing value edits, and export and import come in 5b; the GUI comes in 5c.
+Phase 5a records and reports. Phase 5b links a finished trace to the program it installed, keeps
+it as long as that program is installed, ties its items to the program, moves traces between
+machines (export and import), and uninstalls by the trace: after the program's uninstaller, or
+instead of it (Avel Force), with the installer's edits to `Path` and `SharedDLLs` taken back
+exactly. The GUI comes in 5c.
 
 ```
 start:  journal positions --> known values --> registry snapshot --> state "open" (all on disk)
 open:   while an Avel process drives the trace, the journals are read every 2 s (checkpoints)
 stop:   last read --> "stopping" --> file changes --> registry diff --> known values diff
         --> noise filter --> changes.json --> "complete" or "incomplete"
+then:   inventory --> links (trace.json) --> retention
+remove: tying (before the uninstaller) --> leftover scan (Scanner::Trace) --> ChangeSet --> retention
 ```
 
 ## What a trace reports
@@ -40,8 +45,11 @@ Each change is one `TraceChange` (`trace.h`):
 Its location is the one the rest of Avel uses (`leftovers::Location`), so a trace item can go
 through the same protection, review and ChangeSet as a leftover: a file or folder, a registry key
 or value, or, for what the registry diff recognizes, a service, a driver, a scheduled task or a
-firewall rule. Created folders and keys carry `contents`, the number of items created inside them;
-only the outermost created item is listed.
+firewall rule. Created folders and keys carry `contents`, the number of items created inside them,
+and `inside`, which ones by name (up to 10,000; beyond that, or when some couldn't be read or
+resolved, only the count is kept); only the outermost created item is listed. The leftover scan
+offers a created folder or key whole only while it holds no more than `inside` (see
+[leftovers.md](leftovers.md), "Install traces").
 
 Every change also carries a noise reason, `none` for what the installer did (see "The noise
 filter"). Values in the known spots are reported apart, as known-value changes with their exact
@@ -217,15 +225,16 @@ larger. At 48 MB, compressing the file wasn't needed.
   and the known values share these hives (`UserHiveCache`).
 - Children are merged by name everywhere: a parent's LastWriteTime isn't something to rely on.
 - Values are read only where a key's LastWriteTime changed, and compared by type and hash.
-- A created key is one item, whose `contents` counts the subkeys and values inside it. A deleted
-  key is one item too. A key the snapshot couldn't read is reported as `key-unreadable-at-start`.
+- A created key is one item, whose `contents` counts the subkeys and values inside it, and whose
+  `inside` names them (a created service's key keeps only the count). A deleted key is one item
+  too. A key the snapshot couldn't read is reported as `key-unreadable-at-start`.
 
 **Mapping to Avel's locations:**
 
 | Change | Location |
 |---|---|
 | A key created directly under `Services` | `service`, or `driver` when its `Type` is a kernel, file system or recognizer driver |
-| A key created under `TaskCache\Tree` | a `task` for every key in it with an `Id` value; task folders aren't listed. The task's keys under `TaskCache\Tasks`, `Plain`, `Logon`, `Boot` and `Maintenance` aren't listed apart |
+| A key created under `TaskCache\Tree` | a `task` for every key in it with an `Id` value, and a `task-folder` (a `task` with `folder` set) for every other key: a created task folder, removed only once empty. The task's keys under `TaskCache\Tasks`, `Plain`, `Logon`, `Boot` and `Maintenance` aren't listed apart |
 | A value under `FirewallPolicy\FirewallRules` | `firewall-rule`, named by the value (report-only, like everywhere in Avel) |
 | A value under either `SharedDLLs` key | a known-value change, never a raw value |
 | Anything else | `registry-key` or `registry-value` |
@@ -262,9 +271,9 @@ displays it, and it is never offered for removal.
 
 | Reason | Examples |
 |---|---|
-| `system-activity` | `System Volume Information`, `Config.Msi`; in the Windows folder `Prefetch`, `Logs`, `SoftwareDistribution`, `AppReadiness`, `appcompat\Programs` and `pca`, `setupapi` and ngen logs, the performance counters' files (`perf?###.dat`, `PerfStringBackup.INI`, WMI's `WmiApRpl` and `wbem\Performance`), AppLocker's policy, Windows' own tasks (`System32\Tasks\Microsoft\Windows`), `LogFiles`, `winevt\Logs`, `sru`, `catroot2`, the WMI repository and the hive files; service accounts' caches; ProgramData's Defender, WER, Search, Diagnosis and delivery folders; users' notification and shell caches, packaged apps' caches, WebView2 data and crash dumps, the shell's app index, PowerShell's startup cache, crypt32's caches in `LocalLow`. Keys: `Tracing`, `Cryptography\RNG`, `AuthRoot`, `SQMClient`, `PolicyManager`, Windows Update, Windows Search, the Microsoft account's `IdentityCRL`, Windows Security's own state, WMI's provider tracing, performance adapter and `DREDGE`, BITS, WER, `Diagnostics`, `Reliability`, Group Policy, `Installer\InProgress`, packages' state (`Appx`, `AppModel`), `Prefetcher`, notifications, the Task Scheduler's lists of tasks by id and Windows' own tasks in `TaskCache\Tree\Microsoft\Windows`; network services (`Tcpip*`, `Dhcp`, `NlaSvc`, `iphlpsvc`), `W32Time`, Defender, update and delivery services, VSS's and DsmSvc's state, and every service's volatile `Enum` subkey; per user: Search, notifications, Content Delivery Manager and `IrisService`, Security and Maintenance, Compatibility Assistant, `IdentityCRL` and `AuthCookies`, the Start menu's `CloudStore`, packages' state and the resource strings cache (`Local Settings\MuiCache`) |
+| `system-activity` | `System Volume Information`, `Config.Msi`; in the Windows folder `Prefetch`, `Logs`, `SoftwareDistribution`, `AppReadiness`, `appcompat\Programs` and `pca`, the compatibility appraiser's data and working files (`System32\appraiser`, `appcompat\appraiser` and `UA`), Windows' own compatibility fix database, which it downloads and installs by itself (`appcompat\cloudsdb*`, `apppatch\drvpatch.sdb` and its `{22221111-1111-1111-1111-111111111111}.sdb` in `apppatch\CustomSDB`), `setupapi` and ngen logs, the performance counters' files (`perf?###.dat`, `PerfStringBackup.INI`, WMI's `WmiApRpl` and `wbem\Performance`), AppLocker's policy, Windows' own tasks (`System32\Tasks\Microsoft\Windows`), `LogFiles`, `winevt\Logs`, `sru`, `catroot2`, the WMI repository and the hive files; service accounts' caches and PowerShell's startup cache; ProgramData's Defender, WER, Search, Diagnosis and delivery folders, and Windows' software identification tag of itself (`regid.1991-06.com.microsoft_Windows-*.swidtag`); users' notification and shell caches, packaged apps' caches, WebView2 data and crash dumps, the shell's app index, PowerShell's startup cache, crypt32's caches in `LocalLow`. Keys: `Tracing`, `Cryptography\RNG`, `AuthRoot`, `SQMClient`, `PolicyManager`, Windows Update, Windows Search, the Microsoft account's `IdentityCRL`, Windows Security's own state, WMI's provider tracing, performance adapter and `DREDGE`, BITS, WER, `Diagnostics`, `Reliability`, Group Policy, `Installer\InProgress`, packages' state (`Appx`, `AppModel`), `Prefetcher`, notifications, the compatibility appraiser and its telemetry (`AppCompatFlags\Appraiser`, `TelemetryController`, `TargetVersionUpgradeExperienceIndicators` and its `Shared` twin, `AvTracking`), the fix database's `InstalledSDB` key and its Uninstall entry (by its id; a program's own database has another), Windows' settings from the cloud (`CurrentVersion\OneSettings`), Windows' feature configuration (`CurrentVersion\Fcon`: the usage of its staged features, which every process reports and Windows writes there on its own schedule), WMI's decoupled providers, the Malicious Software Removal Tool's `RemovalTools\MRT`, the Task Scheduler's lists of tasks by id and Windows' own tasks in `TaskCache\Tree\Microsoft\Windows`; network services (`Tcpip*`, `Dhcp`, `NlaSvc`, `iphlpsvc`, the network broker's `NCBKapiNlmCache`), `W32Time`, Defender, update and delivery services, VSS's and DsmSvc's state, and every service's volatile `Enum` subkey; per user: Search, notifications, Content Delivery Manager and `IrisService`, Security and Maintenance, Compatibility Assistant, `IdentityCRL` and `AuthCookies`, the Start menu's `CloudStore`, packages' state, the resource strings cache (`Local Settings\MuiCache`), packages' resolved names and logos (`Local Settings\MrtCache`), Restart Manager's sessions, the shell's notifications of apps newly added to startup (`RunNotification`) and its `Explorer\PrelaunchErrorWatcher`, and Storage settings' cache of folder sizes (`StorageSense\Parameters\CachedSizes`) |
 | `user-activity` | The Recycle Bin; users' INetCache, WebCache, History, Explorer caches, `Recent`, browser profiles (Edge, Chrome, Firefox's cache). Keys: `UserAssist`, `RecentDocs`, `FeatureUsage`, `ComDlg32`, `RunMRU`, `TypedPaths`, Explorer's `Bags` and `BagMRU` |
-| `temporary` | Windows' `Temp` and `SystemTemp`, each user's `Temp`, packaged apps' `TempState` |
+| `temporary` | Windows' `Temp` and `SystemTemp`, servicing's `CbsTemp`, each user's `Temp`, packaged apps' `TempState` |
 | `avel` | `%ProgramData%\Avel`, the folder Avel runs from, `$Avel.Quarantine`, `Software\Avel` |
 | `metadata-only` | A file or folder whose attributes, times, security or extended attributes changed, and nothing else (set by the journal's reasons, not by a rule) |
 | `unresolved` | A file whose path couldn't be found |
@@ -272,8 +281,19 @@ displays it, and it is never offered for removal.
 Some values change by themselves in keys that otherwise hold real data: `ProfileList`'s load and
 unload times, a scheduled task's `DynamicInfo`, the last performance counter numbers, Windows
 Security noting a product's registration moved, BITS making itself start delayed, the Game Bar's
-revision of its list of games, and the shell's count of association changes
-(`Explorer\GlobalAssocChangedCounter`, which announcing a change of file associations bumps).
+revision of its list of games, the shell's count of association changes
+(`Explorer\GlobalAssocChangedCounter`, which announcing a change of file associations bumps),
+Explorer's answer to an environment change being announced (a user's `Winlogon\ParseAutoexec`,
+seen after Avel's own `Path` edits), Storage Sense's last reading of the system volume's free
+space (`StorageSense\BootVolFreeCap`), and Windows' fix database being installed (in
+`AppCompatFlags`: `drvpatch.sdb`, `PatchDbUpdateTickCount` and its `.sdb` by id, also in
+`AppCompatFlags\Custom\<program>`).
+
+**A created folder or key that holds nothing but noise** (by `TraceChange::inside`) is noise too,
+with its first item's reason: it was made to hold that, as a user's `AppCompatFlags` is for the
+Compatibility Assistant's records, `RemovalTools` for MRT's key, and an
+`AppCompatFlags\Custom\<program>` key for the fix database's value. One that holds anything else,
+or nothing, or whose contents are only counted, isn't.
 
 **Never noise,** whatever else matches: Explorer's `MuiCache`, `StartupApproved` and `App Paths`,
 which a program's removal relies on. Services, tasks and firewall rules are never noise either.
@@ -284,7 +304,7 @@ item and everything below it; the first rule that matches gives the reason. Mach
 `WOW6432Node` twins, and a user's classes match through `<sid>_Classes` as well as
 `Software\Classes`. A user's rules follow their folders: the profile `ProfileList` names and the
 shell folders in their hive. The
-Sandbox's idle round tunes the list.
+Sandbox's rounds tune the list: what Windows did by itself during their installs and removals.
 
 ## Install and trace (`installer_watch`, `install_trace`)
 
@@ -371,7 +391,7 @@ serializes processes, and a process that drives a trace holds its `lock` file op
 
 | File | Holds | Kept |
 |---|---|---|
-| `trace.json` | State, mode, description, command, times, stop reason, volumes with their journal positions, registry counts and diagnostics, the watch's result, counts. Replaced atomically on every update | Always |
+| `trace.json` | State, mode, description, command, times, stop reason, volumes with their journal positions, registry counts and diagnostics, the watch's result, counts; the links, retention's `unresolved_since`, and for an imported trace where it came from. Replaced atomically on every update | Always |
 | `registry.snapshot` | The registry at the start | Until the trace is finished |
 | `saved_values.json` | The known spots' values at the start | After stop, only the values that changed |
 | `volume-<n>.checkpoint` | Each volume's position and what was read from it | Until the trace is finished |
@@ -383,13 +403,175 @@ under way), `complete`, or `incomplete` (a volume or part of the registry couldn
 
 **Rules:**
 - Only one trace can be starting, open or stopping at a time.
-- Every `avel-cli trace` command first tidies the store (`purge`). It removes traces that died
+- Every `avel-cli trace` command first tidies the store (`purge()`). It removes traces that died
   while starting and trace folders whose `trace.json` is missing or unreadable, and finishes
   deleting the snapshot and checkpoints of finished traces whose process died before it could. It
   touches only folders named like traces, leaves a `trace.json` of another schema version alone,
   and never touches a trace that is open, stopping or held.
-- Finished traces are kept until `trace delete`. Retention by program links comes with linking in
-  5b: a trace is kept while its program is installed, then 30 days after it's uninstalled.
+- **Retention** (`purge(installed)`, counted by the store's clock, which tests set): a finished
+  trace is kept while its program is installed, then 30 days (`kTraceRetention`) after it's
+  uninstalled.
+  - A linked trace: `installed` (`refresh_links`) says whether any link leads to an installed
+    program, and brings the links up to date. The first time none does, `unresolved_since` is
+    set; when one does again, it's cleared, so an undo that restores the program restores the
+    trace's link. The trace is deleted 30 days after `unresolved_since`.
+  - An unlinked trace is deleted 30 days after it stopped, or after it was imported.
+  - Open, stopping and held traces are never purged. `trace delete` deletes a trace at once.
+- **Where retention runs.** Like the ChangeStore's 30-day purge, it runs when the store is opened
+  for work, but it needs the inventory: the trace commands that read the inventory anyway
+  (`stop`, `run`, `list`, `show`, `link`, `import`) apply it once they have it, after linking. An
+  inventory that found no programs at all is no evidence of an uninstall, so retention is skipped
+  then. `uninstall` and `force` apply it right after they removed programs, with a fresh
+  inventory, so an uninstalled program's trace starts its 30 days then (otherwise at the next of
+  these commands); the GUI (5c) applies it at startup too.
+
+## Linking (`linking`)
+
+Once a trace has stopped (`trace stop`, `trace run`, and the stop of a resumed trace), it is linked
+to the programs it installed: the inventory is taken (without packaged apps) and `link_trace`
+writes the links to `trace.json`.
+
+**Candidates** (`link_candidates`), from the changes that aren't noise:
+- the Uninstall keys the trace created, machine-wide (64-bit and `WOW6432Node`) and per user, and
+  created keys that hold the Uninstall key itself (a user's first per-user install creates it);
+- Uninstall keys that existed, in which a value or subkey changed (an upgrade);
+- the product codes of Windows Installer products it registered: its `Installer\Products` and
+  `Features` keys (also below `UserData\<sid>`), and Uninstall keys named after a product code.
+
+**Matching** (`find_links`), each inventory entry once: first by its Uninstall key
+(`uninstall::uninstall_key_address`) at or in a created key, then by a changed key, then by its
+product code. The primary link, first in the list, is preferably an entry Settings lists; among
+those, one whose files the installer laid down (its install folder, or else its uninstaller or
+icon, is in a folder the trace created); then by how it was found, then in the inventory's order.
+A Burn bundle's entry is thus the primary, and its hidden MSI packages follow. An entry that only
+registered meanwhile isn't: in the Sandbox, Windows installed its compatibility fix database (an
+Uninstall entry Settings lists, now noise anyway) while Notepad++ installed, and Notepad++'s entry
+records no folder, only its uninstaller and icon in the one the trace created.
+
+**A link** (`TraceLink`) keeps the program's id, name, publisher, version, Uninstall key, product
+code and install folder, how it was found (`created-key`, `changed-key`, `product-code`, `manual`)
+and whether it's primary.
+
+**Finding the program again** (`resolve_link`): the entry with the same id, then the one at the
+same Uninstall key, then the one of the same product code. Failing those (a major upgrade moved it
+to a new key and product code), carefully: the one entry with the same name once versions are
+stripped, of the same user, and with the same publisher or install folder; of several, only the one
+Settings lists. `refresh_links` then brings the link up to date with it, so it follows the
+program from upgrade to upgrade. `resolve_trace_program` gives a trace's program (its primary link,
+or else the first other link that resolves), and `traces_of` the finished traces of a program,
+newest first.
+
+**By hand,** `trace link <id> <program>` (`add_manual_link`) links a finished trace to an installed
+program, found by id or exact name as `uninstall` finds it. The link becomes the primary one;
+linking again automatically keeps it first.
+
+## Tying (`trace_items`)
+
+`tie_trace_items` marks each change of a trace that isn't noise as tied to its program or not,
+with the reason. The leftover scan uses it (uninstalling by the trace): only tied items get the
+strongest evidence, so nothing else the trace saw is pre-checked. The program is given as its
+`leftovers::ScanTarget` plus its icon's folder (`program_places`), captured while it's installed.
+
+| Reason | Round | The item |
+|---|---|---|
+| `install-folder`, `uninstaller-folder`, `icon-folder` | 0 | Is the entry's install folder, the folder of its uninstaller or of its icon (outside the Windows folder), or lies in it. A folder as broad as Program Files, a profile or a drive root is nobody's own |
+| `uninstall-key` | 0 | Is the entry's Uninstall key, or lies in it |
+| `msi-registration` | 0 | Windows Installer's keys for its product code (`Installer\Products` and `Features`, `UserData\<sid>\Products`, Burn's `Dependencies`), and its value in an `UpgradeCodes` or `Components` key |
+| `named-after-program`, `named-after-publisher` | 0 | A created root (folder, file, key, value, service or task) whose name matches the program's or publisher's, as the leftover scan matches names |
+| `inside-tied` | 1 to 3 | Lies inside an item tied in an earlier round |
+| `references-tied` | 1 to 3 | Holds a value that references an item tied in an earlier round or one of the entry's folders: a path (`referenced_paths`, or the value as a path), or the name of a tied class (a `CLSID\{...}` key's GUID, a ProgID key's name) |
+
+Three rounds follow a COM registration's chain: a CLSID whose server is in the install folder
+(round 1), a ProgID naming that CLSID (2), a file type naming the ProgID (3). The strings an item
+holds are read live: a value's, every string value in a created key and its subkeys, a service's
+`ImagePath` and `ServiceDll`, a task's commands (the Task Scheduler), a firewall rule's program. So
+tying happens before the program's uninstaller runs. Each result names its change by its index in
+`TraceResult::changes`, and the item it lies in or references (`via`).
+
+## Uninstalling by the trace (`trace_source`)
+
+A program's trace is used whenever Avel removes or previews it, in two modes:
+
+| Mode | Command | What happens |
+|---|---|---|
+| 1, the default | `uninstall` | The program's uninstaller runs. Then the trace's items join the leftover scan: what the uninstaller left of what the installer created, at the top confidence when tied, and the edits that take back its changes to `Path` and `SharedDLLs`. They are reviewed, or removed with `--remove-leftovers`, like any leftover |
+| 2, Avel Force | `force <program>`, `force --trace <id>` | No uninstaller runs. The program is reverted by the trace: its items and value edits join the forced removal's plan ([force.md](force.md)) |
+
+`scan` previews it: what would be removed if the uninstaller removed nothing, the traced items
+with their evidence.
+
+**The trace of a program** is its newest finished trace whose links lead to it now (`traces_of`).
+`tracker::StoreTraceSource` is the leftover scan's `TraceSource` ([leftovers.md](leftovers.md),
+"Install traces"): it reads the trace's result, ties its items to the program (live, so the CLI
+captures its targets before the uninstallers run), and reads each saved value as it is then, so a
+`SharedDLLs` count the uninstaller lowers itself isn't lowered again. Noise never leaves the trace.
+
+**`force --trace <id>`** takes one trace, whatever became of its program: an imported trace, or one
+whose Uninstall key is gone (a broken uninstaller that removed its entry and nothing else). While a
+link leads to an installed program, it is that program's target. Otherwise the target is made from
+what the primary link last recorded (`recorded_places`): its name and publisher, install folder,
+Uninstall key (and so a per-user program's owner) and product code, with the program id
+`trace:<id>`. An unlinked trace has only its description for a name. The items are tied to that.
+
+**What is offered:**
+- only items the installer created that are still there, never what existed before (modified,
+  deleted or renamed items, and its other edits to existing values, such as a changed `Theme`);
+- tied items at VeryGood (`traced-install-root`); untied ones at Questionable (`traced-created`),
+  or Good when named like the program, so noise is never checked by the default preset;
+- value edits: `undo` (the installer's `Path` entries out of the live value, its `SharedDLLs`
+  increment taken off, a variable it created deleted) at Good, VeryGood when it names something in
+  the program's folder; `restore` (a variable it changed, put back) at Questionable;
+- HardFloor and ProtectedPolicy as everywhere: what the installer created in the Windows folder,
+  `Package Cache` or `HKLM\SYSTEM` (EventLog sources, say) stays. Firewall rules are shown, never
+  removed; drivers are shown only.
+
+**Retention.** After `uninstall` and `force` removed programs, the store's retention runs with a
+fresh inventory, so the trace of a program that is gone starts its 30 days.
+
+**JSON.** The `leftover_scan` object of `uninstall`, `force` and `scan` has a `traces` array, one
+object per program whose trace was used: `program_id`, `trace_id`, `items` (the reported
+leftovers with the trace's evidence, value edits aside), `tied`, `value_edits`, `gone` (created
+items no longer there), `shown_only` (changes to what existed before), `protected`, `split` and
+`split_into` (created folders and keys holding more than the trace saw in them, and the items it
+saw in them offered in their place), and `values` (`key`, `name`, `basis`). Each item's evidence
+names the trace's part (`traced-install-root` with the tie's reason as its detail,
+`traced-created`, `traced-value-undo`, `traced-value-restore`, `shared-dll-still-used`,
+`container-holds-more`), and value edits are items of kind `value-edit`, found by `trace`. Besides,
+`uninstall`'s `results[]`, and `force`'s and `scan`'s `programs[]`, say which trace a program used
+(`"trace": "<id>"`, or `null`). A removal's `leftover_removal` lists the value edits' outcomes like
+any item's (`skipped` with `changed` when the value changed since the scan).
+
+`--no-trace` (`uninstall`, `force`, `scan`) leaves the traces out. The trace store is
+administrators' only, so an unelevated `scan` doesn't see it.
+
+## Export and import (`trace_export`)
+
+`trace export <id> <file>` writes a finished trace as one JSON file:
+
+```json
+{ "format": "avel-trace", "schema_version": 1, "avel_version": "0.5.0", "exported": "2026-10-25T10:00:00Z",
+  "users": [ { "sid": "S-1-5-21-...", "profile": "C:\\Users\\Alice" } ],
+  "trace": { ... }, "changes": { ... }, "saved_values": { ... } }
+```
+
+`trace`, `changes` and `saved_values` are the store's `trace.json` (links included),
+`changes.json` and `saved_values.json`, exactly. `users` are the users the trace's changes (noise
+left out) and known values belong to, with their profile folders there. The saved values include
+environment values (`Path` and the variables the installer changed, before and after), so export
+warns about them on stderr.
+
+`trace import <file>` adds the trace to the store as a new, finished trace, marked imported (the
+time, its id there) and allowed while another trace is open:
+- **Users.** When the trace holds a single user whose profile folder is known, their items move to
+  the importing user: registry items and known values from their SID to the importing user's,
+  paths and string values from their profile folder to the importing user's (whole names only).
+  Otherwise nothing is moved, and each user gets the diagnostic `user-not-remapped`.
+- **Links** are resolved again (`relink`): links that lead to an installed program here are
+  brought up to date, the others are kept (retention counts from the import), and entries the
+  changes name that no link has yet are added.
+- **Refused,** with exit code 1 and nothing imported: a file that isn't JSON or lacks a part, one
+  that isn't an `avel-trace` export, one of another schema version, and a trace that was never
+  finished.
 
 ## Limits
 
@@ -418,6 +600,15 @@ under way), `complete`, or `incomplete` (a volume or part of the registry couldn
   The trace can compare them after the user signed out, since it loads `UsrClass.dat` itself, but
   the leftover scan and the executor reach that path only while the user is signed in.
 - **Firewall rules** are reported, never removed, even when traced.
+- **Untied items stay unchecked.** Uninstalling by the trace offers what nothing ties to the
+  program at Questionable (Good when named like it), so an installer's items that neither lie in
+  its folders and keys nor name or reference them stay unless the user checks them.
+- **Tying reads the live system.** References are read from the registry and the Task Scheduler
+  when tying runs; keys of users who are signed out aren't read, and shortcuts' targets aren't
+  resolved (a shortcut is tied by its name or folder). A key under Windows Installer's
+  `UpgradeCodes` that the trace created whole isn't tied: it names the product only by a value's
+  name. `msiexec`, or Force's Windows Installer cleanup, removes it. (A created `Components` key is
+  tied when its value, the component's key path, is in a tied folder.)
 
 ## The CLI (`avel-cli trace`)
 
@@ -427,6 +618,9 @@ avel-cli trace stop   [--json]
 avel-cli trace run    [--description <text>] [--timeout <seconds>] [--json] -- <installer> [<args>...]
 avel-cli trace list   [--json]
 avel-cli trace show   <id> [--all] [--json]
+avel-cli trace link   <id> <program> [--json]
+avel-cli trace export <id> <file>
+avel-cli trace import <file> [--json]
 avel-cli trace cancel
 avel-cli trace delete <id>
 ```
@@ -443,8 +637,9 @@ avel-cli trace delete <id>
   1. It records each volume's journal position, saves the known values and takes the registry
      snapshot, which takes a few seconds.
   2. It returns while the trace stays open. The trace survives restarts.
-- **`stop`:** finishes the open trace and prints the result. It also finishes a trace that
-  `run` left open for a restart, or whose process was killed.
+- **`stop`:** finishes the open trace, links it to the programs it installed, and prints the
+  result. It also finishes a trace that `run` left open for a restart, or whose process was
+  killed.
 - **`run`:** launches the installer and decides by itself when the installation is over:
   - the installer has exited;
   - its helper processes have exited (another program it started counts for 10 seconds only);
@@ -452,24 +647,37 @@ avel-cli trace delete <id>
   - all of that has held for 5 seconds, with no new process;
   - the journal has settled.
 
-  It then stops the trace and prints the result. A program the installer launches at the end ("Run X now") doesn't hold the trace; it's listed under `left_running`.
+  It then stops the trace, links it, and prints the result. A program the installer launches at the end ("Run X now") doesn't hold the trace; it's listed under `left_running`.
   - Everything after `--` is the installer's command line. A `.msi` runs through `msiexec /i`.
   - The first Ctrl+C stops the trace at once and leaves the installer running.
   - A second Ctrl+C also ends the installer.
   - `--timeout` stops the trace that long after the launch (stop reason `timed-out`) and leaves the installer running.
   - If the installer asks for a restart (exit code 3010 or 1641), the trace stays open: restart, then run `trace stop`.
   - If the installer can't be started, the trace is discarded and `run` exits 1.
-- **`list`:** shows every trace, newest first.
-- **`show`:** prints a trace's result. Noise is hidden unless `--all` is given. For a trace that
-  isn't finished, only the trace itself.
+- **`list`:** shows every trace, newest first, with its primary link (`-> 7-Zip 24.08 (x64)`,
+  `(uninstalled)` once retention found it gone) and `(imported)`.
+- **`show`:** prints a trace's result. Noise is hidden unless `--all` is given. While its program
+  is installed, each item tied to it is marked (`[tied: install-folder]`). For a trace that isn't
+  finished, only the trace itself.
+- **`link`:** links a finished trace to an installed program by hand (its id or exact name); it
+  becomes the trace's primary link.
+- **`export`:** writes a finished trace to a file (see "Export and import"). A warning on stderr
+  says how many environment values it includes.
+- **`import`:** adds an exported trace and prints it. A note on stderr names each user whose items
+  were left as they were.
 - **`cancel`:** discards the open trace, or one that died while starting.
 - **`delete`:** deletes a finished trace.
+- `stop`, `run`, `list`, `show`, `link` and `import` read the inventory (a second or two) and
+  apply retention.
 
 ```
 avel-cli trace run --description "7-Zip" -- C:\Installers\7z.msi /qn
 avel-cli trace start --description "Tool X"     # then install it, by hand or as another user
 avel-cli trace stop
 avel-cli trace show 20261023-210501-1a2b3c4d --all
+avel-cli trace link 20261023-210501-1a2b3c4d "Tool X"
+avel-cli trace export 20261023-210501-1a2b3c4d D:\tool-x.trace.json
+avel-cli trace import D:\tool-x.trace.json      # on another machine
 ```
 
 ### JSON
@@ -494,11 +702,18 @@ avel-cli trace show 20261023-210501-1a2b3c4d --all
     "registry": { "keys": 312004, "values": 801233, "snapshot_ms": 1840, "diff_ms": 410 },
     "watch": { "end": "installer-done", "exit_code": 0, "reboot_requested": false,
                "left_running": [ { "pid": 4242, "image": "C:\\Program Files\\X\\x.exe" } ] },
-    "counts": { "changes": 12, "noise": 85 }
+    "counts": { "changes": 12, "noise": 85 },
+    "links": [ { "program_id": "reg:HKLM64:{23170F69-40C1-2702-2600-000001000000}", "name": "7-Zip 26.00 (x64 edition)",
+                 "publisher": "Igor Pavlov", "version": "26.00.00.0",
+                 "uninstall_key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{23170F69-40C1-2702-2600-000001000000}",
+                 "product_code": "{23170F69-40C1-2702-2600-000001000000}", "install_location": "C:\\Program Files\\7-Zip",
+                 "matched_by": "created-key", "primary": true } ],
+    "unresolved_since": null,
+    "imported": null
   },
   "changes": [
     { "change": "created", "location": { "kind": "folder", "path": "C:\\Program Files\\7-Zip" },
-      "contents": 104, "noise": "none" },
+      "contents": 104, "noise": "none", "tied": true, "tie": "install-folder" },
     { "change": "renamed", "location": { "kind": "file", "path": "C:\\x\\new.txt" },
       "old_path": "C:\\x\\old.txt", "noise": "none" },
     { "change": "modified", "location": { "kind": "registry-value", "key": "HKLM\\SOFTWARE\\X", "value": "Theme" },
@@ -530,14 +745,21 @@ avel-cli trace show 20261023-210501-1a2b3c4d --all
     - `{ "registry": "saved-values-damaged" }`: the saved values couldn't be read, so the known values weren't compared.
   - `watch`: only for traces `run` started. `end` is `installer-done`, `stopped`, `timed-out` or `launch-failed`; `exit_code` is the installer's (0 while it still runs); `reboot_requested` means it exited with 3010 or 1641; `left_running` lists its processes still running at the end (after `installer-done`, the programs it started).
   - `counts`: changes that aren't noise, and noise.
+  - `links`: the programs the trace installed, the primary one first (empty for a trace that isn't finished, or that nothing could be linked to). `uninstall_key` is a display path or `null`; `matched_by` is `created-key`, `changed-key`, `product-code` or `manual`. The fields say what the program was when it was last found, so they stay readable once it's uninstalled.
+  - `unresolved_since`: UTC time retention first found that no link leads to an installed program; `null` while one does. The trace is deleted 30 days after it.
+  - `imported`: `null`, or `{ "time", "origin_id", "remapped", "not_remapped" }` for an imported trace: when, its id where it was recorded, `{ "from_sid", "from_profile", "to_sid", "to_profile" }` when a user's items were moved (else `null`), and the SIDs whose items were left as they were.
 - **`changes`:** without `--all`, only items with `noise` = `none`. Files come first, volume by volume, then the registry, each in path order.
   - `change`: `created`, `deleted`, `modified` or `renamed`.
   - `location`: the same object `scan --json` prints, so `kind` is one of `folder`, `file`, `registry-key`, `registry-value`, `service`, `driver`, `task`, `package` or `firewall-rule`.
   - `old_path`: for `renamed`, where it was at the start.
-  - `contents`: for created folders and keys, how many items were created inside them (also for created services and tasks: the keys and values inside). Only the outermost created item is listed.
+  - `contents`: for created folders and keys, how many items were created inside them (also for created services and tasks: the keys and values inside). Only the outermost created item is listed. The store's `result.json` (and an export) also keeps `inside`, the items by name relative to it (`path`, `value` for a registry value with `path` its key, `container` for a folder or subkey); `trace show` prints only the count.
   - `replaced`: true for a modified file that a new file replaced.
   - `noise`: `none`, `system-activity`, `user-activity`, `temporary`, `avel`, `unresolved` or
     `metadata-only`.
+  - `tied` and `tie`: only while the trace's program is installed, for items that aren't noise:
+    whether the item is tied to the program, and why (`none`, `install-folder`,
+    `uninstaller-folder`, `icon-folder`, `uninstall-key`, `msi-registration`,
+    `named-after-program`, `named-after-publisher`, `inside-tied`, `references-tied`; see "Tying").
 - **`known_values`:** the values the installer changed in the known spots.
   - The known spots: the machine's and each user's `Environment`, and both `SharedDLLs` keys.
   - `spot` is `machine-environment`, `user-environment` or `shared-dlls`.
@@ -547,11 +769,12 @@ avel-cli trace show 20261023-210501-1a2b3c4d --all
 
 `list --json` prints an array of `trace` objects without `changes`. `start --json` prints
 `{ "avel_version", "trace" }` with `state` `open`. So do `run --json` when the trace stays open for a
-restart, and `show --json` for a trace that isn't finished yet.
+restart, `show --json` for a trace that isn't finished yet, and `link --json` and `import --json`
+with the trace as it was stored.
 
 ## Testing
 
-- **Unit tests** (311 in all; 306 pass on an unelevated host, and the 5 that need administrator
+- **Unit tests** (387 in all; 382 pass on an unelevated host, and the 5 that need administrator
   rights run in the Sandbox):
 
   | Test | Covers |
@@ -560,12 +783,18 @@ restart, and `show --json` for a trace that isn't finished yet.
   | `UsnLiveTest` (elevated) | A real temporary folder: net changes read and resolved, reading up to a given position, folders named by their ids |
   | `FileChangesTest`, `FileChangeCheckpointTest` | A made-up resolver: created then deleted, the kinds of replacement (an older file renamed over another, also one open since before the trace, and two swapped), metadata-only changes as noise, a file deleted while still open, one deleted that was open since before the trace, one deleted before the trace, a container's placeholders (and what only looks like them) and tombstones, renames, a renamed ancestor and a folder moved as a whole, hard links, a reused record, roots with their contents, moved-in folders, items open across the start, unknown folders; the checkpoint round trip and damage |
   | `JournalTraceTest` | Replaced, wrapped, formatted and unreadable journals, read failures, a changed drive letter, a missing volume, NTFS metadata, checkpoints |
-  | `RegistrySnapshotTest` | Scratch-key roots: created, deleted and modified keys and values, a rewrite with the same data, links not followed, odd names, the file round trip, a damaged file, one thread against eight, services, tasks and firewall rules, churn and nested roots left out (packages' and the Start menu's state read), keys that deny access, a missing root |
+  | `RegistrySnapshotTest` | Scratch-key roots: created, deleted and modified keys and values, what a created key holds by name, a rewrite with the same data, links not followed, odd names, the file round trip, a damaged file, one thread against eight, services, tasks and firewall rules, churn and nested roots left out (packages' and the Start menu's state read), keys that deny access, a missing root |
   | `RegistrySnapshotSmokeTest` | The live `HKLM\SOFTWARE` and current user, read-only: sizes and times, and an immediate comparison that finds almost nothing |
   | `KnownValuesTest` | Added, changed and deleted values, unreadable keys left out, exact JSON |
-  | `NoiseFilterTest` | Each user's own folders, Windows' folders, keys and self-changing values, what the Sandbox's idle round found Windows keeping up to date, Avel's own, never-noise keys, rules for one user, a whole trace |
+  | `NoiseFilterTest` | Each user's own folders, Windows' folders, keys and self-changing values, what the Sandbox's idle round found Windows keeping up to date and what Windows did during its installs and removals (the compatibility appraiser, the cloud fix database, feature configuration, caches), created containers holding only noise, Avel's own, never-noise keys, rules for one user, a whole trace |
   | `InstallerWatchTest`, `InstallerHelperTest`, `WatchDeciderTest` | Real processes through `avel_test_spawner`: a program left running, a helper in Temp, a child that broke away from the job, a busy Windows Installer (injected), stopping, ending the job, the timeout, a restart request, nothing written into Avel's own output, refused packages; which programs are helpers; the decision rules on made-up polls |
-  | `TraceStoreTest`, `TraceRecordTest` | One open trace, traces that died while starting, held traces, purge and tidying; `trace.json` and `changes.json` round trips |
+  | `TraceStoreTest`, `TraceRecordTest` | One open trace, traces that died while starting, held traces, purge and tidying; retention with a clock (unlinked, linked with the program uninstalled and back, upgraded links written back, imported traces), adding finished traces and updating them; `trace.json` (links, retention, import, a 5a file) and `changes.json` round trips |
+  | `LinkingTest` | Candidates (created, changed and whole Uninstall keys, Windows Installer's keys, noise and deleted keys left out), the matching order and the primary link (first an entry whose folder, uninstaller or icon is in a folder the trace created), finding the program again after an upgrade (by key, product code, carefully by name), links set by hand, relinking an import, the traces of a program, linking in a store |
+  | `TraceItemsTest` | Each tying rule (the entry's folders, Uninstall key and Windows Installer keys, names of the program and publisher), containment and references by path, CLSID and ProgID over three rounds and not a fourth, broad folders |
+  | `TraceScannerTest` | The leftover scan with a fake trace source (see [leftovers.md](leftovers.md), "Testing") |
+  | `StoreTraceSourceTest` | A scratch store: a program's newest trace with its items tied (noise left out) and its values read, a program without one, `force --trace`'s target with the program installed, gone (by its link) and unlinked (by its description), traces missing or not finished |
+  | `CliOptionsTest` | `--no-trace` for `uninstall`, `force` and `scan`; `force --trace` and its usage errors |
+  | `TraceExportTest` | The export file's round trip, a single user's items moved to the importing user (paths, SIDs, string values, saved values, links), several users left as they are, whole-name remapping, refused files |
   | `TraceSessionTest`, `TraceSessionLiveTest` (elevated) | Made-up journals and scratch keys: start and stop, activity, resuming from another session, draining in the background, stopping again after a crash, a damaged snapshot or checkpoint, a volume that can't be followed, cancel; and one real trace, and the live noise rules finding the current user's profile |
   | `InstallTraceTest` | The trace stops when the installation is over, stays open on a restart request, and leaves nothing when the installer can't start or the user stops first |
   | `HashTest`, `NtRegistryTest`, `RecordFoldersTest` | FNV-1a's test vectors, exact values through the native API, record ids |
@@ -589,7 +818,10 @@ restart, and `show --json` for a trace that isn't finished yet.
   between a capture and the trace (logged as KNOWN) only with evidence that it changed then, its
   creation time, its last write in the capture, its key's last write time, or a watch of the
   volume's names (`FileSystemWatcher`) that saw it go away (for a deletion) or appear (for a file
-  moved in, which keeps its creation time) then, by itself or with a folder above it. A folder
+  moved in, which keeps its creation time) then, by itself or with a folder above it. For a gone
+  key or value it is the last write time of the nearest key above it that is still there, since
+  deleting a subkey or value writes the key that held it: a user's `MuiCache\1656` went as `1657`
+  replaced it, two seconds after 7-Zip's trace stopped. A folder
   moved as a whole takes what it holds along with no name event or journal record of their own
   (Edge's component unpacker fills a folder in its Temp and moves it into place), so the folder's
   event counts only while the watch noted nothing more of the folder or the item after it. A move
@@ -611,8 +843,10 @@ restart, and `show --json` for a trace that isn't finished yet.
   | Unit | The elevated unit tests, and the user profile's | All pass, none skipped (`KeysThatDenyAccessAreUnreadable` is left out: elevated, backup intent reads every key) |
   | 0 | Idle: `trace start`, a minute with a stock app opened and closed (once before the trace too: its first launch caches its name in Explorer's `MuiCache`, never noise), `trace stop` | Complete, and nothing that isn't noise. What the trace doesn't account for fails here and is logged as KNOWN later |
   | 0b | A container's base layer: two of Windows' sounds, one deleted and one renamed after `takeown` and `icacls`, between `trace start` and `trace stop` | Exactly that deletion and rename in the folder, no tombstone reported as created; completeness and strict precision |
-  | 1 | `Contoso Trace Fixture` between `trace start` and `trace stop`: one item of every kind, plus edits to both `Path` values, a new machine variable, an existing `SharedDLLs` count raised and a new one, and an unrelated value | Completeness, strict precision, every expected item (the program's folder as one item), and the known values' exact bytes |
+  | 1 | `Contoso Trace Fixture` between `trace start` and `trace stop`: one item of every kind (a task in a new task folder among them), plus edits to both `Path` values, a new machine variable, an existing `SharedDLLs` count raised and a new one, and an unrelated value | Completeness, strict precision, every expected item (the program's folder as one item), and the known values' exact bytes |
+  | 1 (5b) | The trace's link and ties (`trace show`), `trace export`; the user adds their own `Path` entries; `force` reverts the fixture by its trace and `undo` puts it back, inside a manual watch trace. Then `trace delete`, `trace import`, `trace link`, the fixture's own uninstaller, and `force --trace` on the imported trace, undone too | Linked by itself and every item tied; Revert and Undo (below); exact `Path`, `SharedDLLs` and `CONTOSO_HOME`; the fixture's items planned, done and tied, its five value edits made, what stays never planned; the trace use's counts; the import's origin and links, the manual link primary |
   | 2-4 | 7-Zip (MSI), Notepad++ (NSIS) and Inno Setup through `trace run` | Ends by itself (`installer-done`), complete, the installer's exit code; precision exceptions are logged |
+  | 2-4 (5b) | `scan`, then `uninstall --quiet --remove-leftovers` with the trace | The trace's primary link is the sample's own entry (otherwise nothing is uninstalled), `results[].trace` names it, the trace use's counts add up, every planned item removed, Revert (below); retention starts the trace's 30 days |
   | 5 | The fixture through `trace run`, starting its app at the end | Done within 45 s, the app under `left_running` and still running |
   | 6 | A `trace run` killed while its installer runs; a journal deleted and created again during a trace | `trace stop` finishes the killed run's trace; the other ends `incomplete` with `C:` `replaced`, its registry part still reported |
 
@@ -627,6 +861,30 @@ restart, and `show --json` for a trace that isn't finished yet.
      rules are checked item by item instead.
   3. **Contents:** each created root's `contents` is compared with the oracle's lines below it
      (logged).
-
-  Rounds 1 to 5 keep their traces and captures for 5b, which removes the programs by their traces
-  and checks the result against the pre-install capture.
+  4. **Revert** (5b): every line of the oracle's diff between the capture before the install and
+     the one after the removal by the trace is judged by the install's own change (not noise) that
+     accounts for it. It must be gone, or be KNOWN: what existed before the install (never
+     offered; Theme), a firewall rule (never removed), a protected creation (in the Windows folder,
+     Package Cache, `HKLM\SYSTEM`, keys Windows relies on or packaged apps' places, restated in the
+     scenario; each line below it protected too), the user's own `Path` entries (checked exactly),
+     what the scan left below the removal threshold, listed with its level and whether it is
+     tied (never one of the fixture's own items), and a package's registration (`PackagedCom`,
+     `CapAuthz`, `AppContainer`, `AppHost\IndexedDB`, `BackgroundAccessApplications`,
+     `ProgramData\Packages`, ... restated in the scenario, which names the package by path, by a
+     key below or by an AppContainer's `Moniker`) while that package, offered by the scan, is
+     still registered and its plan left it. A package goes only with `--allow-irreversible`, so
+     Notepad++'s sparse package stays registered after `uninstall --remove-leftovers`, and its
+     registration with it; a registration whose package went fails. A line nothing of the install
+     accounts for is noise, or changed after the install (logged), unless what the removal took
+     covers it, which fails.
+  5. **Undo** (5b, round 1): `avel_state_dump` dumps before the removal and after its undo are
+     identical, and the oracle's diff between them holds only the noise of a manual trace taken
+     around the removal and the undo, the Task Scheduler's new id and file for a task registered
+     again, the Start menu's own state that the install changed too, the shell's record of the
+     fixture's shortcut made once more when the undo gave the shortcut back (a new `UFH\SHC` value
+     with the same data as the one the install made), the shell's records of the handlers it has
+     seen for file types (an empty `REG_NONE` value named after each ProgID in a user's
+     `Explorer\FileExts\<extension>\OpenWithProgids`: in run 2 it wrote them for 27 of Windows'
+     own types between a removal and its undo), and a container's base-layer item the volume's
+     journal has no record of between the captures (`Windows\PrintDialog\en-US` went from a
+     listing that way).

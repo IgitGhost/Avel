@@ -9,6 +9,7 @@
 #include "core/changes/serialization.h"
 #include "core/changes/system_items.h"
 #include "core/leftovers/environment.h"
+#include "core/leftovers/value_edits.h"
 #include "core/platform/file_ops.h"
 #include "core/platform/paths.h"
 #include "core/platform/text.h"
@@ -26,6 +27,9 @@ using leftovers::RegistryKeyLocation;
 using leftovers::RegistryValueLocation;
 using leftovers::ServiceLocation;
 using leftovers::TaskLocation;
+using leftovers::ValueEditKind;
+using leftovers::ValueEditLocation;
+using platform::RawValue;
 
 constexpr wchar_t kServicesKey[] = LR"(SYSTEM\CurrentControlSet\Services)";
 
@@ -82,20 +86,30 @@ std::function<leftovers::ProtectionReason(const Location&)> protection_for(const
     };
 }
 
-// Services and tasks first, so the files they run are free; files last.
+// Services and tasks first, so the files they run are free; then the task folders they leave
+// empty; files last.
 int phase(const Location& location) {
     return std::visit(
         [](const auto& item) {
             using T = std::decay_t<decltype(item)>;
             if constexpr (std::is_same_v<T, ServiceLocation>) return 0;
-            else if constexpr (std::is_same_v<T, TaskLocation>) return 1;
-            else if constexpr (std::is_same_v<T, PackageLocation>) return 2;
-            else if constexpr (std::is_same_v<T, RegistryValueLocation>) return 3;
-            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 4;
-            else if constexpr (std::is_same_v<T, FileLocation>) return 5;
-            else return 6;
+            else if constexpr (std::is_same_v<T, TaskLocation>) return item.folder ? 2 : 1;
+            else if constexpr (std::is_same_v<T, PackageLocation>) return 3;
+            else if constexpr (std::is_same_v<T, RegistryValueLocation>) return 4;
+            else if constexpr (std::is_same_v<T, ValueEditLocation>) return 4;
+            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 5;
+            else if constexpr (std::is_same_v<T, FileLocation>) return 6;
+            else return 7;
         },
         location);
+}
+
+// A task folder's depth: deeper folders go first, so their parents are empty by their turn.
+std::size_t folder_depth(const Location& location) {
+    const auto* task = std::get_if<TaskLocation>(&location);
+    return task && task->folder
+               ? static_cast<std::size_t>(std::count(task->path.begin(), task->path.end(), L'\\'))
+               : 0;
 }
 
 std::vector<std::size_t> execution_order(const ChangePlan& plan) {
@@ -104,9 +118,123 @@ std::vector<std::size_t> execution_order(const ChangePlan& plan) {
         order[i] = i;
     }
     std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-        return phase(plan.items[a].location) < phase(plan.items[b].location);
+        const Location& first = plan.items[a].location;
+        const Location& second = plan.items[b].location;
+        return phase(first) != phase(second) ? phase(first) < phase(second)
+                                             : folder_depth(first) > folder_depth(second);
     });
     return order;
+}
+
+bool is_environment(const platform::RegistryAddress& key) {
+    const auto spot = leftovers::value_spot(key);
+    return spot == leftovers::ValueSpot::MachineEnvironment || spot == leftovers::ValueSpot::UserEnvironment;
+}
+
+void broadcast_environment_change() {
+    DWORD_PTR result = 0;
+    ::SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"Environment"),
+                          SMTO_ABORTIFHUNG, 5000, &result);
+}
+
+bool same_value(const std::optional<RawValue>& a, const std::optional<RawValue>& b) {
+    return a.has_value() == b.has_value() && (!a || (a->type == b->type && a->data == b->data));
+}
+
+// The value as it is now; nullopt in `value` if it doesn't exist. False on any other error.
+bool read_live_value(HKEY key, const std::wstring& name, std::optional<RawValue>& value, LSTATUS& status) {
+    RawValue raw;
+    status = platform::query_raw_value(key, name, raw);
+    if (status == ERROR_FILE_NOT_FOUND) {
+        value.reset();
+        status = ERROR_SUCCESS;
+        return true;
+    }
+    if (status != ERROR_SUCCESS) {
+        return false;
+    }
+    value = std::move(raw);
+    return true;
+}
+
+// Writes `value` exactly, or deletes the value for nullopt.
+LSTATUS write_live_value(HKEY key, const std::wstring& name, const std::optional<RawValue>& value) {
+    if (!value) {
+        return ::RegDeleteValueW(key, name.c_str());
+    }
+    return platform::set_raw_value(key, RawValue{name, value->type, value->data});
+}
+
+Json edit_value_json(const std::optional<RawValue>& value) {
+    return value ? to_json(*value) : Json(nullptr);
+}
+
+bool edit_value_from(const Json& json, std::optional<RawValue>& value) {
+    if (json.is_null()) {
+        value.reset();
+        return true;
+    }
+    RawValue raw;
+    if (!from_json(json, raw)) {
+        return false;
+    }
+    value = std::move(raw);
+    return true;
+}
+
+// edit.json: the value before the edit and the value written (null where absent).
+struct EditBackup {
+    std::optional<RawValue> before;
+    std::optional<RawValue> written;
+};
+
+Json edit_backup_json(const EditBackup& backup) {
+    Json json;
+    json["before"] = edit_value_json(backup.before);
+    json["written"] = edit_value_json(backup.written);
+    return json;
+}
+
+bool edit_backup_from(const Json& json, EditBackup& backup) {
+    return json.is_object() && json.contains("before") && json.contains("written") &&
+           edit_value_from(json["before"], backup.before) && edit_value_from(json["written"], backup.written);
+}
+
+// Undo of an edit when the value isn't what was written any more: what the inverse operation
+// gives (the entries back into the list, the count raised again), or nullopt where there is none.
+// `reason` says why not.
+std::optional<std::optional<RawValue>> inverse_edit(const ValueEditLocation& edit, const EditBackup& backup,
+                                                    const std::optional<RawValue>& live, Reason& reason) {
+    reason = Reason::Changed;
+    const bool shared_dll = leftovers::value_spot(edit.key) == leftovers::ValueSpot::SharedDlls;
+    const auto count = live ? leftovers::shared_dll_count(*live) : std::nullopt;
+    switch (edit.kind) {
+        case ValueEditKind::RemovePathEntries:
+            if (live && backup.before && backup.written) {
+                if (auto value = leftovers::reinsert_path_entries(*live, *backup.before, *backup.written)) {
+                    if (same_value(value, live)) {
+                        reason = Reason::Exists;  // The entries are back already
+                        return std::nullopt;
+                    }
+                    return std::optional<RawValue>(std::move(*value));
+                }
+            }
+            return std::nullopt;
+        case ValueEditKind::DecrementSharedDll:
+        case ValueEditKind::DeleteValue:
+            if (shared_dll && count && edit.delta > 0) {
+                const std::int64_t raised = std::min<std::int64_t>(*count + edit.delta, 0xFFFFFFFF);
+                return std::optional<RawValue>(
+                    leftovers::with_shared_dll_count(*live, static_cast<std::uint32_t>(raised)));
+            }
+            if (edit.kind == ValueEditKind::DeleteValue && live) {
+                reason = Reason::Exists;  // A new value took its place
+            }
+            return std::nullopt;
+        case ValueEditKind::RestoreValue:
+            return std::nullopt;
+    }
+    return std::nullopt;
 }
 
 std::wstring reg_root_name(const platform::RegistryAddress& address) {
@@ -193,6 +321,26 @@ public:
 
     bool stopped() const { return stopped_; }
     std::uint64_t bytes() const { return bytes_; }
+
+    // An item an interrupted run finished: if it edited the environment, that run never said so.
+    void note_finished(const Location& location) {
+        if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
+            environment_changed_ = environment_changed_ || is_environment(edit->key);
+        }
+    }
+
+    // Tells the system once that environment variables changed, if this run changed any.
+    void announce_environment() {
+        if (!environment_changed_) {
+            return;
+        }
+        environment_changed_ = false;
+        if (options_.environment_changed) {
+            options_.environment_changed();
+        } else {
+            broadcast_environment_change();
+        }
+    }
 
     // Records `status`; false once the stop point is reached (the caller stops at once).
     bool record(std::size_t index, ItemStatus status) {
@@ -366,6 +514,19 @@ private:
     template <typename Finish>
     ItemResult remove_item(std::size_t index, const TaskLocation& location, ItemResult& result, Finish& finish) {
         ItemStatus failure;
+        if (location.folder) {
+            const auto folder_backup = backup_task_folder(location.path, failure);
+            if (!folder_backup) {
+                return finish(failure);
+            }
+            if (!write_json(set_.item_folder(index) + L"\\task-folder.json", to_json(*folder_backup))) {
+                return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+            }
+            if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+                return result;
+            }
+            return finish(remove_task_folder(*folder_backup));
+        }
         const auto backup = backup_task(location.path, failure);
         if (!backup) {
             return finish(failure);
@@ -397,6 +558,40 @@ private:
     template <typename Finish>
     ItemResult remove_item(std::size_t, const FirewallRuleLocation&, ItemResult&, Finish& finish) {
         return finish({ItemState::Skipped, Reason::ReportOnly, 0});
+    }
+
+    // Compare-and-set: the edit is made only while the value is exactly what was planned.
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const ValueEditLocation& location, ItemResult& result,
+                           Finish& finish) {
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        LSTATUS status = ERROR_FILE_NOT_FOUND;
+        const auto key =
+            root ? open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, false, status)
+                 : wil::unique_hkey();
+        if (!key) {
+            return finish({ItemState::Skipped, reason_for(status), static_cast<std::uint32_t>(status)});
+        }
+        std::optional<RawValue> live;
+        if (!read_live_value(key.get(), location.value_name, live, status)) {
+            return finish({ItemState::Skipped, reason_for(status), static_cast<std::uint32_t>(status)});
+        }
+        if (!same_value(live, location.expected)) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        if (!write_json(set_.item_folder(index) + L"\\edit.json",
+                        edit_backup_json({live, location.desired}))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        status = write_live_value(key.get(), location.value_name, location.desired);
+        if (status != ERROR_SUCCESS) {
+            return finish({ItemState::Failed, reason_for(status), static_cast<std::uint32_t>(status)});
+        }
+        environment_changed_ = environment_changed_ || is_environment(location.key);
+        return finish({ItemState::Done, Reason::None, 0});
     }
 
     ItemStatus restore_item(const std::wstring& folder, const FileLocation&, ItemResult& result) {
@@ -474,7 +669,15 @@ private:
         return restore_service(services.get(), backup);
     }
 
-    ItemStatus restore_item(const std::wstring& folder, const TaskLocation&, ItemResult&) {
+    ItemStatus restore_item(const std::wstring& folder, const TaskLocation& location, ItemResult&) {
+        if (location.folder) {
+            const auto json = read_json(folder + L"\\task-folder.json");
+            TaskFolderBackup backup;
+            if (!json || !from_json(*json, backup)) {
+                return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+            }
+            return restore_task_folder(backup);
+        }
         const auto json = read_json(folder + L"\\task.json");
         TaskBackup backup;
         if (!json || !from_json(*json, backup)) {
@@ -489,6 +692,40 @@ private:
 
     ItemStatus restore_item(const std::wstring&, const FirewallRuleLocation&, ItemResult&) {
         return {ItemState::RestoreSkipped, Reason::ReportOnly, 0};
+    }
+
+    // Exactly back while the value is what the edit wrote; otherwise the inverse operation, if the
+    // kind has one; otherwise left as it is.
+    ItemStatus restore_item(const std::wstring& folder, const ValueEditLocation& location, ItemResult&) {
+        const auto json = read_json(folder + L"\\edit.json");
+        EditBackup backup;
+        if (!json || !edit_backup_from(*json, backup)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        LSTATUS status = ERROR_FILE_NOT_FOUND;
+        const auto key =
+            root ? open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, true, status)
+                 : wil::unique_hkey();
+        std::optional<RawValue> live;
+        if (!key || !read_live_value(key.get(), location.value_name, live, status)) {
+            return {ItemState::RestoreFailed, reason_for(status), static_cast<std::uint32_t>(status)};
+        }
+        std::optional<RawValue> target = backup.before;
+        if (!same_value(live, backup.written)) {
+            Reason reason = Reason::Changed;
+            auto inverse = inverse_edit(location, backup, live, reason);
+            if (!inverse) {
+                return {ItemState::RestoreSkipped, reason, 0};
+            }
+            target = std::move(*inverse);
+        }
+        status = write_live_value(key.get(), location.value_name, target);
+        if (status != ERROR_SUCCESS && !(status == ERROR_FILE_NOT_FOUND && !target)) {
+            return {ItemState::RestoreFailed, reason_for(status), static_cast<std::uint32_t>(status)};
+        }
+        environment_changed_ = environment_changed_ || is_environment(location.key);
+        return {ItemState::Restored, Reason::None, 0};
     }
 
     // After a crash: was the item removed? Its backup is on disk; the system tells the rest.
@@ -545,8 +782,9 @@ private:
     }
 
     ItemStatus settle_item(const std::wstring&, const TaskLocation& location) {
-        return task_exists(location.path) ? ItemStatus{ItemState::Failed, Reason::Interrupted, 0}
-                                          : ItemStatus{ItemState::Done, Reason::None, 0};
+        const bool present = location.folder ? task_folder_exists(location.path) : task_exists(location.path);
+        return present ? ItemStatus{ItemState::Failed, Reason::Interrupted, 0}
+                       : ItemStatus{ItemState::Done, Reason::None, 0};
     }
 
     ItemStatus settle_item(const std::wstring&, const PackageLocation& location) {
@@ -558,6 +796,26 @@ private:
         return {ItemState::Skipped, Reason::ReportOnly, 0};
     }
 
+    // Done if the value is what the edit writes. Anything else counts as untouched: as it was, or
+    // changed by someone else, which undo mustn't take back.
+    ItemStatus settle_item(const std::wstring& folder, const ValueEditLocation& location) {
+        const auto json = read_json(folder + L"\\edit.json");
+        EditBackup backup;
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        if (!json || !edit_backup_from(*json, backup) || !root) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        LSTATUS status = ERROR_SUCCESS;
+        const auto key = open_key(root, location.key.path, KEY_QUERY_VALUE, false, status);
+        std::optional<RawValue> live;
+        if (!key || !read_live_value(key.get(), location.value_name, live, status) ||
+            !same_value(live, backup.written)) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        environment_changed_ = environment_changed_ || is_environment(location.key);
+        return {ItemState::Done, Reason::None, 0};
+    }
+
     ChangeSet& set_;
     const ExecuteOptions& options_;
     Roots roots_;
@@ -565,6 +823,7 @@ private:
     std::size_t records_ = 0;
     bool stopped_ = false;
     std::uint64_t bytes_ = 0;
+    bool environment_changed_ = false;
 };
 
 bool is_contained(const ChangePlan& plan, std::size_t index) {
@@ -601,6 +860,7 @@ ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteO
     }
     result.quarantined_bytes = run.bytes();
     set->write_summary(SetState::Complete, result.quarantined_bytes);
+    run.announce_environment();
     return result;
 }
 
@@ -643,6 +903,7 @@ RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vec
                    : restored > 0                      ? SetState::PartlyRestored
                                                        : SetState::Complete;
     set->write_summary(result.state, set->summary().value_or(SetSummary{}).quarantined_bytes);
+    run.announce_environment();
     return result;
 }
 
@@ -663,9 +924,12 @@ std::vector<std::wstring> recover(ChangeStore& store, const ExecuteOptions& opti
                 set->record(index, run.settle(index, set->plan().items[index]));
             } else if (state == ItemState::Pending) {
                 set->record(index, {ItemState::Skipped, Reason::Interrupted, 0});
+            } else if (state == ItemState::Done) {
+                run.note_finished(set->plan().items[index].location);
             }
         }
         set->write_summary(SetState::Complete);
+        run.announce_environment();  // The interrupted run never got to it
         recovered.push_back(summary.id);
     }
     return recovered;

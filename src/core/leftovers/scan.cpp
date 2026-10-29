@@ -82,8 +82,12 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
     };
 
     auto stage = std::chrono::steady_clock::now();
+    // The traces' value edits first, one per value for all targets: the SharedDLLs counts they
+    // leave tell which traced DLLs another program still uses.
+    const detail::TraceValuePlan trace_values = detail::plan_trace_values(environment, targets);
     std::vector<Leftover> found;
-    for (auto target : targets) {
+    for (std::size_t index = 0; index < targets.size(); ++index) {
+        ScanTarget target = targets[index];
         if (target.install_location.empty()) {
             target.install_location = detail::msi_install_folder(
                 environment, snapshots, target,
@@ -114,10 +118,38 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
         detail::scan_firewall_rules(context, found);
         detail::scan_msi_registration(context, found);
         detail::scan_deep(context, found);
+        // Last, so an item other scanners found too keeps their scanner (and its group).
+        if (!target.trace_id.empty()) {
+            TraceUse use;
+            use.program_id = target.program_id;
+            use.trace_id = target.trace_id;
+            detail::scan_trace(context, trace_values, found, use);
+            for (std::size_t i = 0; i < target.traced_values.size(); ++i) {
+                const auto& value = target.traced_values[i];
+                use.values.push_back({value.key, value.name, trace_values.bases[index][i]});
+            }
+            result.traces.push_back(std::move(use));
+        }
     }
+    detail::add_trace_value_edits(trace_values, result.targets, found);
     merge_duplicates(found);
     result.timings.push_back({"matching", since(stage)});
 
+    // The traces' counts, for the items they gave evidence to (by the programs that own them).
+    const auto count_for_traces = [&](const Leftover& item, auto&& count) {
+        const bool traced = std::any_of(item.records.begin(), item.records.end(), [](const Record& record) {
+            return is_trace_evidence(record.evidence);
+        });
+        if (!traced) {
+            return;
+        }
+        for (auto& use : result.traces) {
+            if (std::any_of(item.owner_ids.begin(), item.owner_ids.end(),
+                            [&](const std::wstring& id) { return platform::iequals(id, use.program_id); })) {
+                count(use);
+            }
+        }
+    };
     stage = std::chrono::steady_clock::now();
     for (auto& item : found) {
         ProtectionReason reason = floor.check(item.location);
@@ -128,9 +160,22 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
             result.leftovers.push_back(std::move(item));
         } else {
             ++result.protected_count;
+            count_for_traces(item, [](TraceUse& use) { ++use.protected_count; });
         }
     }
     link_containment(result.leftovers);
+    for (const auto& item : result.leftovers) {
+        const bool edit = std::holds_alternative<ValueEditLocation>(item.location);
+        const bool tied = std::any_of(item.records.begin(), item.records.end(), [](const Record& record) {
+            return record.evidence == Evidence::TracedInstallRoot;
+        });
+        count_for_traces(item, [&](TraceUse& use) {
+            ++(edit ? use.value_edits : use.items);
+            if (!edit && tied) {
+                ++use.tied;
+            }
+        });
+    }
     result.timings.push_back({"protection", since(stage)});
     result.elapsed = since(started);
     return result;

@@ -45,6 +45,8 @@ is a rename on one volume.
 | File or folder | `file.json`: where it was, where it went, every folder's attributes, times and SDDL | Renamed into quarantine through its handle (one rename for a whole folder) | Renamed back |
 | Service | Configuration, security and its registry key (`service.json`) | Stopped (up to 30 s), then `DeleteService` | `CreateService`, the key's other values merged back, security, restarted if it was running |
 | Scheduled task | Its XML and security (`task.json`, `task.xml`) | `DeleteTask` | Registered again as the principal it names |
+| Task folder | Its security (`task-folder.json`) | `DeleteFolder`, only when empty: after its tasks, deeper folders first | Created again (parents too), then given its security where it differs |
+| Value edit | The value before and the value written, raw (`edit.json`) | Written only while the value is exactly what was planned, otherwise `skipped (changed)` | Exactly back while the value is what was written; otherwise the inverse, where there is one |
 | Package | Its name (`package.json`) | `RemovePackageAsync` for the current user | Not possible |
 | Firewall rule | | Never: reported only | |
 | Driver | | Never: reported only (removing a driver can leave Windows unable to start) | |
@@ -53,6 +55,24 @@ COM classes served from the program's folder, and the shell-extension handlers a
 entries that name them, are ordinary registry items. They are removed with undo like any other,
 because they are what leave dead entries in Explorer's context menu. The plan first listed them
 as report-only; the user chose removal with undo on 2026-10-19.
+
+**Value edits** (`ValueEditLocation`, planned by `leftovers/value_edits`, see
+[leftovers.md](leftovers.md)) change a value that other programs share instead of removing it:
+they take the installer's entries out of `Path`, lower a SharedDLLs count by its increment, delete
+a variable it created, or restore one it changed. Each edit carries the value it expects and the
+value it writes, both raw, and HardFloor allows them only in the machine's and each user's
+`Environment` and the two SharedDLLs keys.
+- **Compare-and-set.** The value is read right before the edit; if it isn't byte for byte what the
+  plan expected (the user added an entry since, another program raised the count), the edit is
+  skipped as `changed` and nothing is written.
+- **Undo.** While the value is still what the edit wrote, the old value goes back exactly.
+  Otherwise the inverse is applied to the value as it is now: removed entries go back into the
+  list after the entry that preceded them (unless they are there already), and a count is raised
+  by what was taken off. A restored or deleted variable has no inverse: it stays as the user left
+  it (`restore-skipped (changed)` or `(exists)`).
+- **Broadcast.** After a run, an undo or a recovery that changed an environment variable,
+  `WM_SETTINGCHANGE "Environment"` is sent once (`ExecuteOptions::environment_changed`, which tests
+  replace), so Explorer and new processes see the change.
 
 **Exactness.** Values are read and written through `NtEnumerateValueKey`, `NtQueryValueKey` and
 `NtSetValueKey`. The Win32 calls may add a terminator to a string value that was stored without
@@ -80,15 +100,17 @@ exactly as recorded.
   - drivers;
   - services other services depend on;
   - services running as an account with a password, which undo couldn't restore.
-- Tasks that store a password are skipped.
+- Tasks that store a password are skipped, and task folders that aren't empty (`not-empty`).
+- A value edit never overwrites a value that changed since it was planned (`changed`).
 - Packages registered for other users are skipped.
 
 ## Running a plan
 
 `execute(store, plan, options)` does the following:
 1. **Creates the set** and writes its plan.
-2. **Orders the items:** services first, then tasks, packages, registry values, registry keys,
-   and files last. A service or task stops using its files before they move.
+2. **Orders the items:** services first, then tasks, task folders (deepest first), packages,
+   registry values and value edits, registry keys, and files last. A service or task stops using
+   its files before they move, and a task folder is empty by its turn.
 3. **Skips an item inside another planned item** (`contained`); it goes with its container.
 4. **Checks each item again** right before it changes:
    - HardFloor;
@@ -118,7 +140,11 @@ process. It looks at each item that was backed up but not finished:
 |---|---|---|---|
 | File or folder | `failed (interrupted)`: untouched | `done` | `partial`: some files moved |
 | Registry key | `failed` if identical to the backup, `partial` otherwise | `done` | |
-| Value, service, task, package | `failed (interrupted)` | `done` | |
+| Value, service, task, task folder, package | `failed (interrupted)` | `done` | |
+
+A value edit is `done` if the value is what the edit writes, and `failed (interrupted)` otherwise
+(untouched, or changed by someone else since, which undo mustn't take back). If the interrupted
+run had edited the environment, recovery sends the broadcast it never got to.
 
 Items never reached are marked `skipped (interrupted)`. After that the set is complete and can
 be undone like any other.
@@ -190,6 +216,14 @@ be undone like any other.
   with protected, contained, report-only, irreversible and missing items. It is removed and
   undone exactly; it is undone item by item; and it is killed after every single journal record
   (14 crash points), recovered and undone, each time back to the original.
+- **Value edits (`executor_value_edit_test.cpp`, `value_edits_test.cpp`).** A traced install's
+  edits in scratch keys standing in for the environment and SharedDLLs, planned from their values
+  before and after it: removed and undone exactly; skipped when a value changed after planning;
+  undone by the inverse when the user edited a value after the removal; killed after every record
+  (11 crash points), recovered and undone; the broadcast hook called once, and only for the
+  environment. The planner's cases are in [leftovers.md](leftovers.md).
+- **Serialization (`serialization_test.cpp`):** every location kind through JSON, value edits with
+  raw values and names UTF-8 can't carry, the task-folder flag, and malformed edits refused.
 - **Windows Sandbox (`tests/sandbox`, scenario `removal`):**
   - `Contoso Fixture` leaves one leftover of every kind behind, and `avel_state_dump` dumps them.
   - Uninstall with `--remove-leftovers` must remove all of them and Notepad++'s sparse package,

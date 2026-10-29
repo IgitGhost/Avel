@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "core/leftovers/value_edits.h"
 #include "core/platform/registry_address.h"
 #include "core/platform/user_profiles.h"
 #include "program_text.h"
@@ -77,11 +78,27 @@ QString LeftoverText::kindLabel(const leftovers::Location& location, leftovers::
             } else if constexpr (std::is_same_v<T, leftovers::ServiceLocation>) {
                 return item.driver ? tr("Driver (shown only)") : tr("Service");
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
-                return tr("Scheduled task");
+                return item.folder ? tr("Scheduled task folder") : tr("Scheduled task");
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
                 return tr("Package");
-            } else {
+            } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return tr("Firewall rule");
+            } else {
+                static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
+                using leftovers::ValueEditKind;
+                if (leftovers::value_spot(item.key) == leftovers::ValueSpot::SharedDlls) {
+                    return tr("Shared DLL reference count");
+                }
+                switch (item.kind) {
+                    case ValueEditKind::RemovePathEntries:
+                        return tr("Entries in an environment variable");
+                    case ValueEditKind::RestoreValue:
+                        return tr("Environment variable to restore");
+                    case ValueEditKind::DecrementSharedDll:
+                    case ValueEditKind::DeleteValue:
+                        break;
+                }
+                return tr("Environment variable");
             }
         },
         location);
@@ -104,8 +121,12 @@ QString LeftoverText::locationText(const leftovers::Location& location) {
                 return toQString(item.path);
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
                 return toQString(item.full_name);
-            } else {
+            } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return toQString(item.rule_id);
+            } else {
+                static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
+                return registryText(item.key) + u" : "_s +
+                       (item.value_name.empty() ? tr("(Default)") : toQString(item.value_name));
             }
         },
         location);
@@ -153,6 +174,16 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
             return tr("The program's Uninstall entry");
         case Evidence::InstallerRegistration:
             return tr("Windows Installer's registration of the program");
+        case Evidence::TracedInstallRoot:
+            return tr("Created by the program's installer, in its own folders or keys (install trace)");
+        case Evidence::TracedValueUndo:
+            return tr("Takes back exactly what the program's installer changed (install trace)");
+        case Evidence::TracedCreated:
+            return tr("Created during the installation, but not tied to the program (install trace)");
+        case Evidence::TracedValueRestore:
+            return tr(
+                "Puts back the value from before the installation; "
+                "the new one may be wanted (install trace)");
         case Evidence::ExplicitConnection:
             return tr("Named in the program's registration");
         case Evidence::PathReference:
@@ -185,10 +216,15 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
             return tr("In another user's profile");
         case Evidence::QuestionableDirectoryName:
             return tr("Generic name, such as “data” or “config”");
+        case Evidence::ContainerHoldsMore:
+            return tr(
+                "Holds more than the installer put in it, which may be another program's (install trace)");
         case Evidence::StartupIsRunOnce:
             return tr("Runs only once (RunOnce)");
         case Evidence::DirectoryStillUsed:
             return tr("Another installed program uses this folder");
+        case Evidence::SharedDllStillUsed:
+            return tr("Another program still uses this shared DLL, or one inside it");
         case Evidence::StoreApp:
             return tr("Store app data, which Windows manages itself");
     }
@@ -352,6 +388,10 @@ QString LeftoverText::reasonText(Reason reason) {
             return tr("its backup is missing");
         case Reason::Error:
             return tr("an error occurred");
+        case Reason::Changed:
+            return tr("the value has changed since");
+        case Reason::NotEmpty:
+            return tr("the folder isn't empty");
     }
     return {};
 }

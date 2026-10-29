@@ -74,6 +74,11 @@ Run `InventorySmokeTest.PlansTheRemovalOfEveryListedProgram` to see this breakdo
 - Job notifications aren't guaranteed to arrive, so the job's process count is also polled.
 - Processes that explicitly ask to break away may do so; blocking them breaks some installers.
 - The job doesn't kill anything if Avel exits.
+- When Avel's standard output or error goes somewhere other than a console (`avel-cli --json`
+  redirected by a script), the uninstaller gets a console of its own. Windows gives a console
+  program that shares its parent's console the parent's standard handles, so a console uninstaller
+  would write into Avel's output: in the Sandbox, `sdbinst -u` put "Uninstallation of ...
+  complete." ahead of the JSON. From a console, and from the GUI, nothing changes.
 
 **Checking the result.**
 - The uninstaller's exit code isn't trusted on its own. Avel checks whether the program is still

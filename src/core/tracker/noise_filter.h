@@ -66,7 +66,9 @@ NoiseReason classify_value(const NoiseRules& rules, const platform::RegistryAddr
                            std::wstring_view value_name);
 
 // Sets TraceChange::noise on every change whose noise is None, by its location: files, keys and
-// values. Services, tasks, firewall rules and packages are never noise; Unresolved stays.
+// values. A created folder or key that holds nothing but noise (TraceChange::inside) is noise too,
+// with its first item's reason. Services, tasks, firewall rules and packages are never noise;
+// Unresolved stays.
 void apply_noise(const NoiseRules& rules, std::vector<TraceChange>& changes);
 
 }  // namespace avel::tracker
