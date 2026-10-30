@@ -35,7 +35,10 @@ cmake --build --preset release --target update_translations  # refresh src\app\i
   `GTEST_SKIP` when unelevated and run inside the Sandbox scenarios instead.
 - Unit tests must never change the system. Registry tests work in a volatile key under
   `HKCU\Software\Avel.Tests`, and file tests in temporary folders.
-- CI (`.github/workflows/ci.yml`) configures, builds and tests the release preset.
+- CI (`.github/workflows/ci.yml`) configures, builds and tests the release preset. Its runners
+  are elevated, so the admin-only tests run there too, and their TEMP holds 8.3 names
+  (`RUNNER~1`). A fixture whose paths are compared with the engine's, which expands short names,
+  goes under `testing::long_temp_directory()` (`tests/unit/temp_root.h`).
 
 ## Windows Sandbox (destructive end-to-end tests)
 

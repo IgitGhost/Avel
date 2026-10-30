@@ -21,6 +21,7 @@
 #include "core/leftovers/scan.h"
 #include "core/platform/text.h"
 #include "scratch_registry.h"
+#include "temp_root.h"
 
 namespace avel::leftovers {
 namespace {
@@ -34,7 +35,8 @@ class LeftoverScanTest : public ::testing::Test {
 protected:
     void SetUp() override {
         com_ = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        root_ = fs::temp_directory_path() / (L"avel-test-" + std::to_wstring(::GetCurrentProcessId()) + L"-leftovers");
+        root_ = testing::long_temp_directory() /
+                (L"avel-test-" + std::to_wstring(::GetCurrentProcessId()) + L"-leftovers");
         fs::remove_all(root_);
         install_ = path(LR"(PF\Contoso\Fixture)");
 

@@ -11,6 +11,7 @@
 
 #include "core/leftovers/orphans.h"
 #include "scratch_registry.h"
+#include "temp_root.h"
 
 namespace avel::leftovers {
 namespace {
@@ -23,7 +24,7 @@ constexpr wchar_t kOther[] = L"S-1-5-21-1-2-3-1002";
 class OrphansTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        root_ = fs::temp_directory_path() /
+        root_ = testing::long_temp_directory() /
                 (L"avel-test-" + std::to_wstring(::GetCurrentProcessId()) + L"-orphans");
         fs::remove_all(root_);
         for (const auto* folder : {

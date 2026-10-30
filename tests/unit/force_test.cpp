@@ -16,6 +16,7 @@
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/processes.h"
+#include "temp_root.h"
 #include "test_spawner.h"
 
 namespace avel::force {
@@ -29,7 +30,7 @@ using leftovers::ScanTarget;
 class ForceTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        root_ = fs::temp_directory_path() /
+        root_ = testing::long_temp_directory() /
                 (L"avel-test-" + std::to_wstring(::GetCurrentProcessId()) + L"-force");
         fs::remove_all(root_);
         fs::create_directories(root_ / LR"(Contoso\Fixture\bin)");

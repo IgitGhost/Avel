@@ -66,6 +66,7 @@ add_executable(avel_core_tests
     unit/related_entries_test.cpp
     unit/scratch_registry.h
     unit/serialization_test.cpp
+    unit/temp_root.h
     unit/test_spawner.h
     unit/text_test.cpp
     unit/trace_export_test.cpp
