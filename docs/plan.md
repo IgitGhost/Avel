@@ -102,7 +102,7 @@ D:\Avel\
 │  ├─ leftovers/        scanners + ConfidenceEngine + ProtectedPolicy
 │  ├─ changes/          ChangeSet, RegistryBackup, Quarantine, RestorePoint, UndoJournal, RebootOps
 │  ├─ tracker/          RegistrySnapshot, UsnJournalReader, TraceSession, NoiseFilter, TraceStore
-│  ├─ tools/            StartupManager, AppxBloat, BrowserExtensions, WindowsFeatures, OrphanFinder
+│  ├─ tools/            startup, windows_apps, windows_features, browser_extensions (Phase 6)
 │  └─ storage/          SQLite wrapper + schema migrations (%ProgramData%\Avel\avel.db)
 ├─ src/cli/             avel-cli.exe: list | uninstall | scan | force | trace | undo  (--json, --dry-run)
 ├─ src/app/             avel.exe (Qt Widgets): models/ views/ dialogs/ widgets/(HunterTarget) i18n/(avel_en.ts, avel_ru.ts, avel_hy.ts)
@@ -157,15 +157,16 @@ D:\Avel\
     - Apply noise filters (Temp, Prefetch, logs, browser caches, Avel's own files).
   - Save the trace as a folder of JSON files under `%ProgramData%\Avel\Traces` (not SQLite; see [ADR 0006](adr/0006-trace-folders-registry-snapshot.md)) and link it automatically to the inventory entry through the new Uninstall key that appears in the diff.
   - Traced items get top confidence at uninstall time. Trace logs can be exported and imported.
-- **Avel Tools:**
-  - **Startup manager:** Run keys, Startup folders, scheduled tasks and services. "Disable" works the way Task Manager does it, via the `StartupApproved` keys.
-  - **Windows apps:** remove per user or for all users, plus deprovisioning, with a protected list.
-  - **Windows features and capabilities:** via DismAPI.
+- **Avel Tools** (Phase 6; decisions of 2026-10-31 in the Status section):
+  - **Startup manager:** Run and RunOnce keys, Startup folders, scheduled tasks with logon or boot triggers, and auto-start services not from Microsoft, for every user. "Disable" works the way Task Manager does it, via the `StartupApproved` keys (tasks: their Enabled flag; services: their start type); "Delete" goes through the ChangeSet.
+  - **Windows apps:** soft removal by default (for the chosen users, the package kept staged so undo re-registers it offline); deep removal (deprovisioned, all users) only on request, undone by reinstalling from the Store or winget. Critical packages are never offered; a data list gives an "often removed" preset.
+  - **Windows features and capabilities:** via DismAPI, enable and disable, undone by the inverse operation.
   - **Browser extensions:**
-    - List Chromium and Firefox extensions.
+    - List Chromium and Firefox extensions of every profile.
     - Remove policy-forced and externally registered ones, the stubborn kind. Their keys live under `Policies\...\ExtensionInstallForcelist` and `Software\Google\Chrome\Extensions`.
-    - For the rest, open the browser's own extensions page.
-  - **Orphan finder:** Program Files folders with no registration.
+    - For the rest, open the browser's own extensions page; profiles' `Preferences` are never edited.
+  - **State changes in the ChangeSet:** disabling, start types and features change an item's state instead of removing it; the set records the state before and after, and undo puts the old one back only while the item is still as Avel left it.
+  - **Orphan finder:** Program Files folders with no registration (done in Phase 4b, `leftovers/orphans`).
 
 ### Performance design (answer to "how do I make it run fast")
 - **Instant startup:** ~~show the cached inventory from SQLite right away, then refresh in the background and reconcile~~. Superseded: a full scan takes about 0.1 s, so there is no cache (see [ADR 0003](adr/0003-no-inventory-cache.md)).
@@ -469,4 +470,16 @@ D:\Avel\
     - **Follow-ups:**
       - Windows' update scan 15 minutes after logon fell between the GUI round's removal and its undo in both runs. Should it fall during the removal or the undo instead, its random COM classes would fail the undo check.
       - `LeftoverSmokeTest` exceeded its 20 s budget on the host again (23 s for 598 programs, 20.6 s of it in matching; see 5b).
-- **Next: Phase 6 (Avel Tools).**
+- **Phase 6 (Avel Tools): planned, in four sub-phases.** Plan approved 2026-10-31; nothing implemented yet.
+  - **User decisions (2026-10-31, asked interactively):**
+    - **Sub-phases by tool,** each a vertical slice (core, CLI, GUI, RU/HY, a Sandbox scenario, docs, one commit): **6a** Startup manager; **6b** Windows apps, and Windows features and capabilities; **6c** browser extensions; **6d** Steam and Epic sources.
+    - **Startup manager, "Task Manager plus":** Run and RunOnce (machine 64/32-bit and every user), the Startup folders, scheduled tasks with logon or boot triggers, and auto-start services not from Microsoft. Disable as Task Manager does (`StartupApproved`; a task's Enabled flag; a service's start type), delete through the ChangeSet, everything undoable. Winlogon, AppInit_DLLs, shell extensions, IFEO and drivers aren't in scope.
+    - **Windows apps:** soft removal by default (the chosen users; the package stays staged or provisioned, so undo re-registers it offline); deep removal (deprovisioned, all users) as a separate option, undone only by reinstalling from the Store or winget. Critical packages (Store, App Installer, the shell's hosts, Settings, frameworks) are never offered, semi-critical ones with a warning; an "often removed" preset from a data list; nothing checked by default.
+    - **Windows features and capabilities:** both, through DismAPI; undo is the inverse operation; a capability that may need Windows Update to come back is marked; pending restarts are shown.
+    - **Browser extensions:** every extension of every Chromium-family (Chrome, Edge, Brave, Vivaldi, Opera, Chromium) and Firefox profile is listed; only the policy-forced and externally registered ones are removed, with undo; the rest get "open the extensions page". Profiles' `Preferences` are never edited.
+    - **Games:** Steam and Epic as inventory sources (list, uninstall through the client, leftovers). Not GOG, EA, Ubisoft or Battle.net.
+    - **GUI:** separate non-modal windows from the Tools menu (Startup, Windows apps, Windows features, Browser extensions); games are a category of the program list.
+  - **Groundwork (start of 6a):** ChangeSet *state changes* (ADR 0007): new location kinds for a `StartupApproved` value, a task's Enabled flag and a service's start type (6b adds package modes and Windows features), each recording the state before and after and undone only while the item is still as Avel left it. A `src/core/tools` module. Writable loading of signed-out users' hives for their changes. Authenticode signer reading (`platform/signature`), which nothing does yet.
+  - **6b starts with a spike** (ADR 0008): removing a package for one other user, re-registering it as undo, deprovisioning, and which DismAPI operations work offline in the Sandbox.
+  - **Sandbox scenarios:** `startup`, `apps`, `features`, `extensions` and a games round (fake Steam and Epic libraries: no client can be installed offline, so uninstall reports the missing client and Avel Force removes the game).
+- **Next: 6a** (Startup manager), on a branch `phase6a` from `main`.
