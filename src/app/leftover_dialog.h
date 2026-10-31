@@ -33,8 +33,10 @@ public:
         Orphans,  // Folders no installed program owns
     };
 
-    // Scans again with other options, on a worker thread: the deep search.
-    using Rescan = std::function<leftovers::ScanResult(const leftovers::ScanOptions&)>;
+    // Scans again with other options, on a worker thread: the deep search, and with or without the
+    // programs' install traces (`useTraces`; see withoutTraces).
+    using Rescan =
+        std::function<leftovers::ScanResult(const leftovers::ScanOptions& options, bool useTraces)>;
 
     // `removalUnavailable` says why nothing can be removed (no administrator rights, an untrusted
     // backup folder); empty if removal works.
@@ -43,9 +45,14 @@ public:
                    QWidget* parent = nullptr);
     ~LeftoverDialog() override;
 
-    // Offers "Search the whole disk", which replaces the scan with `rescan`'s deep one. Call
-    // before the dialog opens.
-    void setRescan(Rescan rescan);
+    // Offers "Search the whole disk", which replaces the scan with `rescan`'s deep one. With
+    // `traceToggle`, when the scan used an install trace, also "Use the install trace" ("Revert by
+    // the install trace" in Force mode), on: turning it off scans again without the traces, as
+    // avel-cli's --no-trace. Call before the dialog opens.
+    void setRescan(Rescan rescan, bool traceToggle = false);
+
+    // The targets as if their programs had no install trace: what `rescan` scans without them.
+    static std::vector<leftovers::ScanTarget> withoutTraces(std::vector<leftovers::ScanTarget> targets);
 
     // After accept(): the checked items, and whether packages may be removed although they can't
     // be put back.
@@ -65,8 +72,9 @@ private:
     void expandSmall(const QModelIndex& parent);
     void copySelection();
     void finishAccept();
-    void startDeepSearch();
-    void onDeepSearchFinished(std::shared_ptr<const leftovers::ScanResult> scan);
+    // `deep`: the deep search; otherwise again as before, with or without the traces.
+    void startRescan(bool deep);
+    void onRescanFinished(std::shared_ptr<const leftovers::ScanResult> scan);
 
     std::shared_ptr<const leftovers::ScanResult> scan_;
     std::vector<LeftoverModel::Program> programs_;
@@ -78,11 +86,14 @@ private:
     Rescan rescan_;
     std::thread rescanWorker_;
     bool searching_ = false;
+    bool deep_ = false;  // The whole disk was searched
 
     LeftoverModel* model_ = nullptr;
     QTreeView* tree_ = nullptr;
     QComboBox* presetCombo_ = nullptr;
     QCheckBox* unlikelyBox_ = nullptr;
+    QCheckBox* traceBox_ = nullptr;
+    QLabel* traceLabel_ = nullptr;  // What the install traces brought
     QLabel* diagnosticsLabel_ = nullptr;
     QLabel* countLabel_ = nullptr;
     QPushButton* removeButton_ = nullptr;

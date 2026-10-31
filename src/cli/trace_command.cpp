@@ -404,12 +404,12 @@ void report_resume_error(std::string_view verb, const TraceInfo& trace, TraceErr
 
 // What `stop`, `run` and `show` print for a finished trace.
 void print_result(const TraceInfo& info, const tracker::TraceResult& result, bool json, bool all,
-                  const std::vector<tracker::TiedItem>* tied) {
+                  const std::vector<tracker::TiedItem>* tied, const tracker::TraceReview* review = nullptr) {
     if (json) {
-        print(trace_result_to_json(info, result, all, tied).dump(2) + "\n");
+        print(trace_result_to_json(info, result, all, tied, review).dump(2) + "\n");
     } else {
         print_trace_header(info);
-        print_trace_changes(info, result, all, tied);
+        print_trace_changes(info, result, all, tied, review);
     }
     warn_if_incomplete(info);
 }
@@ -630,8 +630,17 @@ int show_trace(TraceStore& store, const Options& options) {
         print_error("trace show: the result of trace " + to_utf8(options.id) + " can't be read\n");
         return 1;
     }
+    // What the GUI's review excluded is marked.
+    const auto review = store.read_review(options.id);
+    if (!review) {
+        print_error(
+            std::format("warning: the review of trace {} can't be read, so uninstalling and forcing "
+                        "don't use the trace\n",
+                        to_utf8(options.id)));
+    }
     const auto tied = tie_items(*info, *result, inventory);
-    print_result(*info, *result, options.json, options.all, tied ? &*tied : nullptr);
+    print_result(*info, *result, options.json, options.all, tied ? &*tied : nullptr,
+                 review ? &*review : nullptr);
     return 0;
 }
 

@@ -14,8 +14,9 @@ public:
 
     // Adds the program's install trace to its target (made by make_scan_target): the trace's id,
     // its items that aren't noise, each tied to the program or not, and the values it changed, as
-    // they are now (ScanTarget::captured_values). Returns false and leaves the target as it is when
-    // the program has no trace. Tying reads the live system, so call this before the program's
+    // they are now (ScanTarget::captured_values), all but what its review excludes, which it adds
+    // too (ScanTarget::trace_excluded). Returns false and leaves the target as it is when the
+    // program has no trace. Tying reads the live system, so call this before the program's
     // uninstaller runs.
     virtual bool add_trace(const inventory::Program& program, ScanTarget& target) = 0;
 };

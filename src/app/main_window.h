@@ -38,6 +38,9 @@ class InventoryLoader;
 class LanguageManager;
 class ProgramFilterModel;
 class ProgramTableModel;
+class ProgramTraces;
+class TraceController;
+class TraceStoreAccess;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -69,6 +72,8 @@ private:
     void forceSelected();
     void forceFolder();
     void startForce(ForceFlow::Request request);
+    // Reverts what an install trace recorded, by its id (avel-cli force --trace <id>).
+    void forceTrace(const QString& traceId);
     void previewLeftovers();
     void onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> scan,
                            std::vector<LeftoverModel::Program> programs,
@@ -89,6 +94,13 @@ private:
     void updateDiagnostics();
     void showAbout();
 
+    // Avel Trace: the Trace menu, the status bar's tracing label, and the trace dialogs.
+    void setUpTracing();
+    void retranslateTracing();
+    void updateTraceActions();
+    void openTraces();
+    void openTraceReview(const QString& traceId);
+
     LanguageManager& languages_;
     const bool elevated_;
 
@@ -97,6 +109,8 @@ private:
     InventoryLoader* loader_ = nullptr;
     IconLoader* iconLoader_ = nullptr;
     ChangeStoreAccess* stores_ = nullptr;
+    TraceStoreAccess* traces_ = nullptr;
+    ProgramTraces* programTraces_ = nullptr;  // The "Traced" mark, and the uninstall dialog's trace use
     std::shared_ptr<const inventory::Inventory> inventory_;
 
     QMenu* fileMenu_ = nullptr;
@@ -131,6 +145,14 @@ private:
     QLabel* scanLabel_ = nullptr;
     QLabel* warningLabel_ = nullptr;
     QLabel* elevationLabel_ = nullptr;
+
+    // Avel Trace.
+    TraceController* traceController_ = nullptr;
+    QMenu* traceMenu_ = nullptr;
+    QAction* installTraceAction_ = nullptr;
+    QAction* startTraceAction_ = nullptr;
+    QAction* stopTraceAction_ = nullptr;
+    QAction* tracesAction_ = nullptr;
 
     ForceFlow* forceFlow_ = nullptr;  // The one running, if any; it deletes itself
     // A leftover preview, the orphan finder or a Hunter lookup runs on the worker pool.

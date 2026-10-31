@@ -3,11 +3,10 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-4 done; Avel Trace in progress: 5a and 5b, tracing and uninstalling
-> by a trace from the CLI, done; the GUI is next).** Avel lists installed programs, runs their
-> uninstallers silently or in batches, then finds what they left behind and removes it with a
+> **Status: pre-alpha (Phases 0-5 done; Avel Tools is next).** Avel lists installed programs, runs
+> their uninstallers silently or in batches, then finds what they left behind and removes it with a
 > backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed by
-> force. From the CLI, installations can be traced and programs later removed by their trace. See
+> force. Installations can be traced, and programs later removed by their trace. See
 > [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
@@ -59,17 +58,24 @@
   - **In the CLI:** `force`, `list --broken`, `--deep` and `orphans` do the same.
 
   See [docs/force.md](docs/force.md).
-- **Install tracing (Avel Trace), CLI only for now.** Avel records what an installer changes,
-  without a driver: files from the NTFS USN journal, the registry from a snapshot, and the exact
-  values of the environment variables and SharedDLLs counts it touches. Windows' own background
-  activity is set aside as noise. `trace run` launches the installer and stops by itself once the
+- **Install tracing (Avel Trace).** Avel records what an installer changes, without a driver:
+  files from the NTFS USN journal, the registry from a snapshot, and the exact values of the
+  environment variables and SharedDLLs counts it touches. Windows' own background activity is set
+  aside as noise. **Install and trace** launches the installer and stops by itself once the
   installation is over; a trace survives a restart. A finished trace is linked to the program it
   installed and kept while that program is installed.
-  - **Uninstalling by the trace:** `uninstall` runs the program's uninstaller, then offers what
-    the trace saw the installer create and the uninstaller left, and takes back its edits to
-    `Path` and `SharedDLLs` exactly. `force` reverts a program by its trace without any
-    uninstaller. Only what is tied to the program (its own folders and keys) is checked by
-    default; what existed before the install is never offered.
+  - **In the GUI:** the **Trace** menu has **Install and trace…**, **Start tracing…** / **Stop
+    tracing** around an installation you run yourself, and **Traces…** to show, link, export,
+    import, delete or revert each trace. After a trace, its review lists what the installer
+    created; unchecking an item there marks it as not the program's, and it is never selected
+    automatically when the program is removed. The program list's Trace column marks traced
+    programs.
+  - **Uninstalling by the trace:** the uninstall runs the program's uninstaller, then the leftover
+    review offers what the trace saw the installer create and the uninstaller left, and takes back
+    its edits to `Path` and `SharedDLLs` exactly. Avel Force reverts a program by its trace
+    without any uninstaller. Only what is tied to the program (its own folders and keys) is
+    checked by default; what existed before the install is never offered.
+  - **In the CLI:**
 
   ```powershell
   # Run as administrator.

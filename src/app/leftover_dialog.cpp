@@ -100,6 +100,9 @@ LeftoverDialog::LeftoverDialog(std::shared_ptr<const leftovers::ScanResult> scan
     auto* introLabel = new QLabel(intro, this);
     introLabel->setWordWrap(true);
 
+    traceLabel_ = new QLabel(this);
+    traceLabel_->setWordWrap(true);
+    traceLabel_->setObjectName(u"traceUseLabel"_s);
     diagnosticsLabel_ = new QLabel(this);
     diagnosticsLabel_->setWordWrap(true);
 
@@ -119,6 +122,25 @@ LeftoverDialog::LeftoverDialog(std::shared_ptr<const leftovers::ScanResult> scan
     unlikelyBox_->setToolTip(
         tr("Matches with more evidence against than for them, such as folders other programs still use. They "
            "are never checked by themselves."));
+
+    // Shown by setRescan when the scan used an install trace.
+    traceBox_ = new QCheckBox(
+        mode_ == Mode::Force ? tr("Revert by the install trace") : tr("Use the install trace"), this);
+    traceBox_->setObjectName(u"useTraceBox"_s);
+    traceBox_->setAccessibleName(traceBox_->text());
+    traceBox_->setChecked(true);
+    if (mode_ == Mode::Force) {
+        traceBox_->setToolTip(
+            tr("The program was installed with Avel Trace. What the trace saw its installer create, "
+               "and its changes to Path and shared DLLs, are taken back too. Turn this off to remove "
+               "the program by what the scan finds alone."));
+    } else {
+        traceBox_->setToolTip(
+            tr("The program was installed with Avel Trace. What the trace saw its installer create, "
+               "and its changes to Path and shared DLLs, are listed too. Turn this off to see what the "
+               "scan finds alone."));
+    }
+    traceBox_->hide();
 
     model_ = new LeftoverModel(this);
     model_->setShowUnlikely(unlikelyBox_->isChecked());
@@ -167,7 +189,7 @@ LeftoverDialog::LeftoverDialog(std::shared_ptr<const leftovers::ScanResult> scan
         tr("Also look for folders named after the program anywhere on the fixed drives. Takes a few seconds. "
            "What only this search finds is never checked by itself."));
     deepButton_->hide();
-    connect(deepButton_, &QPushButton::clicked, this, &LeftoverDialog::startDeepSearch);
+    connect(deepButton_, &QPushButton::clicked, this, [this] { startRescan(true); });
     if (mode_ != Mode::Preview) {
         removeButton_ = buttons->addButton(tr("Remove"), QDialogButtonBox::AcceptRole);
         removeButton_->setDefault(true);
@@ -182,10 +204,12 @@ LeftoverDialog::LeftoverDialog(std::shared_ptr<const leftovers::ScanResult> scan
     options->addWidget(presetLabel);
     options->addWidget(presetCombo_);
     options->addStretch();
+    options->addWidget(traceBox_);
     options->addWidget(unlikelyBox_);
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(introLabel);
+    layout->addWidget(traceLabel_);
     layout->addWidget(diagnosticsLabel_);
     layout->addLayout(options);
     layout->addWidget(tree_, 1);
@@ -205,6 +229,7 @@ LeftoverDialog::LeftoverDialog(std::shared_ptr<const leftovers::ScanResult> scan
         QSettings().setValue(kShowUnlikelyKey, show);
     });
     connect(model_, &LeftoverModel::checkedCountChanged, this, &LeftoverDialog::updateCounts);
+    connect(traceBox_, &QCheckBox::toggled, this, [this] { startRescan(false); });
 
     updateScanInfo();
     expandDefault();
@@ -222,9 +247,21 @@ LeftoverDialog::~LeftoverDialog() {
     }
 }
 
-void LeftoverDialog::setRescan(Rescan rescan) {
+void LeftoverDialog::setRescan(Rescan rescan, bool traceToggle) {
     rescan_ = std::move(rescan);
     deepButton_->setVisible(static_cast<bool>(rescan_));
+    traceBox_->setVisible(rescan_ && traceToggle && !scan_->traces.empty());
+}
+
+std::vector<leftovers::ScanTarget> LeftoverDialog::withoutTraces(std::vector<leftovers::ScanTarget> targets) {
+    for (auto& target : targets) {
+        target.trace_id.clear();
+        target.traced.clear();
+        target.traced_values.clear();
+        target.captured_values.clear();
+        target.trace_excluded.clear();
+    }
+    return targets;
 }
 
 void LeftoverDialog::accept() {
@@ -290,8 +327,27 @@ void LeftoverDialog::finishAccept() {
     QDialog::accept();
 }
 
-// What depends on the scan, apart from the tree: its warnings and the unlikely matches' count.
+// What depends on the scan, apart from the tree: what the install traces brought, its warnings and
+// the unlikely matches' count.
 void LeftoverDialog::updateScanInfo() {
+    QStringList traces;
+    for (const auto& use : scan_->traces) {
+        const auto program =
+            std::find_if(programs_.begin(), programs_.end(),
+                         [&](const LeftoverModel::Program& p) { return p.id == use.program_id; });
+        QString name = program != programs_.end() ? program->name : toQString(use.program_id);
+        if (program == programs_.end()) {
+            for (const auto& target : scan_->targets) {
+                if (target.program_id == use.program_id && !target.display_name.empty()) {
+                    name = toQString(target.display_name);
+                }
+            }
+        }
+        traces << LeftoverText::traceUseText(use, name);
+    }
+    traceLabel_->setText(traces.join(u'\n'));
+    traceLabel_->setVisible(!traces.isEmpty());
+
     QStringList notes;
     for (const auto& diagnostic : scan_->diagnostics) {
         notes << LeftoverText::diagnosticText(diagnostic);
@@ -323,32 +379,41 @@ void LeftoverDialog::updateCounts() {
     }
 }
 
-void LeftoverDialog::startDeepSearch() {
+void LeftoverDialog::startRescan(bool deep) {
     if (!rescan_ || searching_) {
         return;
     }
     searching_ = true;
+    deep_ = deep_ || deep;
     deepButton_->setEnabled(false);
-    deepButton_->setText(tr("Searching the whole disk…"));
+    if (deep) {
+        deepButton_->setText(tr("Searching the whole disk…"));
+    }
+    traceBox_->setEnabled(false);
     closeButton_->setEnabled(false);
     updateCounts();
     QApplication::setOverrideCursor(Qt::BusyCursor);
-    rescanWorker_ = std::thread([this, rescan = rescan_] {
-        auto scan = std::make_shared<const leftovers::ScanResult>(rescan({.deep = true}));
-        QMetaObject::invokeMethod(
-            this, [this, scan = std::move(scan)] { onDeepSearchFinished(scan); }, Qt::QueuedConnection);
-    });
+    rescanWorker_ =
+        std::thread([this, rescan = rescan_, deepSearch = deep_, useTraces = traceBox_->isChecked()] {
+            auto scan =
+                std::make_shared<const leftovers::ScanResult>(rescan({.deep = deepSearch}, useTraces));
+            QMetaObject::invokeMethod(
+                this, [this, scan = std::move(scan)] { onRescanFinished(scan); }, Qt::QueuedConnection);
+        });
 }
 
-void LeftoverDialog::onDeepSearchFinished(std::shared_ptr<const leftovers::ScanResult> scan) {
+void LeftoverDialog::onRescanFinished(std::shared_ptr<const leftovers::ScanResult> scan) {
     if (rescanWorker_.joinable()) {
         rescanWorker_.join();
     }
     QApplication::restoreOverrideCursor();
     searching_ = false;
-    deepButton_->setText(tr("Whole disk searched"));
+    deepButton_->setText(deep_ ? tr("Whole disk searched") : tr("Search the whole disk"));
+    deepButton_->setEnabled(!deep_);
+    traceBox_->setEnabled(true);
     closeButton_->setEnabled(true);
-    // The new scan has the old one's items and more; the checks start over from the preset.
+    // The new scan has other items (the deep search's, or the traces' taken away or back); the
+    // checks start over from the preset.
     scan_ = std::move(scan);
     model_->setScan(scan_, programs_,
                     static_cast<LeftoverModel::Preset>(presetCombo_->currentData().toInt()));

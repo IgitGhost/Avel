@@ -8,6 +8,7 @@
 
 #include "core/inventory/program.h"
 #include "program_text.h"
+#include "program_traces.h"
 
 using namespace Qt::StringLiterals;
 
@@ -35,6 +36,15 @@ DetailsView::DetailsView(QWidget* parent) : QTextBrowser(parent) {
 void DetailsView::setProgram(const inventory::Program* program) {
     program_ = program;
     render();
+}
+
+void DetailsView::setTraces(const ProgramTraces* traces) {
+    traces_ = traces;
+    connect(traces_, &ProgramTraces::changed, this, [this] {
+        if (program_ != nullptr) {
+            render();
+        }
+    });
 }
 
 void DetailsView::changeEvent(QEvent* event) {
@@ -79,6 +89,15 @@ void DetailsView::render() {
     row(tr("Installed for"), ProgramText::scopeLabel(p).toHtmlEscaped());
     row(tr("Architecture"), ProgramText::architectureLabel(p.architecture).toHtmlEscaped());
     row(tr("Type"), ProgramText::typeLabel(p).toHtmlEscaped());
+    const auto* trace = traces_ != nullptr ? traces_->find(p.id) : nullptr;
+    if (trace != nullptr) {
+        row(tr("Install trace"),
+            (ProgramTraces::summaryText(*trace) + u' ' +
+             tr("Uninstall and Force uninstall use it: what the installer created goes too, and its changes "
+                "to Path and shared DLLs are taken back."))
+                    .toHtmlEscaped() +
+                u"<br>"_s + code(trace->id));
+    }
     if (!p.install_location.empty()) {
         row(tr("Location"),
             link(QUrl::fromLocalFile(toQString(p.install_location)), toQString(p.install_location)));
@@ -141,6 +160,9 @@ void DetailsView::render() {
     }
     if (p.source == inventory::Source::Msi) {
         notes << tr("Registered with Windows Installer only, without an entry in Settings.");
+    }
+    if (trace != nullptr && trace->incomplete) {
+        notes << ProgramTraces::incompleteText();
     }
 
     QString notesHtml;

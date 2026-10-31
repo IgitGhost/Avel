@@ -5,6 +5,7 @@
 //   saved_values.json     the known spots' values at the start (after stop: only those that changed)
 //   volume-<n>.checkpoint each volume's journal position and changes (deleted once finished)
 //   changes.json          TraceResult, once stopped
+//   review.json           TraceReview: what the user excluded in the trace's review (trace_review.h)
 //   lock                  held open by the process driving the trace
 // Only one trace may be starting, open or stopping at a time.
 #pragma once
@@ -25,6 +26,7 @@
 
 #include "core/platform/secure_folder.h"
 #include "core/tracker/trace_record.h"
+#include "core/tracker/trace_review.h"
 
 namespace avel::tracker {
 
@@ -112,6 +114,9 @@ public:
     std::optional<TraceInfo> read(const std::wstring& id) const;
     // changes.json; nullopt before the trace is stopped or if it's damaged.
     std::optional<TraceResult> read_result(const std::wstring& id) const;
+    // review.json: the items the user excluded in the trace's review. An empty review when there
+    // is none; nullopt when it's damaged or of another schema version (or `id` isn't a trace's).
+    std::optional<TraceReview> read_review(const std::wstring& id) const;
     // The trace that is starting, open or stopping, if there is one. A `starting` trace that no
     // process holds is damaged: it can only be removed.
     std::optional<TraceInfo> open_trace() const;
@@ -122,11 +127,13 @@ public:
     std::unique_ptr<TraceFolder> create(TraceInfo& info, TraceError& error);
 
     // Adds a finished trace recorded elsewhere (`trace import`): a new folder and id (from the
-    // store's clock, filled into `info`) with saved_values.json, changes.json, and trace.json last,
-    // as `info` says otherwise. NotFinished if `info` isn't finished; WriteFailed (the folder
-    // removed again) if a file can't be written. Allowed while another trace is open.
+    // store's clock, filled into `info`) with saved_values.json, changes.json, review.json (unless
+    // `review` is empty), and trace.json last, as `info` says otherwise. NotFinished if `info`
+    // isn't finished; WriteFailed (the folder removed again) if a file can't be written. Allowed
+    // while another trace is open.
     std::unique_ptr<TraceFolder> add_finished(TraceInfo& info, const TraceResult& result,
-                                              const KnownValues& saved, TraceError& error);
+                                              const KnownValues& saved, TraceError& error,
+                                              const TraceReview& review = {});
 
     // Holds an existing trace's folder. InUse if another process holds it, NotFound if there is
     // no such trace.
@@ -137,6 +144,10 @@ public:
     // NotFinished or WriteFailed.
     std::optional<TraceInfo> update(const std::wstring& id,
                                     const std::function<bool(TraceInfo& info)>& change, TraceError& error);
+
+    // Replaces a finished trace's review.json. Fails like update(): NotFound, InUse, Damaged,
+    // NotFinished or WriteFailed.
+    bool write_review(const std::wstring& id, const TraceReview& review, TraceError& error);
 
     // Whether a process holds the trace's lock file.
     bool held(const std::wstring& id) const;

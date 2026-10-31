@@ -154,6 +154,9 @@ be undone like any other.
 **CLI** (administrator only):
 - `avel-cli uninstall ... --remove-leftovers [--min-level good|very-good] [--allow-irreversible]`
   removes what the uninstall left behind (Good and above by default) after the leftover scan.
+  `make_plan` leaves out what is never selected automatically (`leftovers::held_back`): an item
+  excluded in an install trace's review that another scanner found, and what holds it
+  ([leftovers.md](leftovers.md), "Install traces"). A line says how many were left in place.
   JSON output gains `leftover_removal`.
 - `avel-cli undo --list | --show <id> | <id> [--item <n>]... | --purge [--json]`.
 - `AVEL_TEST_FAULT_AFTER=<n>` ends the process after n journal records, as a crash would. Only
@@ -179,7 +182,9 @@ be undone like any other.
   disabled with the reason shown.
 - **Text:** `LeftoverText` turns item states, reasons, set states and folder statuses into
   translated text. A set's description ("Leftovers of Notepad++") is stored in the language that
-  was active when the set was made.
+  was active when the set was made. A value edit is described as what it does ("Remove
+  C:\Contoso\bin from the system variable Path"). Once made, it reads "Edited", and when its value
+  changed since the scan, "Skipped: the value has changed since" (`changed`).
 
 ## Testing
 

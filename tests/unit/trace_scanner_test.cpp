@@ -2,7 +2,8 @@
 // temporary folder tree and scratch registry keys standing in for the machine and a user. Checks
 // the evidence of tied and untied items and the name match, the SharedDLLs penalty, items gone
 // since, changes to what existed before never offered, value edits planned once per value (Restore
-// at Questionable), protection, and merging with what the other scanners found.
+// at Questionable), protection, merging with what the other scanners found, and what the trace's
+// review excludes that they find all the same.
 #include <gtest/gtest.h>
 
 #include <windows.h>
@@ -15,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "core/changes/change_set.h"
 #include "core/leftovers/post_uninstall.h"
 #include "core/leftovers/scan.h"
 #include "core/platform/text.h"
@@ -95,6 +97,7 @@ public:
                 target.traced = trace.traced;
                 target.traced_values = trace.traced_values;
                 target.captured_values = trace.captured_values;
+                target.trace_excluded = trace.trace_excluded;
                 return true;
             }
         }
@@ -344,6 +347,162 @@ TEST_F(TraceScannerTest, MergesWithWhatTheOtherScannersFound) {
         EXPECT_FALSE(std::any_of(leftover.records.begin(), leftover.records.end(),
                                  [](const Record& record) { return is_trace_evidence(record.evidence); }));
     }
+}
+
+// The user excluded the install folder in the trace's review (not the program's, they judged), and
+// its change to a SharedDLLs value; the install-location scanner and the references find them all
+// the same. They keep their level, say they were excluded, and are never selected by level. Only
+// the program whose trace excluded them is concerned.
+TEST_F(TraceScannerTest, WhatTheReviewExcludedIsShownButNeverSelectedAutomatically) {
+    const Location install = dir(LR"(PF\Contoso Fixture)");
+    const Location tool_data = dir(LR"(Elsewhere\Tool Data)");
+    // A SharedDLLs value naming a file in the install folder: with its change excluded, the trace
+    // plans no edit to stand for it.
+    const std::wstring dll = install_ + L"\\bundled.dll";
+    machine_.set_dword(kSharedDllsPath, dll, 1);
+    const Location shared_dll = RegistryValueLocation{kSharedDlls, dll};
+    const auto plain = scan({traced_fixture({traced(tool_data, true)})});
+    const Leftover* before = find(plain, install);
+    ASSERT_NE(before, nullptr);
+    EXPECT_FALSE(excluded_in_trace_review(*before));
+    ASSERT_GE(level(before->records), Confidence::Good);
+
+    ScanTarget target = traced_fixture({traced(tool_data, true)});
+    // What no scanner finds stays out, as the trace left it out.
+    target.trace_excluded = {install, dir(LR"(Elsewhere\Random Data)"), shared_dll};
+    const auto result = scan({target});
+    const Leftover* item = find(result, install);
+    ASSERT_NE(item, nullptr);
+    EXPECT_EQ(item->found_by, Scanner::InstallLocation);
+    ASSERT_TRUE(excluded_in_trace_review(*item));
+    const auto record = std::find_if(item->records.begin(), item->records.end(), [](const Record& r) {
+        return r.evidence == Evidence::ExcludedInTraceReview;
+    });
+    EXPECT_EQ(record->detail, kTraceId);
+    EXPECT_EQ(points(*record), 0);
+    EXPECT_EQ(item->records.size(), before->records.size() + 1);
+    EXPECT_EQ(score(item->records), score(before->records));
+    EXPECT_EQ(level(item->records), level(before->records));
+    EXPECT_FALSE(is_trace_evidence(Evidence::ExcludedInTraceReview));
+    EXPECT_EQ(find(result, dir(LR"(Elsewhere\Random Data)")), nullptr);
+    const Leftover* value = find(result, shared_dll);
+    ASSERT_NE(value, nullptr);
+    EXPECT_TRUE(excluded_in_trace_review(*value));
+    EXPECT_GE(level(value->records), Confidence::Good);
+    ASSERT_EQ(result.traces.size(), 1u);
+    EXPECT_EQ(result.traces[0].excluded, 2u);
+    EXPECT_EQ(result.traces[0].items, 1u);
+
+    // Removal by level (the CLI's --min-level) leaves it, and takes the rest.
+    const auto removable = [](const ScanResult& scanned) {
+        const auto plan = changes::make_plan(scanned.leftovers, Confidence::Good, nullptr, L"");
+        std::vector<std::wstring> keys;
+        for (const auto& entry : plan.items) {
+            keys.push_back(identity(entry.location));
+        }
+        return keys;
+    };
+    const auto planned = removable(result);
+    EXPECT_EQ(std::count(planned.begin(), planned.end(), identity(install)), 0);
+    EXPECT_EQ(std::count(planned.begin(), planned.end(), identity(shared_dll)), 0);
+    EXPECT_EQ(std::count(planned.begin(), planned.end(), identity(tool_data)), 1);
+    const auto planned_before = removable(plain);
+    EXPECT_EQ(std::count(planned_before.begin(), planned_before.end(), identity(install)), 1);
+    EXPECT_EQ(std::count(planned_before.begin(), planned_before.end(), identity(shared_dll)), 1);
+
+    // Another program's trace excluded it: Contoso Fixture's own match stands.
+    ScanTarget other;
+    other.program_id = L"reg:HKLM64:NorthwindTool";
+    other.display_name = L"Northwind Tool";
+    other.names = make_product_names(other.display_name, L"Northwind Traders");
+    other.trace_id = L"20261030-120000-0000beef";
+    other.trace_excluded = {install};
+    const auto both = scan({other, fixture()});
+    const Leftover* theirs = find(both, install);
+    ASSERT_NE(theirs, nullptr);
+    EXPECT_FALSE(excluded_in_trace_review(*theirs));
+    ASSERT_EQ(both.traces.size(), 1u);
+    EXPECT_EQ(both.traces[0].excluded, 0u);
+}
+
+// The install folder and the program's key existed before the install (an older version's); the
+// installer created a file in one and a value in the other, which the user excluded in the trace's
+// review. No scanner offers them, but removing the folder or the key would take them along: both
+// are listed, say what they hold, and are never selected automatically. An excluded item that is
+// gone holds nothing back, nor does another program's exclusion.
+TEST_F(TraceScannerTest, WhatHoldsAnItemTheReviewExcludedIsNeverSelectedAutomatically) {
+    const Location install = dir(LR"(PF\Contoso Fixture)");
+    const Location plugin = plain_file(LR"(PF\Contoso Fixture\plugin.dat)");
+    file(LR"(PF\Contoso Fixture\plugin.dat)");
+    const std::wstring software = LR"(SOFTWARE\Contoso Fixture)";
+    machine_.set_string(software, L"Theme", L"Dark");
+    machine_.set_string(software, L"Shared", L"yes");
+    const Location key = machine_key(software);
+    const RegistryAddress key_address{Hive::Machine, L"", software};
+    const Location shared = RegistryValueLocation{key_address, L"Shared"};
+
+    const auto removable = [](const ScanResult& scanned) {
+        const auto plan = changes::make_plan(scanned.leftovers, Confidence::Good, nullptr, L"");
+        std::vector<std::wstring> keys;
+        for (const auto& entry : plan.items) {
+            keys.push_back(identity(entry.location));
+        }
+        return keys;
+    };
+    const auto plain = scan({traced_fixture({})});
+    for (const auto& location : {install, key}) {
+        const Leftover* item = find(plain, location);
+        ASSERT_NE(item, nullptr) << platform::to_utf8(identity(location));
+        ASSERT_GE(level(item->records), Confidence::Good) << platform::to_utf8(identity(location));
+        EXPECT_FALSE(has(*item, Evidence::HoldsTraceReviewExclusion));
+    }
+    const auto planned_before = removable(plain);
+    EXPECT_EQ(std::count(planned_before.begin(), planned_before.end(), identity(install)), 1);
+    EXPECT_EQ(std::count(planned_before.begin(), planned_before.end(), identity(key)), 1);
+
+    ScanTarget target = traced_fixture({});
+    target.trace_excluded = {plugin, shared};
+    const auto result = scan({target});
+    EXPECT_EQ(find(result, plugin), nullptr);  // Only the trace saw it: the new rule, not Leftover::inside
+    EXPECT_EQ(find(result, shared), nullptr);
+    const auto held = held_back(result.leftovers);
+    for (const auto& [location, detail] :
+         {std::pair{install, path(LR"(PF\Contoso Fixture\plugin.dat)")},
+          std::pair{key, platform::display_path(key_address) + L" : Shared"}}) {
+        const Leftover* item = find(result, location);
+        ASSERT_NE(item, nullptr) << platform::to_utf8(identity(location));
+        const auto record = std::find_if(item->records.begin(), item->records.end(), [](const Record& r) {
+            return r.evidence == Evidence::HoldsTraceReviewExclusion;
+        });
+        ASSERT_NE(record, item->records.end()) << platform::to_utf8(identity(location));
+        EXPECT_EQ(record->detail, detail);
+        EXPECT_EQ(points(*record), 0);
+        EXPECT_EQ(level(item->records), level(find(plain, location)->records));
+        EXPECT_FALSE(excluded_in_trace_review(*item));
+        EXPECT_TRUE(held[static_cast<std::size_t>(item - result.leftovers.data())]);
+    }
+    const auto planned = removable(result);
+    EXPECT_EQ(std::count(planned.begin(), planned.end(), identity(install)), 0);
+    EXPECT_EQ(std::count(planned.begin(), planned.end(), identity(key)), 0);
+    EXPECT_EQ(to_string(Evidence::HoldsTraceReviewExclusion), "holds-excluded-in-trace-review");
+
+    // Gone since: nothing to take along.
+    ScanTarget gone = traced_fixture({});
+    gone.trace_excluded = {plain_file(LR"(PF\Contoso Fixture\gone.dat)")};
+    const auto after = scan({gone});
+    EXPECT_FALSE(has(*find(after, install), Evidence::HoldsTraceReviewExclusion));
+    const auto planned_after = removable(after);
+    EXPECT_EQ(std::count(planned_after.begin(), planned_after.end(), identity(install)), 1);
+
+    // Another program's trace excluded it: Contoso Fixture's folder isn't held back for it.
+    ScanTarget other;
+    other.program_id = L"reg:HKLM64:NorthwindTool";
+    other.display_name = L"Northwind Tool";
+    other.names = make_product_names(other.display_name, L"Northwind Traders");
+    other.trace_id = L"20261030-120000-0000beef";
+    other.trace_excluded = {plugin};
+    const auto both = scan({other, fixture()});
+    EXPECT_FALSE(has(*find(both, install), Evidence::HoldsTraceReviewExclusion));
 }
 
 // The installer created DragDropHandlers for its own handler; another program added its handler

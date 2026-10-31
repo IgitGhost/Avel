@@ -1,6 +1,7 @@
 // Moving a trace to another machine (docs/trace.md, "Export and import"): `trace export` writes one
-// JSON file with the trace, its links, its changes and its saved known values; `trace import`
-// adds it to the store as an imported trace and links it again to what this machine has installed.
+// JSON file with the trace, its links, its changes, its saved known values and its review;
+// `trace import` adds it to the store as an imported trace and links it again to what this machine
+// has installed.
 #pragma once
 
 #include <chrono>
@@ -17,6 +18,7 @@
 #include "core/platform/user_profiles.h"
 #include "core/tracker/known_values.h"
 #include "core/tracker/trace_record.h"
+#include "core/tracker/trace_review.h"
 #include "core/tracker/trace_store.h"
 
 namespace avel::tracker {
@@ -35,6 +37,7 @@ struct TraceExport {
     TraceInfo info;
     TraceResult result;
     KnownValues saved_values;  // saved_values.json: the known spots' values the installer changed
+    TraceReview review;        // review.json: what the user excluded in the trace's review
     std::vector<TraceUser> users;
 };
 
@@ -54,8 +57,8 @@ std::optional<TraceExport> read_export(const TraceStore& store, const std::wstri
 std::size_t environment_values(const TraceExport& trace);
 
 // The export file: {"format": "avel-trace", "schema_version": 1, "avel_version", "exported",
-// "users": [{"sid", "profile"}], "trace", "changes", "saved_values"}, the last three exactly as the
-// store keeps them.
+// "users": [{"sid", "profile"}], "trace", "changes", "saved_values", "review"}, the last four exactly
+// as the store keeps them. "review" is new in 5c; a file without it has no exclusions.
 changes::Json to_json(const TraceExport& trace, std::chrono::system_clock::time_point exported);
 
 enum class ImportError : std::uint8_t {
@@ -72,7 +75,8 @@ std::string_view to_string(ImportError error);
 ImportError parse_export(std::string_view text, TraceExport& trace, int& version);
 
 // Moves the trace's items of user `from` to user `to`: registry items and known values from
-// their SID to the other's, files and string values from their profile folder to the other's.
+// their SID to the other's, files and string values from their profile folder to the other's; the
+// review's exclusions likewise.
 void remap_user(TraceExport& trace, const TraceUser& from, const TraceUser& to);
 
 struct ImportOptions {

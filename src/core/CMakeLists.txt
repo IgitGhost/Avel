@@ -140,6 +140,8 @@ add_library(avel_core STATIC
     tracker/trace_items.h
     tracker/trace_record.cpp
     tracker/trace_record.h
+    tracker/trace_review.cpp
+    tracker/trace_review.h
     tracker/trace_session.cpp
     tracker/trace_session.h
     tracker/trace_source.cpp

@@ -219,6 +219,23 @@ std::optional<TraceResult> TraceStore::read_result(const std::wstring& id) const
     return result;
 }
 
+std::optional<TraceReview> TraceStore::read_review(const std::wstring& id) const {
+    if (!platform::is_safe_record_id(id)) {
+        return std::nullopt;
+    }
+    const std::wstring path = folder_of(id) + L"\\" + std::wstring(kReviewFile);
+    if (::GetFileAttributesW(platform::extended(path).c_str()) == INVALID_FILE_ATTRIBUTES &&
+        ::GetLastError() == ERROR_FILE_NOT_FOUND) {
+        return TraceReview{};
+    }
+    const auto text = changes::read_file(path);
+    TraceReview review;
+    if (!text || !from_json(Json::parse(*text, nullptr, false), review)) {
+        return std::nullopt;
+    }
+    return review;
+}
+
 std::optional<TraceInfo> TraceStore::open_trace() const {
     for (auto& info : list()) {
         if (is_active(info.state)) {
@@ -297,7 +314,8 @@ std::unique_ptr<TraceFolder> TraceStore::new_folder(std::chrono::system_clock::t
 }
 
 std::unique_ptr<TraceFolder> TraceStore::add_finished(TraceInfo& info, const TraceResult& result,
-                                                      const KnownValues& saved, TraceError& error) {
+                                                      const KnownValues& saved, TraceError& error,
+                                                      const TraceReview& review) {
     if (!is_finished(info.state)) {
         error = TraceError::NotFinished;
         return nullptr;
@@ -315,6 +333,8 @@ std::unique_ptr<TraceFolder> TraceStore::add_finished(TraceInfo& info, const Tra
     // trace.json last: until it's there, purge takes the folder for damaged.
     if (!changes::write_file_durably(folder->file(kSavedValuesFile), to_json(saved).dump(1, '\t')) ||
         !changes::write_file_durably(folder->file(kChangesFile), to_json(result).dump(1, '\t')) ||
+        (!review.empty() &&
+         !changes::write_file_durably(folder->file(kReviewFile), to_json(review).dump(1, '\t'))) ||
         !folder->write_info(info)) {
         folder->lock_.reset();
         platform::delete_tree(folder->path_);
@@ -382,6 +402,33 @@ std::optional<TraceInfo> TraceStore::update(const std::wstring& id,
     }
     error = TraceError::None;
     return info;
+}
+
+bool TraceStore::write_review(const std::wstring& id, const TraceReview& review, TraceError& error) {
+    const auto guard = lock();
+    if (!guard) {
+        error = TraceError::Busy;
+        return false;
+    }
+    const auto folder = open_folder(id, error);
+    if (!folder) {
+        return false;
+    }
+    const auto info = folder->read_info();
+    if (!info) {
+        error = TraceError::Damaged;
+        return false;
+    }
+    if (!is_finished(info->state)) {
+        error = TraceError::NotFinished;
+        return false;
+    }
+    if (!changes::write_file_durably(folder->file(kReviewFile), to_json(review).dump(1, '\t'), true)) {
+        error = TraceError::WriteFailed;
+        return false;
+    }
+    error = TraceError::None;
+    return true;
 }
 
 bool TraceStore::held(const std::wstring& id) const {

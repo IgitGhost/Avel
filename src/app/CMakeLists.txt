@@ -20,6 +20,8 @@ qt_add_executable(avel_app WIN32
     hunter_target.h
     icon_loader.cpp
     icon_loader.h
+    install_trace_dialog.cpp
+    install_trace_dialog.h
     inventory_loader.cpp
     inventory_loader.h
     language_manager.cpp
@@ -39,9 +41,27 @@ qt_add_executable(avel_app WIN32
     program_table_model.h
     program_text.cpp
     program_text.h
+    program_traces.cpp
+    program_traces.h
     right_elide_delegate.h
     running_processes_dialog.cpp
     running_processes_dialog.h
+    trace_controller.cpp
+    trace_controller.h
+    trace_link_dialog.cpp
+    trace_link_dialog.h
+    trace_model.cpp
+    trace_model.h
+    trace_progress_dialog.cpp
+    trace_progress_dialog.h
+    trace_review_dialog.cpp
+    trace_review_dialog.h
+    trace_store_access.cpp
+    trace_store_access.h
+    trace_text.cpp
+    trace_text.h
+    traces_dialog.cpp
+    traces_dialog.h
     undo_center_dialog.cpp
     undo_center_dialog.h
     uninstall_dialog.cpp

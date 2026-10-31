@@ -191,7 +191,7 @@ void UndoCenterDialog::showSelectedSet() {
         row->setText(ItemPathColumn, LeftoverText::locationText(item.location));
         row->setToolTip(ItemPathColumn, row->text(ItemPathColumn));
         row->setText(ItemTypeColumn, LeftoverText::kindLabel(item.location, item.category));
-        row->setText(ItemStateColumn, LeftoverText::statusText(statuses_[i]));
+        row->setText(ItemStateColumn, LeftoverText::statusText(statuses_[i], item.location));
         row->setToolTip(ItemStateColumn, row->text(ItemStateColumn));
         if (restorable(statuses_[i], item.location)) {
             row->setFlags(row->flags() | Qt::ItemIsUserCheckable);

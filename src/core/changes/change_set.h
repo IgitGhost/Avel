@@ -30,7 +30,9 @@ struct ChangePlan {
 PlannedItem make_planned_item(const leftovers::Leftover& leftover, std::vector<std::wstring> programs);
 
 // The plan for removing the scan's items at or above `minimum`, leaving out what can't be removed
-// (firewall rules). `program_name` turns an owner id into the name shown in the Undo Center.
+// (firewall rules) and what is never selected automatically (leftovers::held_back: what an install
+// trace's review excludes, and what holds it). `leftovers` is a whole scan result, which
+// Leftover::inside refers to. `program_name` turns an owner id into the name shown in the Undo Center.
 ChangePlan make_plan(std::span<const leftovers::Leftover> leftovers, leftovers::Confidence minimum,
                      const std::function<std::wstring(const std::wstring& program_id)>& program_name,
                      std::wstring description);

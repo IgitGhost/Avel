@@ -214,6 +214,12 @@ std::optional<TraceExport> read_export(const TraceStore& store, const std::wstri
         }
         trace.saved_values = {};
     }
+    auto review = store.read_review(id);
+    if (!review) {
+        error = TraceError::Damaged;
+        return std::nullopt;
+    }
+    trace.review = std::move(*review);
     trace.users = trace_users(*result, profiles);
     trace.info = std::move(*info);
     trace.result = std::move(*result);
@@ -252,6 +258,7 @@ Json to_json(const TraceExport& trace, std::chrono::system_clock::time_point exp
     json["trace"] = to_json(trace.info);
     json["changes"] = to_json(trace.result);
     json["saved_values"] = to_json(trace.saved_values);
+    json["review"] = to_json(trace.review);
     return json;
 }
 
@@ -301,6 +308,10 @@ ImportError parse_export(std::string_view text, TraceExport& trace, int& version
     }
     if (parsed.info.state != TraceState::Complete && parsed.info.state != TraceState::Incomplete) {
         return ImportError::NotFinished;
+    }
+    // An export from before 5c has no review.
+    if (const auto review = json.find("review"); review != json.end() && !from_json(*review, parsed.review)) {
+        return ImportError::Damaged;
     }
     if (const auto users = json.find("users"); users != json.end()) {
         if (!users->is_array()) {
@@ -363,6 +374,15 @@ void remap_user(TraceExport& trace, const TraceUser& from, const TraceUser& to) 
     for (auto& diagnostic : trace.info.registry.diagnostics) {
         remap.key(diagnostic.key);
     }
+    for (auto& location : trace.review.excluded) {
+        remap.location(location);
+    }
+    for (auto& value : trace.review.excluded_values) {
+        remap.key(value.key);
+        if (value.spot == KnownSpot::SharedDlls) {
+            remap.path(value.name);
+        }
+    }
     for (auto& user : trace.users) {
         if (platform::iequals(user.sid, from.sid)) {
             user = to;
@@ -410,7 +430,7 @@ std::optional<TraceInfo> import_trace(TraceStore& store, TraceExport trace,
     }
     info.imported = std::move(imported);
     relink(info, trace.result, inventory);
-    if (!store.add_finished(info, trace.result, trace.saved_values, error)) {
+    if (!store.add_finished(info, trace.result, trace.saved_values, error, trace.review)) {
         return std::nullopt;
     }
     return info;

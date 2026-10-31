@@ -78,8 +78,11 @@ bool StoreTraceSource::add_trace(const inventory::Program& program, leftovers::S
         if (info == traces_.end()) {
             continue;
         }
-        if (const auto result = store_.read_result(id)) {
-            add(*info, *result, program_places(program), target);
+        // A damaged review could hide what the user excluded: such a trace isn't used.
+        const auto result = store_.read_result(id);
+        const auto review = result ? store_.read_review(id) : std::nullopt;
+        if (result && review) {
+            add(*info, *result, *review, program_places(program), target);
             return true;
         }
     }
@@ -103,24 +106,32 @@ std::optional<leftovers::ScanTarget> StoreTraceSource::trace_target(const std::w
         return std::nullopt;
     }
     const auto result = store_.read_result(id);
-    if (!result) {
+    const auto review = result ? store_.read_review(id) : std::nullopt;
+    if (!result || !review) {
         error = TraceError::Damaged;
         return std::nullopt;
     }
     const auto resolved = resolve_trace_program(*info, inventory_);
     const ProgramPlaces places = resolved ? program_places(*resolved->program) : recorded_places(*info);
     leftovers::ScanTarget target = places.target;
-    add(*info, *result, places, target);
+    add(*info, *result, *review, places, target);
     error = TraceError::None;
     return target;
 }
 
-void StoreTraceSource::add(const TraceInfo& info, const TraceResult& result, const ProgramPlaces& places,
-                           leftovers::ScanTarget& target) {
+void StoreTraceSource::add(const TraceInfo& info, const TraceResult& recorded, const TraceReview& review,
+                           const ProgramPlaces& places, leftovers::ScanTarget& target) {
     if (!options_.tie) {
         options_.tie = live_tie_sources();
     }
+    // Left out before tying, so nothing is tied by an excluded item alone.
+    const TraceResult result = apply_review(recorded, review);
     target.trace_id = info.id;
+    // Other scanners may still find what the user excluded: the scan says so (leftovers::scan_leftovers).
+    target.trace_excluded = review.excluded;
+    for (const auto& value : review.excluded_values) {
+        target.trace_excluded.push_back(leftovers::RegistryValueLocation{value.key, value.name});
+    }
     target.traced.clear();
     for (const auto& tied : tie_trace_items(result, places, *options_.tie)) {
         const TraceChange& change = result.changes[tied.change];
@@ -143,6 +154,17 @@ void StoreTraceSource::add(const TraceInfo& info, const TraceResult& result, con
                                         known.before, known.after});
         target.captured_values.push_back(options_.read_value(known.key, known.name));
     }
+}
+
+TraceOffer trace_offer(const TraceResult& result) {
+    TraceOffer offer;
+    for (const auto& change : result.changes) {
+        if (change.noise == NoiseReason::None) {
+            ++(change.change == ChangeKind::Created ? offer.created : offer.changed);
+        }
+    }
+    offer.values = result.known_values.size();
+    return offer;
 }
 
 ProgramPlaces recorded_places(const TraceInfo& info) {

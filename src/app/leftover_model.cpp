@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <unordered_set>
 
 #include "leftover_text.h"
 #include "program_text.h"
@@ -15,6 +16,7 @@ using namespace Qt::StringLiterals;
 namespace avel::app {
 
 using leftovers::Confidence;
+using leftovers::Evidence;
 
 namespace {
 
@@ -35,6 +37,9 @@ Confidence threshold(LeftoverModel::Preset preset) {
 LeftoverModel::Group groupOf(const leftovers::Leftover& leftover) {
     using leftovers::Category;
     using Group = LeftoverModel::Group;
+    if (std::holds_alternative<leftovers::ValueEditLocation>(leftover.location)) {
+        return Group::ValueEdits;
+    }
     switch (leftover.category) {
         case Category::Files:
             return Group::Files;
@@ -58,7 +63,7 @@ LeftoverModel::Group groupOf(const leftovers::Leftover& leftover) {
     return Group::Files;
 }
 
-constexpr std::size_t kGroupCount = static_cast<std::size_t>(LeftoverModel::Group::Firewall) + 1;
+constexpr std::size_t kGroupCount = static_cast<std::size_t>(LeftoverModel::Group::ChangedByInstaller) + 1;
 
 }  // namespace
 
@@ -71,27 +76,46 @@ void LeftoverModel::setScan(std::shared_ptr<const leftovers::ScanResult> scan, s
     programs_ = std::move(programs);
     levels_.clear();
     checked_.clear();
+    changed_.clear();
     if (scan_) {
+        const auto programIndex = [this](const std::wstring& id, const QString& name) {
+            const auto found = std::find_if(programs_.begin(), programs_.end(),
+                                            [&](const Program& p) { return p.id == id; });
+            if (found != programs_.end()) {
+                return static_cast<std::size_t>(found - programs_.begin());
+            }
+            programs_.push_back({id, name});
+            return programs_.size() - 1;
+        };
         const auto& items = scan_->leftovers;
         levels_.reserve(items.size());
         for (const auto& leftover : items) {
             levels_.push_back(leftovers::level(leftover.records));
             // Owners nobody named still get a group of their own.
             for (const auto& id : leftover.owner_ids) {
-                if (std::none_of(programs_.begin(), programs_.end(),
-                                 [&](const Program& p) { return p.id == id; })) {
-                    programs_.push_back({id, toQString(id)});
+                programIndex(id, toQString(id));
+            }
+        }
+        // What the targets' install traces saw the installer change, of what existed before. An
+        // item two programs' traces saw (a bundle and its packages share one) is listed once.
+        std::unordered_set<std::wstring> seen;
+        for (const auto& target : scan_->targets) {
+            for (const auto& traced : target.traced) {
+                if (traced.change != leftovers::TracedChange::Created &&
+                    seen.insert(leftovers::identity(traced.location)).second) {
+                    const QString name = target.display_name.empty() ? toQString(target.program_id)
+                                                                     : toQString(target.display_name);
+                    changed_.push_back({programIndex(target.program_id, name), &traced});
                 }
             }
         }
         if (programs_.empty() && !items.empty()) {
             programs_.push_back({std::wstring(), tr("Other programs")});
         }
-        checked_.resize(items.size(), 0);
-        const Confidence minimum = threshold(preset);
-        for (std::size_t i = 0; i < items.size(); ++i) {
-            checked_[i] = levels_[i] >= minimum ? 1 : 0;
-        }
+        heldBack_ = leftovers::held_back(items);
+        checkByPreset(preset);
+    } else {
+        heldBack_.clear();
     }
     rebuild();
     normalize();
@@ -101,14 +125,21 @@ void LeftoverModel::setScan(std::shared_ptr<const leftovers::ScanResult> scan, s
 }
 
 void LeftoverModel::applyPreset(Preset preset) {
-    const Confidence minimum = threshold(preset);
-    for (std::size_t i = 0; i < checked_.size(); ++i) {
-        checked_[i] = levels_[i] >= minimum ? 1 : 0;
-    }
+    checkByPreset(preset);
     normalize();
     recount();
     notifyAll();
     Q_EMIT checkedCountChanged();
+}
+
+// What the user excluded in an install trace's review isn't the program's, so it is only checked
+// by hand, and so is what holds it: removing that would take it along.
+void LeftoverModel::checkByPreset(Preset preset) {
+    const Confidence minimum = threshold(preset);
+    checked_.assign(levels_.size(), 0);
+    for (std::size_t i = 0; i < checked_.size(); ++i) {
+        checked_[i] = levels_[i] >= minimum && !heldBack_[i] ? 1 : 0;
+    }
 }
 
 void LeftoverModel::setShowUnlikely(bool show) {
@@ -125,12 +156,11 @@ void LeftoverModel::setShowUnlikely(bool show) {
 }
 
 int LeftoverModel::itemCount() const {
-    int count = 0;
-    for (const int root : roots_) {
-        count += nodes_[static_cast<std::size_t>(root)].items;
-    }
-    return count;
+    return static_cast<int>(
+        std::count_if(nodeOf_.begin(), nodeOf_.end(), [](int node) { return node >= 0; }));
 }
+
+int LeftoverModel::changedCount() const { return static_cast<int>(changed_.size()); }
 
 int LeftoverModel::checkedCount() const {
     int count = 0;
@@ -257,6 +287,16 @@ void LeftoverModel::rebuild() {
         nodes_[static_cast<std::size_t>(nodeOf_[i])].parent = parent;
         nodes_[static_cast<std::size_t>(parent)].children.push_back(nodeOf_[i]);
     }
+    // Shown whatever the level: they aren't matches, only what the trace saw.
+    for (std::size_t c = 0; c < changed_.size(); ++c) {
+        const int parent = groupNode(changed_[c].program, Group::ChangedByInstaller);
+        Node node;
+        node.kind = Node::Kind::Changed;
+        node.index = c;
+        node.parent = parent;
+        nodes_[static_cast<std::size_t>(parent)].children.push_back(static_cast<int>(nodes_.size()));
+        nodes_.push_back(std::move(node));
+    }
 
     // Programs in the order given, groups in their enum's order, items in scan order.
     for (const int program : programNodes) {
@@ -322,6 +362,8 @@ void LeftoverModel::recount(int index) {
             node.checkable = 1;
             node.checked = checked_[node.index] ? 1 : 0;
         }
+    } else if (node.kind == Node::Kind::Changed) {
+        node.items = 1;  // Never checkable
     }
     for (const int child : node.children) {
         recount(child);
@@ -400,6 +442,8 @@ QString LeftoverModel::groupLabel(Group group) {
             return LeftoverText::categoryLabel(Category::Shortcuts);
         case Group::Registry:
             return LeftoverText::categoryLabel(Category::Registry);
+        case Group::ValueEdits:
+            return tr("Environment and shared DLLs");
         case Group::ComRegistrations:
             return tr("COM classes and shell extensions");
         case Group::InstallerRegistration:
@@ -412,6 +456,32 @@ QString LeftoverModel::groupLabel(Group group) {
             return LeftoverText::categoryLabel(Category::Packages);
         case Group::Firewall:
             return LeftoverText::categoryLabel(Category::Firewall);
+        case Group::ChangedByInstaller:
+            return tr("Changed by the installer");
+    }
+    return {};
+}
+
+QVariant LeftoverModel::changedData(const Node& node, int column, int role) const {
+    const ChangedItem& changed = changed_[node.index];
+    const leftovers::TracedItem& item = *changed.item;
+    if (role == Qt::DisplayRole) {
+        switch (column) {
+            case ItemColumn:
+                return LeftoverText::locationText(item.location);
+            case TypeColumn:
+                return LeftoverText::kindLabel(item.location, item.category);
+            case ConfidenceColumn:
+                return tr("Shown only");
+            case ReasonColumn:
+                return LeftoverText::tracedChangeText(item.change);
+            default:
+                break;
+        }
+    } else if (role == Qt::ToolTipRole && (column == ItemColumn || column == ReasonColumn)) {
+        return tr("%1\n%2 (install trace of %3)")
+            .arg(LeftoverText::locationText(item.location), LeftoverText::tracedChangeText(item.change),
+                 programs_[changed.program].name);
     }
     return {};
 }
@@ -483,7 +553,16 @@ QVariant LeftoverModel::data(const QModelIndex& index, int role) const {
         if (column == ItemColumn && role == Qt::DisplayRole) {
             return tr("%1 (%2)").arg(groupLabel(node.group), QLocale().toString(node.items));
         }
+        if (column == ItemColumn && role == Qt::ToolTipRole && node.group == Group::ChangedByInstaller) {
+            return tr(
+                "What the program's install trace saw its installer change, delete or move, of what existed "
+                "before the installation. It may be Windows' or another program's: Avel never removes or "
+                "restores it.");
+        }
         return {};
+    }
+    if (node.kind == Node::Kind::Changed) {
+        return changedData(node, column, role);
     }
 
     const auto& leftover = scan_->leftovers[node.index];
@@ -497,8 +576,18 @@ QVariant LeftoverModel::data(const QModelIndex& index, int role) const {
                 return itemText(node);
             }
             if (role == Qt::ToolTipRole) {
-                return tr("%1\nLeft by %2")
-                    .arg(LeftoverText::locationText(leftover.location), ownerNames(leftover));
+                QString where = LeftoverText::locationText(leftover.location);
+                if (const auto* edit = std::get_if<leftovers::ValueEditLocation>(&leftover.location)) {
+                    where += u'\n' + LeftoverText::valueEditDetails(*edit);
+                }
+                QString text = tr("%1\nLeft by %2").arg(where, ownerNames(leftover));
+                if (leftovers::excluded_in_trace_review(leftover)) {
+                    text += u'\n' + LeftoverText::evidenceText({Evidence::ExcludedInTraceReview});
+                } else if (heldBack_[node.index]) {
+                    text += u'\n' + tr("Holds an item excluded in the install trace's review: not checked "
+                                       "automatically");
+                }
+                return text;
             }
             break;
         case TypeColumn:

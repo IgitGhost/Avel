@@ -47,7 +47,8 @@ constexpr std::string_view kUsage =
     "  --no-leftover-scan    don't look for what the uninstallers left behind\n"
     "  --remove-leftovers    remove what they left behind, backed up so `avel-cli undo` can put\n"
     "                        it back\n"
-    "  --min-level <level>   the least likely leftovers to remove: good (default) or very-good\n"
+    "  --min-level <level>   the least likely leftovers to remove: good (default) or very-good;\n"
+    "                        what a trace's review excludes is never removed this way\n"
     "  --allow-irreversible  also remove leftovers undo can't put back (packages)\n"
     "  --no-trace            don't use the programs' install traces (by default, what a trace saw\n"
     "                        the installer create, and its edits to Path and SharedDLLs, join the\n"
@@ -305,6 +306,9 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     if (removal) {
         print("\nRemoving leftovers:\n");
         print_execute_result(*removal_plan, *removal);
+    }
+    if (removal_plan) {
+        print_held_back(*leftover_scan, options.min_level);
     }
     return all_succeeded ? 0 : 1;
 }

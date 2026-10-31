@@ -40,6 +40,9 @@ constexpr Noise kWindowsNoise[] = {
     {L"SoftwareDistribution", kSystem},
     {L"ServiceState", kSystem},
     {L"bootstat.dat", kSystem},
+    // Windows Update's stub log (its real log is ETW), which it writes by itself (seen between a
+    // removal and its undo in the Sandbox)
+    {L"WindowsUpdate.log", kSystem},
     {L"AppReadiness", kSystem},  // Packaged apps being prepared for each user
     {LR"(appcompat\Programs)", kSystem},
     {LR"(appcompat\pca)", kSystem},  // The Program Compatibility Assistant's records
@@ -296,6 +299,9 @@ constexpr Noise kUserKeyNoise[] = {
     // launches ahead of time
     {LR"(Software\Microsoft\Windows\CurrentVersion\RunNotification)", kSystem},
     {LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\PrelaunchErrorWatcher)", kSystem},
+    // Group Policy's own state for the user, which each refresh writes (as the machine's; the
+    // policies themselves, below Policies, are real)
+    {LR"(Software\Microsoft\Windows\CurrentVersion\Group Policy)", kSystem},
     // Storage settings' cache of what folders take up (the user's Storage Sense policy beside it is real)
     {LR"(Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\CachedSizes)", kSystem},
     // Explorer's folder views
@@ -342,6 +348,18 @@ constexpr ValueNoise kValueNoise[] = {
     // Explorer's answer to an environment change being announced (WM_SETTINGCHANGE "Environment")
     {platform::Hive::User, LR"(Software\Microsoft\Windows NT\CurrentVersion\Winlogon)", L"ParseAutoexec",
      kSystem},
+    // Windows checking a user's default apps and signing their choices again: its count and time of
+    // resets, and each choice's hash (the choice itself, ProgId, is real). An idle Sandbox wrote them
+    // by itself 15 minutes after logon; seen too while Inno Setup installed
+    {platform::Hive::User, LR"(Software\Microsoft\Windows\CurrentVersion\FileAssociations)", L"LastResetTime",
+     kSystem},
+    {platform::Hive::User, LR"(Software\Microsoft\Windows\CurrentVersion\FileAssociations)", L"ResetCount",
+     kSystem},
+    {platform::Hive::User,
+     LR"(Software\Microsoft\Windows\Shell\Associations\UrlAssociations\*\UserChoiceLatest)", L"Hash",
+     kSystem},
+    {platform::Hive::User,
+     LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\*\UserChoiceLatest)", L"Hash", kSystem},
     // Storage Sense's last reading of the system volume's free space (seen in the Sandbox's idle round)
     {platform::Hive::Machine, LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense)", L"BootVolFreeCap",
      kSystem},

@@ -7,13 +7,34 @@
 
 #include <algorithm>
 #include <future>
+#include <string>
+#include <unordered_set>
 
 #include "core/leftovers/merge.h"
 #include "core/leftovers/protection.h"
 #include "core/leftovers/scanners.h"
+#include "core/platform/registry_address.h"
 #include "core/platform/text.h"
 
 namespace avel::leftovers {
+
+namespace {
+
+// Where an excluded item is, for the detail of what holds it: a path, a key, or "key : value".
+std::wstring where(const Location& location) {
+    if (const auto* file = std::get_if<FileLocation>(&location)) {
+        return file->path;
+    }
+    if (const auto* key = std::get_if<RegistryKeyLocation>(&location)) {
+        return platform::display_path(key->key);
+    }
+    if (const auto* value = std::get_if<RegistryValueLocation>(&location)) {
+        return platform::display_path(value->key) + L" : " + value->value_name;
+    }
+    return identity(location);
+}
+
+}  // namespace
 
 ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const ScanTarget> targets,
                           std::span<const inventory::Program> installed, const ScanOptions& options) {
@@ -86,6 +107,7 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
     // leave tell which traced DLLs another program still uses.
     const detail::TraceValuePlan trace_values = detail::plan_trace_values(environment, targets);
     std::vector<Leftover> found;
+    std::vector<std::size_t> traced_targets;  // Per result.traces: its target's index
     for (std::size_t index = 0; index < targets.size(); ++index) {
         ScanTarget target = targets[index];
         if (target.install_location.empty()) {
@@ -129,10 +151,60 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
                 use.values.push_back({value.key, value.name, trace_values.bases[index][i]});
             }
             result.traces.push_back(std::move(use));
+            traced_targets.push_back(index);
         }
     }
     detail::add_trace_value_edits(trace_values, result.targets, found);
     merge_duplicates(found);
+
+    // What a target's trace review excludes isn't the program's, the user judged, whatever else
+    // matched it by name: said so, and so never selected automatically. Nor is a folder or key of
+    // the program's that still holds such an item, though no scanner offers the item itself (a
+    // file the installer created in the publisher's folder, which existed before): removing it
+    // would take the item along.
+    std::vector<std::unordered_set<std::wstring>> excluded(result.targets.size());
+    std::vector<std::vector<Location>> still_held(result.targets.size());
+    bool any_excluded = false;
+    for (std::size_t index = 0; index < result.targets.size(); ++index) {
+        for (const auto& location : result.targets[index].trace_excluded) {
+            excluded[index].insert(identity(location));
+            any_excluded = true;
+            if (detail::still_there(environment, location)) {
+                still_held[index].push_back(location);
+            }
+        }
+    }
+    const auto owned_by = [&](const Leftover& item, std::size_t index) {
+        const auto& target = result.targets[index];
+        return std::any_of(item.owner_ids.begin(), item.owner_ids.end(),
+                           [&](const std::wstring& id) { return platform::iequals(id, target.program_id); });
+    };
+    const auto excluded_for = [&](const Leftover& item, const std::wstring& key, std::size_t index) {
+        return excluded[index].contains(key) && owned_by(item, index);
+    };
+    if (any_excluded) {
+        for (auto& item : found) {
+            const std::wstring key = identity(item.location);
+            for (std::size_t index = 0; index < result.targets.size(); ++index) {
+                if (excluded_for(item, key, index)) {
+                    add_record(item.records, {Evidence::ExcludedInTraceReview, 0, ReferenceKind::None,
+                                              result.targets[index].trace_id});
+                    continue;
+                }
+                if (!owned_by(item, index)) {
+                    continue;
+                }
+                const auto& held = still_held[index];
+                const auto inner = std::find_if(held.begin(), held.end(), [&](const Location& location) {
+                    return contains(item.location, location);
+                });
+                if (inner != held.end()) {
+                    add_record(item.records,
+                               {Evidence::HoldsTraceReviewExclusion, 0, ReferenceKind::None, where(*inner)});
+                }
+            }
+        }
+    }
     result.timings.push_back({"matching", since(stage)});
 
     // The traces' counts, for the items they gave evidence to (by the programs that own them).
@@ -175,6 +247,14 @@ ScanResult scan_leftovers(const ScanEnvironment& environment, std::span<const Sc
                 ++use.tied;
             }
         });
+        if (any_excluded && excluded_in_trace_review(item)) {
+            const std::wstring key = identity(item.location);
+            for (std::size_t use = 0; use < result.traces.size(); ++use) {
+                if (excluded_for(item, key, traced_targets[use])) {
+                    ++result.traces[use].excluded;
+                }
+            }
+        }
     }
     result.timings.push_back({"protection", since(stage)});
     result.elapsed = since(started);

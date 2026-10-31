@@ -426,6 +426,28 @@ TEST_F(NoiseFilterTest, KnowsWhatWindowsDidDuringTheSandboxsInstalls) {
     }
     EXPECT_EQ(machine_key(fcon + LR"(\HealthStatus)"), NoiseReason::SystemActivity);
     EXPECT_EQ(machine_key(LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\FconContoso)"), NoiseReason::None);
+
+    // Phase 5c's full run: Windows on its own, between a removal and its undo. Windows Update's
+    // stub log, Group Policy's refresh for the user, and Windows checking the user's default apps
+    // (their choices themselves, and the user's policies, are real).
+    EXPECT_EQ(file(LR"(C:\Windows\WindowsUpdate.log)"), NoiseReason::SystemActivity);
+    EXPECT_EQ(file(LR"(C:\Windows\Contoso.log)"), NoiseReason::None);
+    EXPECT_EQ(user_value(kMe, current_version + LR"(\Group Policy\PolicyApplicationState)", L"PolicyState"),
+              NoiseReason::SystemActivity);
+    EXPECT_EQ(user_key(kMe, current_version + LR"(\Policies\Explorer)"), NoiseReason::None);
+    for (const auto* name : {L"LastResetTime", L"ResetCount"}) {
+        EXPECT_EQ(user_value(kMe, current_version + LR"(\FileAssociations)", name),
+                  NoiseReason::SystemActivity)
+            << platform::to_utf8(name);
+    }
+    for (const auto& key :
+         {std::wstring(LR"(Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https)"),
+          current_version + LR"(\Explorer\FileExts\.htm)"}) {
+        EXPECT_EQ(user_value(kMe, key + LR"(\UserChoiceLatest)", L"Hash"), NoiseReason::SystemActivity)
+            << platform::to_utf8(key);
+        EXPECT_EQ(user_value(kMe, key + LR"(\UserChoiceLatest)", L"ProgId"), NoiseReason::None)
+            << platform::to_utf8(key);
+    }
 }
 
 // A created folder or key holding nothing but noise was made for it; one holding anything else, or

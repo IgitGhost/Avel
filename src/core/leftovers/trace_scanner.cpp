@@ -65,7 +65,8 @@ bool value_exists(const ScanEnvironment& environment, const RegistryAddress& add
     return !missing(::RegQueryValueExW(key.get(), name.c_str(), nullptr, nullptr, nullptr, nullptr));
 }
 
-// The item is still where the trace saw it created (a file is still a file, a folder a folder).
+}  // namespace
+
 bool still_there(const ScanEnvironment& environment, const Location& location) {
     return std::visit(
         [&](const auto& item) -> bool {
@@ -98,6 +99,8 @@ bool still_there(const ScanEnvironment& environment, const Location& location) {
         },
         location);
 }
+
+namespace {
 
 // The item's own name matches the program's exactly (or nearly, as the leftover scan's name match
 // counts it perfect): a file's or folder's, with or without its extension, a key's, a value's, a

@@ -46,7 +46,8 @@ constexpr std::string_view kUsage =
     "  --end-processes       end the programs' running processes (needed with --yes when any run)\n"
     "  --deep                also search every fixed drive for folders named after the programs;\n"
     "                        what it finds alone is questionable and only shown\n"
-    "  --min-level <level>   the least likely items to remove: good (default) or very-good\n"
+    "  --min-level <level>   the least likely items to remove: good (default) or very-good; what\n"
+    "                        a trace's review excludes is never removed this way\n"
     "  --allow-irreversible  also remove items undo can't put back (packages)\n"
     "  --no-trace            don't use a program's install trace\n"
     "  --json                machine-readable output (needs --yes or --dry-run)\n"
@@ -229,6 +230,7 @@ int run_force_command(const std::vector<std::wstring_view>& arguments) {
         print_leftovers(scan, Confidence::Questionable);
         print(std::format("\n{} item{} at or above {} will be removed.\n", plan.items.size(),
                           plan.items.size() == 1 ? "" : "s", leftovers::to_string(options.min_level)));
+        print_held_back(scan, options.min_level);
     }
 
     std::optional<changes::ExecuteResult> removal;

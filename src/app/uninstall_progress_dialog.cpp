@@ -20,6 +20,8 @@
 #include "force_flow.h"
 #include "leftover_dialog.h"
 #include "program_text.h"
+#include "program_traces.h"
+#include "trace_store_access.h"
 
 namespace avel::app {
 
@@ -28,13 +30,18 @@ using uninstall::Outcome;
 UninstallProgressDialog::UninstallProgressDialog(std::shared_ptr<const inventory::Inventory> inventory,
                                                  std::vector<uninstall::BatchItem> items,
                                                  uninstall::BatchOptions options, bool scanLeftovers,
-                                                 ChangeStoreAccess* stores, QWidget* parent)
+                                                 bool useTraces, ChangeStoreAccess* stores,
+                                                 TraceStoreAccess* traces, QWidget* parent)
     : QDialog(parent),
       inventory_(std::move(inventory)),
       items_(std::move(items)),
       options_(std::move(options)),
       scanLeftovers_(scanLeftovers && !options_.dry_run),
-      stores_(stores) {
+      stores_(stores),
+      traces_(traces) {
+    if (scanLeftovers_ && useTraces && traces_ != nullptr) {
+        traceStore_ = traces_->store();
+    }
     setWindowTitle(options_.dry_run ? tr("Simulating uninstall") : tr("Uninstalling"));
     results_.resize(items_.size());
 
@@ -135,13 +142,14 @@ void UninstallProgressDialog::start() {
 
     // The worker only touches the batch data; everything visible happens on the GUI thread.
     worker_ = std::thread([this] {
-        // What the scan needs about each program has to be read before its uninstaller runs.
+        // What the scan needs about each program has to be read before its uninstaller runs, and
+        // its install trace tied to it while it's still installed.
         if (scanLeftovers_) {
             std::vector<const inventory::Program*> programs;
             for (const auto& item : items_) {
                 programs.push_back(item.program);
             }
-            targets_ = leftovers::capture_targets(programs);
+            targets_ = captureTargets(programs, *inventory_, traceStore_.get());
         }
         uninstall::BatchEvents events;
         events.restore_point_done = [this](uninstall::RestorePointStatus status, std::uint32_t error) {
@@ -256,6 +264,10 @@ void UninstallProgressDialog::onBatchFinished(std::shared_ptr<const leftovers::S
     }
     const int removed = count({Outcome::Removed, Outcome::RebootRequired});
     const int not_removed = static_cast<int>(results_.size()) - removed;
+    // The removed programs' traces are kept 30 days from now.
+    if (removed > 0 && traces_ != nullptr) {
+        traces_->startMaintenance();
+    }
     QString summary = tr("%n program(s) removed.", nullptr, removed);
     if (not_removed > 0) {
         summary += u' ' + tr("%n not removed.", nullptr, not_removed);
@@ -316,9 +328,12 @@ void UninstallProgressDialog::showLeftovers() {
     auto* review = new LeftoverDialog(scan_, std::move(programs), LeftoverDialog::Mode::Review,
                                       stores_->store() ? QString() : stores_->unavailableReason(), this);
     review->setAttribute(Qt::WA_DeleteOnClose);
-    review->setRescan([targets = targets_, results = results_](const leftovers::ScanOptions& options) {
-        return leftovers::scan_after_uninstall(targets, results, options);
-    });
+    review->setRescan(
+        [targets = targets_, results = results_](const leftovers::ScanOptions& options, bool useTraces) {
+            return leftovers::scan_after_uninstall(
+                useTraces ? targets : LeftoverDialog::withoutTraces(targets), results, options);
+        },
+        true);
     connect(review, &QDialog::accepted, this, [this, review] {
         auto* removal =
             new ChangeSetProgressDialog(stores_->store(), review->plan(), review->allowIrreversible(), this);

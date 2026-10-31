@@ -75,7 +75,7 @@ the pieces of evidence for and against it.
 
 ## Confidence (`confidence.cpp`)
 
-The score is the sum of the records' points: BCU's values, plus twelve of Avel's own (marked *).
+The score is the sum of the records' points: BCU's values, plus fourteen of Avel's own (marked *).
 
 | Evidence | Points |
 |---|---|
@@ -86,7 +86,7 @@ The score is the sum of the records' points: BCU's values, plus twelve of Avel's
 | traced-value-undo * | +3 |
 | product-name-perfect-match | +2 |
 | traced-created *, traced-value-restore * | +1 |
-| no-owner * | 0 |
+| no-owner *, excluded-in-trace-review *, holds-excluded-in-trace-review * | 0 |
 | depth(n) | 2 − 2·n |
 | directly-inside-known-folder | −1 |
 | product-name-dodgy-match, item-name-equals-company-name, used-by-similar-named-app, other-user-data *, outside-common-locations * | −2 |
@@ -113,6 +113,13 @@ hive. A program installed for everyone is looked for in every profile, but other
 
 **Still used.** A folder that another installed program lives in gets `directory-still-used` (−7).
 After an uninstall, "installed" means a fresh inventory taken after the batch.
+
+**Excluded in a trace's review.** An item the user excluded in the program's install trace's
+review, that another scanner finds all the same, gets `excluded-in-trace-review` (0 points; see
+"Install traces"). It changes neither the score nor the level, only the selection: such an item
+is never selected automatically (`held_back`), by a preset or by `--min-level`. A folder or key
+of the program's that still holds such an item gets `holds-excluded-in-trace-review` (0 points,
+the item as its detail) and is held back too, whether or not a scanner offers the item itself.
 
 ## Protection (`protection.cpp`)
 
@@ -203,11 +210,31 @@ did. The leftover scan uses it through an interface, `TraceSource` (`trace_sourc
 tests fake it. With no source, or no trace, the scan is exactly what it was.
 
 - **The target.** `TraceSource::add_trace` fills in the target's `trace_id`, its `traced` items
-  (the trace's changes that aren't noise: location, category, how it changed, and whether it is
-  tied to the program, with the tracker's reason) and its `traced_values` (the values it changed
-  in the environment and `SharedDLLs`, exactly), each also as it was then (`captured_values`).
-  Tying reads the live registry and Task Scheduler, so the target is captured before the
-  uninstaller runs: `capture_targets(programs, source)`.
+  (the trace's changes that aren't noise and that its review doesn't exclude: location, category,
+  how it changed, and whether it is tied to the program, with the tracker's reason; see
+  [trace.md](trace.md), "The review") and its `traced_values` (the values it changed
+  in the environment and `SharedDLLs`, exactly), each also as it was then (`captured_values`),
+  and what the review excludes (`trace_excluded`: the excluded locations, and each excluded
+  value as its registry value). Tying reads the live registry and Task Scheduler, so the target
+  is captured before the uninstaller runs: `capture_targets(programs, source)`.
+- **What the review excludes** never comes from the trace, but other scanners may find it by
+  name or reference. After merging, an item of the target's whose identity is in its
+  `trace_excluded` gets `excluded-in-trace-review`, the trace's id as its detail. It keeps its
+  level and is listed, but `held_back` marks it, and every item that contains it
+  (`Leftover::inside`, since removing a container takes its contents along), as never selected
+  automatically: no preset of the review checks them, and `changes::make_plan` (the CLI's
+  `--remove-leftovers` and `force` by `--min-level`) leaves them out. The user can still check
+  them by hand. Only the program whose trace excluded the item is concerned; another program's
+  match of it stands. With the trace left out (`--no-trace`, "Use the install trace" off), or not
+  used because its review can't be read, nothing is marked.
+- **What holds an excluded item.** A trace lists only the outermost item it saw created, so an
+  excluded item is never inside a container the same trace offers. But the folder or key it was
+  created in may have existed before the install (the publisher's folder, an older version's
+  install folder or key), and other scanners offer that whole. No scanner may offer the excluded
+  item itself, and then `Leftover::inside` can't tell, so an item of the target's that holds one
+  of its `trace_excluded` still there (`leftovers::contains`) gets
+  `holds-excluded-in-trace-review`, the excluded item as its detail, and `held_back` marks it too.
+  An excluded item that is gone holds nothing back.
 - **The scanner** runs last in the scan's loop, so an item other scanners found too keeps their
   scanner (and its group in the GUI) and merges, and protection and containment apply as to any
   item:
@@ -266,8 +293,8 @@ tests fake it. With no source, or no trace, the scan is exactly what it was.
     the installer's is left in it.
 - **What it brought** is in `ScanResult::traces`, one `TraceUse` per traced target: the trace's id,
   the reported items with its evidence (and how many are tied), its value edits, what was gone,
-  shown only or protected, the created containers offered as what it saw in them, and each traced
-  value's basis.
+  shown only or protected, the created containers offered as what it saw in them, the reported
+  items its review excludes (`excluded`), and each traced value's basis.
 
 ## Merging and containment (`merge.cpp`)
 
@@ -280,8 +307,8 @@ contains it (`Leftover::inside`). Removal will skip items whose container is rem
 
 The CLI and the GUI share one path:
 1. Before the batch runs, `capture_targets()` records each program's scan target, and with a
-   `TraceSource`, its install trace, tied to it while it is still installed. The CLI passes one;
-   the GUI doesn't yet (5c).
+   `TraceSource`, its install trace, tied to it while it is still installed. The CLI and the GUI
+   pass one unless the traces are turned off (`--no-trace`, "Use the install trace").
 2. After the batch, `scan_after_uninstall()` scans the programs that were removed (or will be
    once Windows restarts), against a fresh inventory.
 
@@ -297,15 +324,20 @@ Nothing is scanned after a simulated run.
   unelevated it can't read the trace store, and the scan is as before.
 - `avel-cli uninstall` scans after the batch and prints what was left behind, a program's install
   trace included (`--no-trace`: without it). JSON output gains a `leftover_scan` object (every
-  level). `--no-leftover-scan` turns it off.
+  level). `--no-leftover-scan` turns it off. With `--remove-leftovers` ([changes.md](changes.md))
+  the items at or above `--min-level` go, but the held-back ones (`held_back`), which a line counts
+  ("1 item at or above good is left in place: excluded in an install trace's review ..."); so
+  does `force` ([force.md](force.md)).
 
 The JSON lists each item with its category, location, confidence, score, evidence (kind,
-points, reference, detail), owners, the scanner that found it and the index of its container,
+points, reference, detail), owners, the scanner that found it, the index of its container and
+`held_back` (never selected automatically: what a trace's review excludes, and what holds it),
 plus the protected matches dropped, the time taken and diagnostics (`not-elevated`,
 `user-hive-unavailable`). `traces` has one object per program whose install trace was used:
 `program_id`, `trace_id`, `items` (the reported leftovers with the trace's evidence, value edits
 aside), `tied`, `value_edits`, `gone`, `shown_only`, `protected`, `split` and `split_into` (created
-folders and keys holding more than the trace saw, and the items offered in their place), and `values` (`key`, `name`, and
+folders and keys holding more than the trace saw, and the items offered in their place),
+`excluded` (reported items its review excludes, which other scanners found), and `values` (`key`, `name`, and
 the `basis` of each traced value: `undo`, `restore`, `already-undone`, `changed-since`,
 `protected-variable` or `unsupported`). Value edits are items of kind `value-edit` (category
 `registry`, found by `trace`).
@@ -335,6 +367,10 @@ the `basis` of each traced value: `undo`, `restore`, `already-undone`, `changed-
 - **Presets** (remembered): *Safe* checks Very likely items only, *Moderate* (the default) Likely
   ones too, and *Advanced* Uncertain ones too. Unlikely items (Bad) are hidden unless
   "Show unlikely matches" is on, and never checked by a preset. Hidden items are never removed.
+  No preset checks an item excluded in an install trace's review, or one that holds it
+  (`held_back`), whatever its level; they can be checked by hand. The item's tooltip says why
+  ("Excluded in the install trace's review: not checked automatically", or for a container "Holds
+  an item excluded ...").
   The scan itself is the same for every preset; it takes about half a second.
 - **Columns:**
   - the item;
@@ -342,7 +378,8 @@ the `basis` of each traced value: `undo`, `restore`, `already-undone`, `changed-
   - the confidence, as a color and a label (Very likely, Likely, Uncertain, Unlikely);
   - *Why it matched*: the evidence for it, strongest first, then what speaks against it.
     Evidence worth no points is listed with what's for it ("No installed program owns it" for
-    an orphan); only the depth is left to the tooltip.
+    an orphan); only the depth is left to the tooltip. An exclusion in a trace's review comes
+    first, since it is why the item isn't checked.
 
   The tooltip lists every record with its points and what matched (the referencing value, for
   instance), plus the score.
@@ -355,6 +392,24 @@ the `basis` of each traced value: `undo`, `restore`, `already-undone`, `changed-
   (see [force.md](force.md)), then starts the checks over from the preset.
 - **Groups:** Windows Installer's registration of a forced MSI program has a group of its own,
   like COM classes.
+- **Install traces** ([trace.md](trace.md), "Uninstalling by the trace"):
+  - The uninstall's confirm dialog has **Use the install trace (n items)**, on, when a program has
+    a trace. Preview leftovers and Force use the traces too.
+  - Above the tree, one line per trace the scan used says what it brought (`TraceUse`): its items,
+    how many are tied, its value edits, what was gone, protected or shown only, and how many items
+    its review excludes the other scanners found ("not checked automatically").
+  - **Use the install trace** ("Revert by the install trace" in Force mode, object name
+    `useTraceBox`) is shown when the scan used a trace. Turning it off scans again without the
+    traces (`LeftoverDialog::withoutTraces`), like `--no-trace`, and the checks start over.
+  - **Environment and shared DLLs** holds the value edits, each described as what it does
+    (`LeftoverText::valueEditText`), with the value and its text now and afterwards in the
+    tooltip. They are checked by their confidence like any item, so a `restore` never is.
+  - **Changed by the installer** lists what the traces saw the installer change, delete or move
+    of what existed before: the targets' `traced` items that aren't `created`. Each is listed
+    once, under the first program whose trace saw it, with "Shown only" for its confidence and how
+    it changed. These rows have no checkboxes, aren't counted as leftovers, and are never planned.
+  - The removal and the Undo Center show a value edit that was made as "Edited", and one whose
+    value changed since the scan as "Skipped: the value has changed since" (`Reason::Changed`).
 - **Translations:** `LeftoverText` holds the categories, kinds, confidence levels, evidence,
   reference kinds and diagnostics, translated to Russian and Armenian.
 
@@ -396,8 +451,21 @@ the `Approved` entry.
     more than the trace saw (offered as what it saw in them, or below Good with only a count),
     merging with the install-location scanner, value edits (undo, a path
     reference, restore at Questionable, one edit for two traces of one value and for one trace of
-    two targets, a count the uninstaller lowered, the raw value an edit replaces), and
-    `capture_targets` with a source.
+    two targets, a count the uninstaller lowered, the raw value an edit replaces), what the
+    review excludes found by other scanners (`excluded-in-trace-review`, the level unchanged,
+    left out of `make_plan` by level, another program's match untouched), a folder and a key
+    that existed before holding an excluded file and value no scanner offers
+    (`holds-excluded-in-trace-review`, held back; not when the item is gone or another
+    program's), and
+    `capture_targets` with a source;
+  - `held_back` (`merge_test.cpp`): an excluded item and its containers, not its contents, left
+    out of `make_plan`;
+  - the GUI's tree (`tests/app/leftover_model_test.cpp`): the value edits' group, their words,
+    tooltips and checks by confidence; "Changed by the installer" listed once per item, under the
+    program whose trace saw it (also one the dialog didn't name), never checkable, counted or
+    planned; the line for what a trace brought; "Edited" and `changed` in the removal's results;
+    what a trace's review excluded, and what holds it, checked by no preset but by hand, with
+    its reason first and in the tooltips.
 - **Fixture test (`leftover_scan_test.cpp`):** a fake program "Contoso Fixture" laid out in a
   temporary folder tree and volatile registry keys, standing in for the machine and a user. It
   has a service, a scheduled task, a shell extension, a firewall rule and decoys (shared folders,

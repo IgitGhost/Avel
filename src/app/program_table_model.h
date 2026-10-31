@@ -14,6 +14,8 @@
 
 namespace avel::app {
 
+class ProgramTraces;
+
 // One row per inventory entry. The proxy model (ProgramFilterModel) decides which rows show.
 class ProgramTableModel : public QAbstractTableModel {
     Q_OBJECT
@@ -26,6 +28,7 @@ public:
         SizeColumn,
         DateColumn,
         TypeColumn,
+        TraceColumn,  // "Traced": installed with Avel Trace
         ColumnCount
     };
     // Raw values for sorting: numbers for sizes, QDate for dates, text otherwise.
@@ -34,6 +37,9 @@ public:
     explicit ProgramTableModel(QObject* parent = nullptr);
 
     void setInventory(std::shared_ptr<const inventory::Inventory> inventory);
+    // Which programs were installed with Avel Trace (the Trace column); `traces` must outlive the
+    // model.
+    void setTraces(const ProgramTraces* traces);
     const inventory::Inventory* inventory() const { return inventory_.get(); }
     const inventory::Program* programAt(int row) const;
 
@@ -63,6 +69,7 @@ private:
     QIcon brokenIcon(const QString& source) const;
 
     std::shared_ptr<const inventory::Inventory> inventory_;
+    const ProgramTraces* traces_ = nullptr;
     std::vector<Row> rows_;
     QHash<QString, QIcon> icons_;
     mutable QHash<QString, QIcon> brokenIcons_;  // By icon source, made when first shown

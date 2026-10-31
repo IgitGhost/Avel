@@ -30,6 +30,13 @@ enum class Evidence : std::uint8_t {
     TracedCreated,              // +1  (Avel) The install trace saw it created; nothing ties it to the program
     TracedValueRestore,         // +1  (Avel) A value edit putting back what the installer replaced (trace)
     NoOwner,                    // 0   (Avel) An orphaned folder: no installed program owns it
+    ExcludedInTraceReview,      // 0   (Avel) The program's install trace saw it, and the user excluded it
+                                //     in the trace's review; another scanner found it. Never selected
+                                //     automatically (held_back), whatever its level; detail: the trace's id
+    HoldsTraceReviewExclusion,  // 0   (Avel) A folder or key of the program's still holding an item its
+                                //     install trace's review excluded, which no scanner may offer:
+                                //     removing it would take that along. Never selected automatically
+                                //     (held_back); detail: the item
     Depth,                      // 2 - 2 * level: how deep below a search root the item sits
     DirectlyInsideKnownFolder,  // -1
     ProductNameDodgyMatch,      // -2

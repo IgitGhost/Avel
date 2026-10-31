@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "cli/console.h"
+#include "core/changes/change_set.h"
 #include "core/changes/serialization.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/text.h"
@@ -178,6 +179,7 @@ std::string evidence_summary(const Leftover& item) {
 }  // namespace
 
 Json leftovers_to_json(const leftovers::ScanResult& result, leftovers::Confidence min_level) {
+    const std::vector<bool> held = leftovers::held_back(result.leftovers);
     Json items = Json::array();
     for (std::size_t i = 0; i < result.leftovers.size(); ++i) {
         const auto& item = result.leftovers[i];
@@ -192,6 +194,7 @@ Json leftovers_to_json(const leftovers::ScanResult& result, leftovers::Confidenc
         json["confidence"] = leftovers::to_string(level);
         json["score"] = leftovers::score(item.records);
         json["inside"] = item.inside ? Json(*item.inside) : Json(nullptr);
+        json["held_back"] = static_cast<bool>(held[i]);
         json["found_by"] = leftovers::to_string(item.found_by);
         Json programs = Json::array();
         for (const auto& id : item.owner_ids) {
@@ -251,6 +254,7 @@ Json traces_to_json(const leftovers::ScanResult& result) {
                           {"protected", use.protected_count},
                           {"split", use.split},
                           {"split_into", use.split_into},
+                          {"excluded", use.excluded},
                           {"values", std::move(values)}});
     }
     return traces;
@@ -301,10 +305,33 @@ void print_leftovers(const leftovers::ScanResult& result, leftovers::Confidence 
                                 use.split, plural(use.split), plural(use.split), use.split_into,
                                 plural(use.split_into));
         }
+        if (use.excluded > 0) {
+            line += std::format("; {} excluded in its review, never removed automatically", use.excluded);
+        }
         print(line + "\n");
     }
     for (const auto& diagnostic : result.diagnostics) {
         print_error(std::format("note: {} {}\n", leftovers::to_string(diagnostic.code), to_utf8(diagnostic.subject)));
+    }
+}
+
+std::size_t held_back_count(const leftovers::ScanResult& result, leftovers::Confidence min_level) {
+    const std::vector<bool> held = leftovers::held_back(result.leftovers);
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < result.leftovers.size(); ++i) {
+        const auto& item = result.leftovers[i];
+        count +=
+            held[i] && leftovers::level(item.records) >= min_level && changes::is_removable(item.location);
+    }
+    return count;
+}
+
+void print_held_back(const leftovers::ScanResult& result, leftovers::Confidence min_level) {
+    if (const std::size_t held = held_back_count(result, min_level); held > 0) {
+        print(std::format(
+            "{} item{} at or above {} {} left in place: excluded in an install trace's review "
+            "(excluded-in-trace-review), or holding such an item.\n",
+            held, held == 1 ? "" : "s", leftovers::to_string(min_level), held == 1 ? "is" : "are"));
     }
 }
 

@@ -46,7 +46,13 @@
 #include "program_filter_model.h"
 #include "program_table_model.h"
 #include "program_text.h"
+#include "program_traces.h"
 #include "running_processes_dialog.h"
+#include "trace_controller.h"
+#include "trace_progress_dialog.h"
+#include "trace_review_dialog.h"
+#include "trace_store_access.h"
+#include "traces_dialog.h"
 #include "undo_center_dialog.h"
 #include "uninstall_dialog.h"
 #include "uninstall_progress_dialog.h"
@@ -105,6 +111,7 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     loader_ = new InventoryLoader(this);
     iconLoader_ = new IconLoader(static_cast<int>(std::ceil(kIconSize * devicePixelRatioF())), this);
     stores_ = new ChangeStoreAccess(this);
+    traces_ = new TraceStoreAccess(this);
     workers_.setMaxThreadCount(1);
 
     createActions();
@@ -112,8 +119,15 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
     createToolBar();
     createCentralArea();
     createStatusBar();
+    setUpTracing();
     retranslateUi();
     restoreLayout();
+
+    // Which programs were installed with Avel Trace: worked out after each inventory load.
+    programTraces_ = new ProgramTraces(traces_, this);
+    model_->setTraces(programTraces_);
+    details_->setTraces(programTraces_);
+    connect(programTraces_, &ProgramTraces::changed, this, &MainWindow::ensureColumnsFit);
 
     connect(loader_, &InventoryLoader::started, this, &MainWindow::onScanStarted);
     connect(loader_, &InventoryLoader::finished, this, &MainWindow::onScanFinished);
@@ -127,6 +141,7 @@ MainWindow::MainWindow(LanguageManager& languages, QWidget* parent)
 
     loader_->start();
     stores_->startMaintenance();
+    traces_->startMaintenance();
 }
 
 void MainWindow::createActions() {
@@ -296,6 +311,7 @@ void MainWindow::createCentralArea() {
     header->resizeSection(ProgramTableModel::SizeColumn, 80);
     header->resizeSection(ProgramTableModel::DateColumn, 100);
     header->resizeSection(ProgramTableModel::TypeColumn, 110);
+    header->resizeSection(ProgramTableModel::TraceColumn, 80);
 
     // Selection, not the current index: accessibility tools and programmatic selection change the
     // selection without moving the current index.
@@ -407,6 +423,7 @@ void MainWindow::retranslateUi() {
 
     elevationLabel_->setText(elevated_ ? tr("Running as administrator")
                                        : tr("No administrator rights: some features are unavailable"));
+    retranslateTracing();
     model_->retranslate();
     ensureColumnsFit();
     updateCounts();
@@ -457,6 +474,7 @@ void MainWindow::onScanFinished(std::shared_ptr<const inventory::Inventory> inve
 
     inventory_ = std::move(inventory);
     model_->setInventory(inventory_);
+    programTraces_->refresh(inventory_);
     iconLoader_->load(model_->iconSources());
 
     refreshAction_->setEnabled(true);
@@ -551,12 +569,12 @@ void MainWindow::uninstallSelected() {
     // Window-modal dialogs opened with open(), not exec(): no nested event loop, and the main
     // window stays blocked until they close. The inventory copy keeps the programs alive even if
     // a refresh replaces it meanwhile.
-    auto* confirmation = new UninstallDialog(programs, this);
+    auto* confirmation = new UninstallDialog(programs, programTraces_, this);
     confirmation->setAttribute(Qt::WA_DeleteOnClose);
     connect(confirmation, &QDialog::accepted, this, [this, confirmation, inventory = inventory_] {
-        auto* progress =
-            new UninstallProgressDialog(inventory, confirmation->items(), confirmation->options(),
-                                        confirmation->scanLeftovers(), stores_, this);
+        auto* progress = new UninstallProgressDialog(inventory, confirmation->items(),
+                                                     confirmation->options(), confirmation->scanLeftovers(),
+                                                     confirmation->useTraces(), stores_, traces_, this);
         progress->setAttribute(Qt::WA_DeleteOnClose);
         connect(progress, &QDialog::finished, this, [this, progress] {
             if (progress->changedAnything()) {
@@ -597,7 +615,7 @@ void MainWindow::startForce(ForceFlow::Request request) {
     if (forceFlow_ != nullptr) {
         return;
     }
-    forceFlow_ = new ForceFlow(std::move(request), stores_, this);
+    forceFlow_ = new ForceFlow(std::move(request), stores_, traces_, this);
     connect(forceFlow_, &ForceFlow::progress, this, [this](const QString& message) {
         message.isEmpty() ? statusBar()->clearMessage() : statusBar()->showMessage(message);
     });
@@ -610,6 +628,17 @@ void MainWindow::startForce(ForceFlow::Request request) {
     });
     updateActions();
     forceFlow_->start();
+}
+
+void MainWindow::forceTrace(const QString& traceId) {
+    if (forceFlow_ != nullptr) {
+        statusBar()->showMessage(tr("Avel Force is already removing something. Try again when it's done."),
+                                 5000);
+        return;
+    }
+    if (!traceId.isEmpty()) {
+        startForce({.traceId = traceId.toStdWString()});
+    }
 }
 
 void MainWindow::previewLeftovers() {
@@ -625,9 +654,11 @@ void MainWindow::previewLeftovers() {
     busy_ = true;
     updateActions();
     statusBar()->showMessage(tr("Looking for leftovers…"));
-    // The inventory copy keeps the programs alive while the scan reads them.
-    workers_.start([this, inventory = inventory_, programs, names = std::move(names)] {
-        auto targets = leftovers::capture_targets(programs);
+    // The inventory copy keeps the programs alive while the scan reads them. A program's install
+    // trace shows what its installer created, as with avel-cli scan.
+    auto traces = traces_->store();
+    workers_.start([this, inventory = inventory_, programs, names = std::move(names), traces] {
+        auto targets = captureTargets(programs, *inventory, traces.get());
         const leftovers::LiveEnvironment environment;
         auto scan = std::make_shared<const leftovers::ScanResult>(
             leftovers::scan_leftovers(environment.environment(), targets, inventory->programs));
@@ -649,11 +680,15 @@ void MainWindow::onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> 
     auto* preview = new LeftoverDialog(std::move(scan), std::move(programs), LeftoverDialog::Mode::Preview,
                                        QString(), this);
     preview->setAttribute(Qt::WA_DeleteOnClose);
-    preview->setRescan([inventory = inventory_,
-                        targets = std::move(targets)](const leftovers::ScanOptions& options) {
-        const leftovers::LiveEnvironment environment;
-        return leftovers::scan_leftovers(environment.environment(), targets, inventory->programs, options);
-    });
+    preview->setRescan(
+        [inventory = inventory_, targets = std::move(targets)](const leftovers::ScanOptions& options,
+                                                               bool useTraces) {
+            const leftovers::LiveEnvironment environment;
+            return leftovers::scan_leftovers(environment.environment(),
+                                             useTraces ? targets : LeftoverDialog::withoutTraces(targets),
+                                             inventory->programs, options);
+        },
+        true);
     preview->open();
 }
 
@@ -892,8 +927,9 @@ void MainWindow::ensureColumnsFit() {
     auto* header = table_->horizontalHeader();
     // QTableView makes sizeHintForColumn protected; it's public on the base class.
     const QAbstractItemView* view = table_;
-    for (const int column : {ProgramTableModel::VersionColumn, ProgramTableModel::SizeColumn,
-                             ProgramTableModel::DateColumn, ProgramTableModel::TypeColumn}) {
+    for (const int column :
+         {ProgramTableModel::VersionColumn, ProgramTableModel::SizeColumn, ProgramTableModel::DateColumn,
+          ProgramTableModel::TypeColumn, ProgramTableModel::TraceColumn}) {
         const int needed = std::max(view->sizeHintForColumn(column), header->sectionSizeHint(column));
         if (header->sectionSize(column) < needed) {
             header->resizeSection(column, needed);
@@ -925,6 +961,107 @@ void MainWindow::updateDiagnostics() {
     warningLabel_->setToolTip(lines.join(u'\n'));
     warningLabel_->show();
 }
+
+// --- Avel Trace -------------------------------------------------------------------------------
+
+void MainWindow::setUpTracing() {
+    traceController_ = new TraceController(traces_, this);
+
+    installTraceAction_ = new QAction(this);
+    installTraceAction_->setObjectName(u"installAndTraceAction"_s);
+    connect(installTraceAction_, &QAction::triggered, traceController_, &TraceController::installAndTrace);
+    startTraceAction_ = new QAction(this);
+    startTraceAction_->setObjectName(u"startTracingAction"_s);
+    connect(startTraceAction_, &QAction::triggered, traceController_, &TraceController::startTracing);
+    stopTraceAction_ = new QAction(this);
+    stopTraceAction_->setObjectName(u"stopTracingAction"_s);
+    connect(stopTraceAction_, &QAction::triggered, traceController_, &TraceController::stopTracing);
+    tracesAction_ = new QAction(this);
+    tracesAction_->setObjectName(u"tracesAction"_s);
+    connect(tracesAction_, &QAction::triggered, this, &MainWindow::openTraces);
+
+    // Between View and Tools.
+    traceMenu_ = new QMenu(this);
+    traceMenu_->setToolTipsVisible(true);  // A disabled action's tooltip says why
+    traceMenu_->addAction(installTraceAction_);
+    traceMenu_->addSeparator();
+    traceMenu_->addAction(startTraceAction_);
+    traceMenu_->addAction(stopTraceAction_);
+    traceMenu_->addSeparator();
+    traceMenu_->addAction(tracesAction_);
+    menuBar()->insertMenu(toolsMenu_->menuAction(), traceMenu_);
+
+    // Leftmost of the permanent widgets: "Tracing since 14:02" with Stop.
+    statusBar()->insertPermanentWidget(0, traceController_->statusWidget());
+
+    connect(traceController_, &TraceController::stateChanged, this, &MainWindow::updateTraceActions);
+    connect(traceController_, &TraceController::reviewRequested, this, &MainWindow::openTraceReview);
+    connect(traceController_, &TraceController::programsChanged, loader_, &InventoryLoader::start);
+    // A trace left open by a restart or a crash.
+    traceController_->checkAtStartup();
+}
+
+void MainWindow::retranslateTracing() {
+    traceMenu_->setTitle(tr("T&race"));
+    installTraceAction_->setText(tr("&Install and trace…"));
+    startTraceAction_->setText(tr("&Start tracing…"));
+    stopTraceAction_->setText(tr("S&top tracing"));
+    tracesAction_->setText(tr("&Traces…"));
+    traceController_->retranslateUi();
+    updateTraceActions();
+}
+
+void MainWindow::updateTraceActions() {
+    using State = TraceController::State;
+    const bool available = traces_->store() != nullptr;
+    const State state = traceController_->state();
+    const bool idle = state == State::Idle;
+    const bool open = !traceController_->openTraceId().isEmpty();
+    installTraceAction_->setEnabled(available && idle && !open);
+    startTraceAction_->setEnabled(available && idle && !open);
+    stopTraceAction_->setEnabled(
+        available &&
+        (state == State::Tracing || (idle && open && !traceController_->openTraceHeldElsewhere())));
+    if (!available) {
+        const QString reason = traces_->unavailableReason();
+        for (QAction* action : {installTraceAction_, startTraceAction_, stopTraceAction_}) {
+            action->setToolTip(reason);
+            action->setStatusTip(reason);
+        }
+        return;
+    }
+    installTraceAction_->setToolTip(
+        tr("Run an installer and record what it changes, so the program can later be removed exactly"));
+    startTraceAction_->setToolTip(tr("Record what changes while you install a program yourself"));
+    stopTraceAction_->setToolTip(state == State::Tracing
+                                     ? tr("Stop the trace and review what the installation changed")
+                                     : tr("Finish the open trace and review it"));
+    for (QAction* action : {installTraceAction_, startTraceAction_, stopTraceAction_}) {
+        action->setStatusTip(action->toolTip());
+    }
+}
+
+void MainWindow::openTraces() {
+    auto* dialog = new TracesDialog(traces_, traceController_, inventory_, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    // The dialog closes itself once it asked for the revert.
+    connect(dialog, &TracesDialog::revertRequested, this, &MainWindow::forceTrace);
+    dialog->open();
+}
+
+void MainWindow::openTraceReview(const QString& traceId) {
+    // On top of the dialog that asked for it, when one is open.
+    QWidget* parent = QApplication::activeModalWidget();
+    if (qobject_cast<TracesDialog*>(parent) == nullptr &&
+        qobject_cast<TraceProgressDialog*>(parent) == nullptr) {
+        parent = this;
+    }
+    auto* review = new TraceReviewDialog(traces_, traceId, parent);
+    review->setAttribute(Qt::WA_DeleteOnClose);
+    review->open();
+}
+
+// -----------------------------------------------------------------------------------------------
 
 void MainWindow::showAbout() {
     QMessageBox::about(this, tr("About Avel"),

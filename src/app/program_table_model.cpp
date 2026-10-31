@@ -9,6 +9,7 @@
 #include <shellapi.h>
 
 #include "program_text.h"
+#include "program_traces.h"
 
 namespace avel::app {
 
@@ -70,6 +71,16 @@ void ProgramTableModel::setInventory(std::shared_ptr<const inventory::Inventory>
     endResetModel();
 }
 
+void ProgramTableModel::setTraces(const ProgramTraces* traces) {
+    traces_ = traces;
+    connect(traces_, &ProgramTraces::changed, this, [this] {
+        if (!rows_.empty()) {
+            Q_EMIT dataChanged(index(0, TraceColumn), index(rowCount() - 1, TraceColumn),
+                               {Qt::DisplayRole, Qt::ToolTipRole});
+        }
+    });
+}
+
 const inventory::Program* ProgramTableModel::programAt(int row) const {
     return row >= 0 && row < static_cast<int>(rows_.size()) ? rows_[static_cast<size_t>(row)].program
                                                             : nullptr;
@@ -115,11 +126,17 @@ QVariant ProgramTableModel::data(const QModelIndex& index, int role) const {
     }
     const Row& row = rows_[static_cast<size_t>(index.row())];
     const inventory::Program& program = *row.program;
+    const auto* trace =
+        traces_ != nullptr && index.column() == TraceColumn ? traces_->find(program.id) : nullptr;
 
     switch (role) {
         case Qt::ToolTipRole:
             if (index.column() == NameColumn && row.broken) {
                 return row.name + u'\n' + ProgramText::brokenReasons(program).join(u'\n');
+            }
+            if (trace != nullptr) {
+                const QString summary = ProgramTraces::summaryText(*trace);
+                return trace->incomplete ? summary + u'\n' + ProgramTraces::incompleteText() : summary;
             }
             [[fallthrough]];
         case Qt::DisplayRole:
@@ -139,6 +156,8 @@ QVariant ProgramTableModel::data(const QModelIndex& index, int role) const {
                                : QString();
                 case TypeColumn:
                     return ProgramText::typeLabel(program);
+                case TraceColumn:
+                    return trace != nullptr ? ProgramTraces::markText(*trace) : QString();
             }
             break;
         case SortRole:
@@ -206,6 +225,8 @@ QVariant ProgramTableModel::headerData(int section, Qt::Orientation orientation,
             return tr("Installed");
         case TypeColumn:
             return tr("Type");
+        case TraceColumn:
+            return tr("Trace");
     }
     return {};
 }

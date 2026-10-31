@@ -50,6 +50,8 @@ int points(const Record& record) {
         case Evidence::StoreApp:
             return -10;
         case Evidence::NoOwner:
+        case Evidence::ExcludedInTraceReview:
+        case Evidence::HoldsTraceReviewExclusion:
             return 0;
     }
     return 0;
@@ -121,6 +123,10 @@ std::string_view to_string(Evidence evidence) {
             return "product-name-perfect-match";
         case Evidence::NoOwner:
             return "no-owner";
+        case Evidence::ExcludedInTraceReview:
+            return "excluded-in-trace-review";
+        case Evidence::HoldsTraceReviewExclusion:
+            return "holds-excluded-in-trace-review";
         case Evidence::Depth:
             return "depth";
         case Evidence::DirectlyInsideKnownFolder:

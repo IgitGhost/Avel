@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -139,6 +140,16 @@ struct Leftover {
 // The group an item falls in by its kind alone: .lnk files are shortcuts, value edits and other
 // keys and values registry, and so on.
 Category category_of(const Location& location);
+
+// Excluded in its program's install trace's review (Evidence::ExcludedInTraceReview).
+bool excluded_in_trace_review(const Leftover& leftover);
+
+// Per item of a scan's result: true for those never selected automatically, by a preset or by a
+// minimum level, whatever their level: the items excluded in an install trace's review, and the
+// items that contain one, since removing those would take it along: by Leftover::inside, or, for an
+// excluded item no scanner offers, by Evidence::HoldsTraceReviewExclusion. The user can still select
+// them.
+std::vector<bool> held_back(std::span<const Leftover> leftovers);
 
 std::string_view to_string(Category category);
 std::string_view to_string(Scanner scanner);

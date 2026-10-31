@@ -208,6 +208,11 @@ other scanners find. Its uninstaller still never runs.
   installer created for the program and leaves what merely happened during the install. Value
   edits that take back the installer's change are Good or better; restoring a variable it
   changed is Questionable. Only created items are offered: what existed before stays as it is.
+- **The review.** What the trace's review excludes never joins the plan from the trace. Another
+  scanner may find it all the same (by the program's name, say): it is listed with
+  `excluded-in-trace-review`, but `--min-level` never selects it, nor what holds it, whether a
+  scanner offers the item or not (`holds-excluded-in-trace-review`; [leftovers.md](leftovers.md),
+  "Install traces"). The plan says how many were left in place.
 - **`force --trace <id>`** reverts one trace, also when no installed program answers to it: an
   imported trace, or one whose Uninstall key is gone. Its program, while installed, is the target;
   otherwise the name, publisher, install folder, Uninstall key and product code its link last
@@ -239,7 +244,7 @@ avel-cli scan <program>... [--deep]
 
 1. It resolves the targets and lists the processes running from their folders.
 2. It scans, and prints the plan: what was found and what will be removed (Good and above by
-   default).
+   default, but never what an install trace's review excludes, or what holds it).
 3. It asks once ("End 1 process and remove 14 items?") and ends the processes.
 4. It runs the ChangeSet, described as "Forced removal of X", which `avel-cli undo` and the
    Undo Center list like any other.
@@ -279,6 +284,17 @@ uninstaller:
 
 The processes are ended only after the review, not before as first planned. That way nothing is
 closed for a removal the user then cancels, and the list is current when they agree.
+
+**Reverting by the trace** works as in the CLI:
+- A program installed with Avel Trace gets its trace in step 1, tied to it as it is now
+  (`captureTargets`). The review says so, with one line per trace ("Install trace of X: …").
+  **Revert by the install trace**, on, scans again without the trace when turned off, like
+  `--no-trace` (`Request::useTraces` does the same for a whole request).
+- `Request::traceId` reverts one trace, as `force --trace <id>`, also when no installed program
+  answers to it. `MainWindow::forceTrace(id)` starts it; the Traces dialog uses it. A trace that is
+  gone, unfinished or damaged, or a trace store Avel can't use, ends the flow with the reason.
+  Here the trace is the point, so the review has no checkbox to turn it off.
+- After a removal, the trace store's retention runs, so the program's trace starts its 30 days.
 
 **Entry points:**
 

@@ -296,7 +296,7 @@ void ChangeSetProgressDialog::addProblem(std::size_t index, const changes::ItemR
     row->setText(0, LeftoverText::locationText(item.location));
     row->setToolTip(0, row->text(0));
     row->setText(1, LeftoverText::kindLabel(item.location, item.category));
-    row->setText(2, LeftoverText::statusText(result.status));
+    row->setText(2, LeftoverText::statusText(result.status, item.location));
     row->setToolTip(2, row->text(2));
     for (const auto& holder : result.holders) {
         auto* child = new QTreeWidgetItem(row);

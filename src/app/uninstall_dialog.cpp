@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QStringList>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -16,6 +17,7 @@
 #include "core/uninstall/installer_detection.h"
 #include "force_flow.h"
 #include "program_text.h"
+#include "program_traces.h"
 
 using namespace Qt::StringLiterals;
 
@@ -28,7 +30,8 @@ constexpr auto kLeftoverScanKey = "uninstall/leftoverScan"_L1;
 
 }  // namespace
 
-UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs, QWidget* parent)
+UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs, const ProgramTraces* traces,
+                                 QWidget* parent)
     : QDialog(parent), programs_(std::move(programs)) {
     context_.current_user_sid = platform::current_user_sid();
     context_.elevated = platform::is_process_elevated();
@@ -68,6 +71,33 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
     leftoverScanBox_->setToolTip(
         tr("Once the uninstallers are done, Avel looks for the files, registry entries, services and tasks "
            "they left behind, and lets you choose what to remove."));
+
+    // Uninstalling by the trace (docs/trace.md): what each program's install trace would offer.
+    QStringList traced;
+    std::size_t offered = 0;
+    for (const auto* program : programs_) {
+        // A trace whose record can't be read can't be used either.
+        if (const auto* trace = traces != nullptr ? traces->find(program->id) : nullptr;
+            trace && trace->offer) {
+            traced << (program->display_name.empty() ? tr("(no name)") : toQString(program->display_name));
+            offered += ProgramTraces::offeredCount(*trace);
+        }
+    }
+    const auto offeredCount = static_cast<int>(offered);
+    traceBox_ =
+        new QCheckBox(traced.size() > 1 ? tr("Use the install traces (%n item(s))", nullptr, offeredCount)
+                                        : tr("Use the install trace (%n item(s))", nullptr, offeredCount),
+                      this);
+    traceBox_->setObjectName(u"useTraceBox"_s);
+    traceBox_->setAccessibleName(tr("Use the install trace"));
+    traceBox_->setAccessibleDescription(traceBox_->text());  // With the count
+    traceBox_->setChecked(true);
+    traceBox_->setToolTip(
+        tr("Installed with Avel Trace: %1. After the uninstaller, what the trace saw the installer "
+           "create and is still there joins the leftovers, and its changes to Path and shared DLLs are "
+           "offered to be taken back.")
+            .arg(traced.join(u", "_s)));
+    traceBox_->setVisible(!traced.isEmpty());
     simulateBox_ = new QCheckBox(tr("Simulate only: show what would happen, change nothing"), this);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -89,11 +119,16 @@ UninstallDialog::UninstallDialog(std::vector<const inventory::Program*> programs
     layout->addWidget(quietBox_);
     layout->addWidget(restorePointBox_);
     layout->addWidget(leftoverScanBox_);
+    layout->addWidget(traceBox_);
     layout->addWidget(simulateBox_);
     layout->addWidget(buttons);
 
     connect(quietBox_, &QCheckBox::toggled, this, &UninstallDialog::updatePlans);
     connect(simulateBox_, &QCheckBox::toggled, this, &UninstallDialog::updatePlans);
+    // The trace's items join the leftover scan: nothing to use it for without one.
+    connect(leftoverScanBox_, &QCheckBox::toggled, this, [this] {
+        traceBox_->setEnabled(leftoverScanBox_->isEnabled() && leftoverScanBox_->isChecked());
+    });
     updatePlans();
 
     list_->resizeColumnToContents(0);
@@ -117,6 +152,9 @@ uninstall::BatchOptions UninstallDialog::options() const {
 bool UninstallDialog::scanLeftovers() const {
     return leftoverScanBox_->isChecked() && !simulateBox_->isChecked();
 }
+
+// Also while the box is hidden: a trace the program list didn't know of yet is used, as by avel-cli.
+bool UninstallDialog::useTraces() const { return scanLeftovers() && traceBox_->isChecked(); }
 
 void UninstallDialog::accept() {
     QSettings().setValue(kRestorePointKey, restorePointBox_->isChecked());
@@ -149,6 +187,7 @@ void UninstallDialog::updatePlans() {
     okButton_->setText(simulateBox_->isChecked() ? tr("Simulate") : tr("Uninstall"));
     // A simulated run removes nothing, so there would be nothing to find.
     leftoverScanBox_->setEnabled(!simulateBox_->isChecked());
+    traceBox_->setEnabled(leftoverScanBox_->isEnabled() && leftoverScanBox_->isChecked());
     okButton_->setEnabled(possible > 0);
     forceButton_->setVisible(!forceIds_.empty());
     if (possible == 0 && !forceIds_.empty()) {

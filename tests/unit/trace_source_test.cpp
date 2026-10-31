@@ -4,6 +4,7 @@
 // come from a fake reader: nothing here reads the live system's keys.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -233,6 +234,30 @@ TEST_F(StoreTraceSourceTest, RefusesTracesThatDontExistOrArentFinished) {
     ASSERT_TRUE(folder->write_info(info));
     EXPECT_FALSE(source.trace_target(info.id, error));
     EXPECT_EQ(error, TraceError::NotFinished);
+}
+
+// What a trace can bring, counted on its result: what add_trace gives the target, before the scan.
+TEST_F(StoreTraceSourceTest, CountsWhatATraceCanOffer) {
+    const Program program = contoso();
+    const std::wstring id = add_trace(&program, 1h);
+    const auto result = store_->read_result(id);
+    ASSERT_TRUE(result);
+    const TraceOffer offer = trace_offer(*result);
+    EXPECT_EQ(offer.created, 3u);  // The prefetch file is noise
+    EXPECT_EQ(offer.changed, 1u);
+    EXPECT_EQ(offer.values, 1u);
+
+    inventory::Inventory inventory;
+    inventory.programs = {program};
+    StoreTraceSource source(*store_, inventory, fake_options());
+    auto target = leftovers::make_scan_target(program);
+    ASSERT_TRUE(source.add_trace(program, target));
+    const auto created = std::count_if(target.traced.begin(), target.traced.end(), [](const auto& item) {
+        return item.change == leftovers::TracedChange::Created;
+    });
+    EXPECT_EQ(static_cast<std::size_t>(created), offer.created);
+    EXPECT_EQ(target.traced.size() - offer.created, offer.changed);
+    EXPECT_EQ(target.traced_values.size(), offer.values);
 }
 
 }  // namespace

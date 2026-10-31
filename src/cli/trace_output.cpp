@@ -139,7 +139,7 @@ std::string describe_link(const tracker::TraceLink& link) {
     return text + std::format(" [{}]", tracker::to_string(link.matched_by));
 }
 
-Json change_to_json(const tracker::TraceChange& change, const tracker::TiedItem* tie) {
+Json change_to_json(const tracker::TraceChange& change, const tracker::TiedItem* tie, bool excluded) {
     Json json;
     json["change"] = tracker::to_string(change.change);
     json["location"] = location_to_json(change.location);
@@ -157,10 +157,13 @@ Json change_to_json(const tracker::TraceChange& change, const tracker::TiedItem*
         json["tied"] = tie->tied;
         json["tie"] = tracker::to_string(tie->reason);
     }
+    if (excluded) {
+        json["excluded"] = true;
+    }
     return json;
 }
 
-Json known_value_to_json(const tracker::KnownValueChange& change) {
+Json known_value_to_json(const tracker::KnownValueChange& change, bool excluded) {
     Json json;
     json["spot"] = tracker::to_string(change.spot);
     json["key"] = to_utf8(platform::display_path(change.key));
@@ -174,6 +177,9 @@ Json known_value_to_json(const tracker::KnownValueChange& change) {
                 json[field] = to_utf8(*text);
             }
         }
+    }
+    if (excluded) {
+        json["excluded"] = true;
     }
     return json;
 }
@@ -292,18 +298,20 @@ Json trace_root_to_json(const TraceInfo& info) {
 }
 
 Json trace_result_to_json(const TraceInfo& info, const tracker::TraceResult& result, bool all,
-                          const std::vector<tracker::TiedItem>* tied) {
+                          const std::vector<tracker::TiedItem>* tied, const tracker::TraceReview* review) {
     Json root = trace_root_to_json(info);
     root["changes"] = Json::array();
     for (std::size_t i = 0; i < result.changes.size(); ++i) {
         const auto& change = result.changes[i];
         if (all || change.noise == NoiseReason::None) {
-            root["changes"].push_back(change_to_json(change, tie_of(tied, i)));
+            root["changes"].push_back(
+                change_to_json(change, tie_of(tied, i), review && tracker::is_excluded(*review, change)));
         }
     }
     root["known_values"] = Json::array();
     for (const auto& value : result.known_values) {
-        root["known_values"].push_back(known_value_to_json(value));
+        root["known_values"].push_back(
+            known_value_to_json(value, review && tracker::is_excluded(*review, value)));
     }
     return root;
 }
@@ -399,7 +407,7 @@ void print_trace_header(const TraceInfo& info) {
 }
 
 void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& result, bool all,
-                         const std::vector<tracker::TiedItem>* tied) {
+                         const std::vector<tracker::TiedItem>* tied, const tracker::TraceReview* review) {
     constexpr std::array kGroups{
         std::pair{ChangeKind::Created, "Created"}, std::pair{ChangeKind::Modified, "Modified"},
         std::pair{ChangeKind::Deleted, "Deleted"}, std::pair{ChangeKind::Renamed, "Renamed"}};
@@ -432,6 +440,9 @@ void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& resu
                 lines += std::format(" [tied: {}]", tracker::to_string(tie->reason));
                 ++tied_count;
             }
+            if (review && tracker::is_excluded(*review, change)) {
+                lines += " [excluded]";
+            }
             lines += '\n';
         }
         if (count != 0) {
@@ -441,9 +452,10 @@ void print_trace_changes(const TraceInfo& info, const tracker::TraceResult& resu
     if (!result.known_values.empty()) {
         text += std::format("\nKnown values ({}):\n", result.known_values.size());
         for (const auto& value : result.known_values) {
-            text += std::format("  {:<19} {} : {}\n      before: {}\n      after:  {}\n",
+            text += std::format("  {:<19} {} : {}{}\n      before: {}\n      after:  {}\n",
                                 tracker::to_string(value.spot), to_utf8(platform::display_path(value.key)),
                                 value.name.empty() ? std::string("(default)") : to_utf8(value.name),
+                                review && tracker::is_excluded(*review, value) ? " [excluded]" : "",
                                 describe_value(value.before), describe_value(value.after));
         }
     }

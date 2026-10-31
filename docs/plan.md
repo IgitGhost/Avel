@@ -204,8 +204,8 @@ D:\Avel\
   - In place: CMake presets with vcpkg, `avel_core`, `avel-cli` and `avel` (elevated manifest), and the EN/RU/HY translation infrastructure with live switching (checked through UI Automation).
   - Also in place: GoogleTest (7 tests passing), the `deploy` target (a self-contained `bin`, about 30 MB), the Sandbox harness, the CI workflow, LICENSE/NOTICE and the docs.
   - The Sandbox smoke test passes: `Start-AvelSandbox.ps1 -WaitForReport` reports that `avel-cli` and the GUI run in a clean sandbox.
-  - **GitHub:** the first push was on 2026-10-29 (`main` only, to `github.com/IgitGhost/Avel`). Its CI run failed at the "Install Qt" step, before anything was built. Since Qt 6.11 Qt's online repository has a folder per architecture, which aqtinstall 3.3.0 (its latest release, and `install-qt-action`'s default) can't read. CI now installs aqtinstall from its master, pinned by commit, which supports it. With that, "Install Qt" passes (run of `33a6313`, pushed the same day with Phase 5b). Still open: a green run of the whole job.
-  - **Unit tests on the runner (2026-10-30):** failed tests are now reported as annotations, which named four. Three built their fixtures under the runner's TEMP, `C:\Users\RUNNER~1\...`, and compared those 8.3 paths with the engine's, which expands short names; their fixtures now use the long form (`tests/unit/temp_root.h`). The fourth was `LeftoverSmokeTest`'s time budget: the runner took 32 s for 476 programs (about 67 ms each, against 22 ms on the development machine), so there the time is only printed.
+  - **GitHub:** the first push was on 2026-10-29 (`main` only, to `github.com/IgitGhost/Avel`). Its CI run failed at the "Install Qt" step, before anything was built. Since Qt 6.11 Qt's online repository has a folder per architecture, which aqtinstall 3.3.0 (its latest release, and `install-qt-action`'s default) can't read. CI now installs aqtinstall from its master, pinned by commit, which supports it. With that, "Install Qt" passes (run of `33a6313`, pushed the same day with Phase 5b).
+  - **Unit tests on the runner (2026-10-30):** failed tests are now reported as annotations, which named four. Three built their fixtures under the runner's TEMP, `C:\Users\RUNNER~1\...`, and compared those 8.3 paths with the engine's, which expands short names; their fixtures now use the long form (`tests/unit/temp_root.h`). The fourth was `LeftoverSmokeTest`'s time budget: the runner took 32 s for 476 programs (about 67 ms each, against 22 ms on the development machine), so there the time is only printed. With that, the run of `1d07ca4` (2026-10-30) passed: CI's first green run, the last of Phase 0's criteria.
 - **Phase 1 (inventory): done and verified locally.**
   - **Sources:** registry (HKLM in both views, plus every user profile, with signed-out users' hives loaded read-only), Windows Installer and packaged apps. They are merged with Bulk Crap Uninstaller's relatedness scoring, which is ported and checked against reference values from BCU's own C# code. See [inventory.md](inventory.md).
   - **Settings parity:** `scripts/Compare-SettingsApps.ps1` finds all 172 Settings entries identical in Avel (name, version, publisher, date). Avel shows 28 extra packaged apps that Settings hides by an internal policy; they are documented in inventory.md.
@@ -369,7 +369,7 @@ D:\Avel\
       - The whole-disk search listed `C:\Tools\Contoso Fixture`, unchecked.
       - Remove ended the app and removed 14 items, and the Undo Center gave back identical dumps.
       - The orphan finder listed the folder nobody owns.
-- **Phase 5 (Avel Trace): in progress, in three sub-phases.** Plan approved 2026-10-23. Details in [trace.md](trace.md) and [ADR 0006](adr/0006-trace-folders-registry-snapshot.md).
+- **Phase 5 (Avel Trace): done and verified in Windows Sandbox, in three sub-phases.** Plan approved 2026-10-23. Details in [trace.md](trace.md) and [ADR 0006](adr/0006-trace-folders-registry-snapshot.md).
   - **User decisions (2026-10-23):**
     - both **Install and trace** (Avel launches the installer and stops by itself) and manual start and stop; a program the installer starts at the end ("Run X now") doesn't hold the trace;
     - uninstall by trace in both modes: the program's uninstaller first, then the traced items join the leftover review; or through Avel Force, without the uninstaller;
@@ -433,4 +433,40 @@ D:\Avel\
       - `LeftoverSmokeTest` sometimes exceeds its 20 s budget on the development machine (602 programs, 24 to 25 s). On 2026-10-30 it took 13 s for 598 programs, 11 s of it in matching: the scanners run target by target on one thread, at about 18 ms per program (merging takes 0.2 s). The test scans every entry, hidden components and updates included; `scan --all` (the ~200 entries Settings lists) takes 2.8 s. Matching targets in parallel would cut both.
       - A console uninstaller run while avel-cli's output is redirected opens a visible console window.
       - A created task's file in `System32\Tasks` is reported as a created file next to the task. FAT and exFAT volumes aren't listed as `untracked`; only NTFS volumes are looked at. ADR 0004 still names SQLite for trace logs.
-  - **Next: 5c** (GUI and RU/HY).
+  - **5c (GUI, the trace review, translations): done.** Details in [trace.md](trace.md) ("The review", "The GUI").
+    - **Trace menu:**
+      - **Install and trace…:** the installer, its arguments and a description, then a progress dialog with the steps and the installer's processes. Stop asks whether to leave the installer running or end it. The trace is linked, then its review opens.
+      - **Start tracing… / Stop tracing:** a manual trace, drained on a worker while Avel runs, with "Tracing since 14:02" and Stop in the status bar.
+      - **Traces…:** every trace with its program and state; Show, Link, Revert by trace (Avel Force by the trace's id), Export, Import, Delete, Finish and Discard.
+      - **At startup,** a trace left open asks to be finished, resumed or discarded.
+    - **The review:** the items tied to the program, those not tied, the environment and shared DLL values, the changes to what existed before (shown only), and noise behind a toggle. Unchecking an item excludes it: `review.json` in the trace's folder, saved at once, carried by export and import, marked by `trace show`.
+      - Excluded items are left out of uninstalling and forcing by the trace.
+      - The other scanners can still find an excluded item by name or reference. It is then listed but never selected automatically (`excluded-in-trace-review`, `held_back`): no preset checks it, and `--remove-leftovers` and `force` by level leave it.
+      - Nor is a folder or key of the program's that still holds an excluded item, which removing it would take along: it gets `holds-excluded-in-trace-review`. That covers an item no scanner offers itself, such as a file the installer created in the publisher's folder that existed before.
+      - A damaged review disables the trace, so nothing the user excluded is offered by mistake.
+    - **The existing flows use traces, as avel-cli does:**
+      - the uninstall dialog's "Use the install trace (n items)", on by default;
+      - Avel Force reverts by the trace, with "Revert by the install trace" to leave it out;
+      - Preview leftovers adds the trace;
+      - the leftover review says what each trace brought, with the groups "Environment and shared DLLs" and "Changed by the installer" (shown only);
+      - the removal and the Undo Center show a value edit as "Edited";
+      - the program list's Trace column and the details pane mark traced programs.
+    - **Translations:** about 420 new strings each in Russian and Armenian; none unfinished.
+    - **Tests:** 421 unit tests (`avel_core_tests` and `avel_app_tests`); 416 pass on the host, and the 5 that need administrator rights run in the Sandbox.
+    - **Windows Sandbox,** a GUI round, the last round of `trace` and also scenario `trace_gui` on its own. It drives `avel.exe` with UI Automation and is judged with the same oracle. `trace_gui`: **RESULT: PASS** (2026-10-31 21:29); the whole `trace` scenario: **RESULT: PASS** (2026-10-31 22:37, run 2).
+      - Install and trace with 7-Zip's MSI stopped by itself; the trace was linked to 7-Zip and complete.
+      - Start and Stop tracing around the fixture: complete, every item reported; its task folder was unchecked in the review, and `trace show` marked it alone as excluded.
+      - The Trace column and the Traces dialog listed both traces.
+      - The fixture was uninstalled from the program list with its trace: the leftover review listed its items and five value edits, not the excluded folder, and the removal left only the KNOWN set and that folder. The Undo Center's Restore all gave back identical dumps.
+      - Revert by trace from the Traces dialog, undone, and a trace left open finished from the startup prompt.
+      - **First run of `trace_gui` (2026-10-30), 4 problems, all in the scenario:** Qt gives UI Automation only the rows inside a view's viewport, so the reviews' lower groups (values, existing items, the service and the task) weren't read. Rows are now read through the view's Grid pattern.
+      - **Run 1 of the whole `trace` (2026-10-31), 2 problems, both in the GUI round:** at 16 minutes the scenario is now short enough that Windows' activity 15 minutes after logon falls into the GUI round's undo, where rounds 2 to 4 used to absorb it. A probe in an idle Sandbox, with no Avel at all, showed it 15:40 after boot: Windows Update's stub log, the `PushToInstall\Registration` task, Group Policy's refresh for the user, and Windows checking the user's default apps (`FileAssociations` reset counters, `UserChoiceLatest` hashes).
+        - Those are noise now.
+        - Windows' update scan also registered two COM classes holding only an `AppID`, with other random ids in run 2, and none in the probe. They aren't a noise rule. Instead, the GUI round's undo check accepts an item whose last change falls after the removal ended and before Restore all, while Avel left the system alone.
+        - Explorer's record of Avel's own window (`UserAssist`) was made between the oracle's first capture and Install and trace's snapshot, then updated in the trace: the oracle saw it created, the trace modified. That record alone is KNOWN as such.
+      - `leftovers`, `removal` and `force` pass on the final code (2026-10-31, 22:44 to 22:50).
+      - **Found on the way:** an item excluded in the review was left out of the trace's part only. The other scanners could still find it by the program's name and a preset would check it. Such items are now held back (above). A folder found by name that held an excluded file no scanner offered was still selected, and would have taken the file along; it is held back too (`holds-excluded-in-trace-review`). `trace_gui` passes again on that final code (2026-10-31 23:10).
+    - **Follow-ups:**
+      - Windows' update scan 15 minutes after logon fell between the GUI round's removal and its undo in both runs. Should it fall during the removal or the undo instead, its random COM classes would fail the undo check.
+      - `LeftoverSmokeTest` exceeded its 20 s budget on the host again (23 s for 598 programs, 20.6 s of it in matching; see 5b).
+- **Next: Phase 6 (Avel Tools).**

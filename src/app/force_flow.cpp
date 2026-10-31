@@ -10,9 +10,12 @@
 
 #include "change_set_progress_dialog.h"
 #include "change_store_access.h"
+#include "core/tracker/trace_source.h"
 #include "leftover_dialog.h"
 #include "program_text.h"
+#include "program_traces.h"
 #include "running_processes_dialog.h"
+#include "trace_store_access.h"
 
 using namespace Qt::StringLiterals;
 
@@ -31,8 +34,8 @@ bool forceCanHelp(uninstall::PlanError error) {
            error == PlanError::UninstallerMissing || error == PlanError::MsiPackageMissing;
 }
 
-ForceFlow::ForceFlow(Request request, ChangeStoreAccess* stores, QWidget* window)
-    : QObject(window), request_(std::move(request)), stores_(stores), window_(window) {
+ForceFlow::ForceFlow(Request request, ChangeStoreAccess* stores, TraceStoreAccess* traces, QWidget* window)
+    : QObject(window), request_(std::move(request)), stores_(stores), traces_(traces), window_(window) {
     pool_.setMaxThreadCount(1);
 }
 
@@ -40,20 +43,38 @@ ForceFlow::~ForceFlow() { pool_.waitForDone(); }
 
 void ForceFlow::start() {
     Q_EMIT progress(tr("Looking for everything that belongs to the program…"));
-    pool_.start([this, request = request_] {
-        auto result = std::make_shared<Scan>(scan(request));
+    std::shared_ptr<const tracker::TraceStore> traces;
+    if (traces_ != nullptr && (request_.useTraces || !request_.traceId.empty())) {
+        traces = traces_->store();
+    }
+    pool_.start([this, request = request_, traces = std::move(traces)] {
+        auto result = std::make_shared<Scan>(scan(request, traces));
         QMetaObject::invokeMethod(
             this, [this, result = std::move(result)] { onScanned(result); }, Qt::QueuedConnection);
     });
 }
 
-ForceFlow::Scan ForceFlow::scan(const Request& request) {
+ForceFlow::Scan ForceFlow::scan(const Request& request, std::shared_ptr<const tracker::TraceStore> traces) {
     Scan result;
     // Afresh: the program list the request came from may be older than an uninstall that failed.
     result.inventory = std::make_shared<const inventory::Inventory>(inventory::scan_inventory());
     const leftovers::LiveEnvironment live;
     const auto& environment = live.environment();
-    if (!request.folder.empty()) {
+    if (!request.traceId.empty()) {
+        // One trace, whatever became of its program.
+        if (!traces) {
+            result.traceFailed = true;
+            return result;
+        }
+        tracker::StoreTraceSource source(*traces, *result.inventory);
+        auto target = source.trace_target(request.traceId, result.traceError);
+        if (!target) {
+            result.traceFailed = true;
+            return result;
+        }
+        result.programs.push_back({target->program_id, toQString(target->display_name)});
+        result.targets.push_back(std::move(*target));
+    } else if (!request.folder.empty()) {
         auto folder = force::folder_target(environment, request.folder, request.name, request.publisher);
         if (folder.error != force::FolderError::None) {
             result.folderError = folder.error;
@@ -64,6 +85,7 @@ ForceFlow::Scan ForceFlow::scan(const Request& request) {
         result.targets.push_back(std::move(folder.target));
     } else {
         const auto& programs = result.inventory->programs;
+        std::vector<const inventory::Program*> found;
         for (const auto& id : request.programIds) {
             const auto program = std::find_if(programs.begin(), programs.end(),
                                               [&](const inventory::Program& p) { return p.id == id; });
@@ -74,8 +96,10 @@ ForceFlow::Scan ForceFlow::scan(const Request& request) {
             result.programs.push_back({program->id, program->display_name.empty()
                                                         ? tr("(no name)")
                                                         : toQString(program->display_name)});
-            result.targets.push_back(leftovers::make_scan_target(*program));
+            found.push_back(&*program);
         }
+        // Reverting by the trace: a program's install trace, tied to it as it is now.
+        result.targets = captureTargets(found, *result.inventory, traces.get());
     }
     if (!result.targets.empty()) {
         result.scan = std::make_shared<const leftovers::ScanResult>(
@@ -88,14 +112,13 @@ void ForceFlow::onScanned(std::shared_ptr<Scan> scan) {
     Q_EMIT progress(QString());
     scan_ = std::move(scan);
     if (scan_->folderError != force::FolderError::None) {
-        auto* box = new QMessageBox(
-            QMessageBox::Warning, tr("Force uninstall"),
-            tr("Avel can't remove %1: %2.")
-                .arg(QDir::toNativeSeparators(toQString(request_.folder)), folderErrorText(*scan_)),
-            QMessageBox::Ok, window_);
-        box->setAttribute(Qt::WA_DeleteOnClose);
-        connect(box, &QDialog::finished, this, [this] { finish(false); });
-        box->open();
+        showError(tr("Avel can't remove %1: %2.")
+                      .arg(QDir::toNativeSeparators(toQString(request_.folder)), folderErrorText(*scan_)),
+                  false);
+        return;
+    }
+    if (scan_->traceFailed) {
+        showError(traceErrorText(*scan_), false);
         return;
     }
     if (!scan_->scan) {
@@ -120,12 +143,17 @@ void ForceFlow::onScanned(std::shared_ptr<Scan> scan) {
     auto* review = new LeftoverDialog(scan_->scan, scan_->programs, LeftoverDialog::Mode::Force,
                                       store ? QString() : stores_->unavailableReason(), window_);
     review->setAttribute(Qt::WA_DeleteOnClose);
-    // The deep search starts from the targets as built, like the first scan.
+    // The deep search starts from the targets as built, like the first scan. A program's trace can
+    // be left out ("Revert by the install trace"); a trace asked for by its id is the point.
     review->setRescan(
-        [inventory = scan_->inventory, targets = scan_->targets](const leftovers::ScanOptions& options) {
+        [inventory = scan_->inventory, targets = scan_->targets](const leftovers::ScanOptions& options,
+                                                                 bool useTraces) {
             const leftovers::LiveEnvironment live;
-            return leftovers::scan_leftovers(live.environment(), targets, inventory->programs, options);
-        });
+            return leftovers::scan_leftovers(live.environment(),
+                                             useTraces ? targets : LeftoverDialog::withoutTraces(targets),
+                                             inventory->programs, options);
+        },
+        request_.traceId.empty());
     connect(review, &QDialog::accepted, this,
             [this, review] { onReviewed(review->plan(), review->allowIrreversible()); });
     connect(review, &QDialog::rejected, this, [this] { finish(false); });
@@ -164,8 +192,21 @@ void ForceFlow::remove() {
     auto* removal = new ChangeSetProgressDialog(stores_->store(), plan_, allowIrreversible_, window_);
     removal->setAttribute(Qt::WA_DeleteOnClose);
     removal->setWindowTitle(tr("Forced removal"));
-    connect(removal, &QDialog::finished, this, [this, removal] { finish(removal->changedAnything()); });
+    connect(removal, &QDialog::finished, this, [this, removal] {
+        // The removed programs' traces are kept 30 days from now.
+        if (removal->changedAnything() && traces_ != nullptr) {
+            traces_->startMaintenance();
+        }
+        finish(removal->changedAnything());
+    });
     removal->open();
+}
+
+void ForceFlow::showError(const QString& text, bool changedAnything) {
+    auto* box = new QMessageBox(QMessageBox::Warning, tr("Force uninstall"), text, QMessageBox::Ok, window_);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    connect(box, &QDialog::finished, this, [this, changedAnything] { finish(changedAnything); });
+    box->open();
 }
 
 void ForceFlow::finish(bool changedAnything) {
@@ -190,6 +231,22 @@ QString ForceFlow::folderErrorText(const Scan& scan) const {
             return tr("Windows or other programs need it");
     }
     return {};
+}
+
+QString ForceFlow::traceErrorText(const Scan& scan) const {
+    using tracker::TraceError;
+    const QString id = toQString(request_.traceId);
+    if (traces_ == nullptr || !traces_->store()) {
+        return traces_ != nullptr ? traces_->unavailableReason() : tr("Avel can't use install traces.");
+    }
+    switch (scan.traceError) {
+        case TraceError::NotFound:
+            return tr("The install trace %1 no longer exists.").arg(id);
+        case TraceError::NotFinished:
+            return tr("The install trace %1 isn't finished yet. Stop it first, then revert by it.").arg(id);
+        default:
+            return tr("The install trace %1 can't be read: its files are damaged.").arg(id);
+    }
 }
 
 }  // namespace avel::app

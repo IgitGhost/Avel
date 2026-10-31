@@ -9,7 +9,9 @@
 
 #include "core/leftovers/value_edits.h"
 #include "core/platform/registry_address.h"
+#include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
+#include "core/tracker/trace_items.h"
 #include "program_text.h"
 
 using namespace Qt::StringLiterals;
@@ -37,6 +39,26 @@ QString registryText(const platform::RegistryAddress& address) {
 // Points with a real minus sign, so the column of numbers lines up.
 QString signedPoints(int points) {
     return points > 0 ? u"+%1"_s.arg(points) : points < 0 ? u"−%1"_s.arg(-points) : u"0"_s;
+}
+
+QString valueNameText(const std::wstring& name) {
+    return name.empty() ? LeftoverText::tr("(Default)") : toQString(name);
+}
+
+// Whose variables a user's Environment key holds: empty for the user running Avel, otherwise
+// their account name (their SID when it isn't known).
+QString environmentOwner(const platform::RegistryAddress& key) {
+    static const std::wstring current_sid = platform::current_user_sid();
+    if (!current_sid.empty() && platform::iequals(key.sid, current_sid)) {
+        return {};
+    }
+    static const std::vector<platform::UserProfile> profiles = platform::enumerate_user_profiles();
+    for (const auto& profile : profiles) {
+        if (platform::iequals(profile.sid, key.sid) && !profile.account_name.empty()) {
+            return toQString(profile.account_name);
+        }
+    }
+    return toQString(key.sid);
 }
 
 }  // namespace
@@ -125,11 +147,117 @@ QString LeftoverText::locationText(const leftovers::Location& location) {
                 return toQString(item.rule_id);
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
-                return registryText(item.key) + u" : "_s +
-                       (item.value_name.empty() ? tr("(Default)") : toQString(item.value_name));
+                return valueEditText(item);
             }
         },
         location);
+}
+
+QString LeftoverText::valueEditText(const leftovers::ValueEditLocation& edit) {
+    using leftovers::ValueEditKind;
+    using leftovers::ValueSpot;
+    const QString name = valueNameText(edit.value_name);
+    const auto spot = leftovers::value_spot(edit.key);
+    if (spot == ValueSpot::SharedDlls) {
+        // The value's name is the DLL's path.
+        if (!edit.desired) {
+            return tr("Delete the shared DLL count of %1, which the installer created").arg(name);
+        }
+        const auto before = edit.expected ? leftovers::shared_dll_count(*edit.expected) : std::nullopt;
+        const auto after = leftovers::shared_dll_count(*edit.desired);
+        if (before && after) {
+            return tr("Lower the shared DLL count of %1 from %2 to %3").arg(name).arg(*before).arg(*after);
+        }
+        return tr("Lower the shared DLL count of %1 by %2").arg(name).arg(edit.delta);
+    }
+    QStringList entries;
+    for (const auto& entry : edit.entries) {
+        entries << toQString(entry);
+    }
+    const QString list = entries.join(u"; "_s);
+    const bool remove = edit.kind == ValueEditKind::RemovePathEntries && !entries.isEmpty();
+    const bool restore = edit.kind == ValueEditKind::RestoreValue;
+    if (spot == ValueSpot::MachineEnvironment) {
+        if (remove) {
+            return tr("Remove %1 from the system variable %2").arg(list, name);
+        }
+        return restore ? tr("Restore the system variable %1 to its value before the installation").arg(name)
+                       : tr("Delete the system variable %1, which the installer created").arg(name);
+    }
+    if (spot == ValueSpot::UserEnvironment) {
+        const QString owner = environmentOwner(edit.key);
+        if (owner.isEmpty()) {
+            if (remove) {
+                return tr("Remove %1 from the user variable %2").arg(list, name);
+            }
+            return restore ? tr("Restore the user variable %1 to its value before the installation").arg(name)
+                           : tr("Delete the user variable %1, which the installer created").arg(name);
+        }
+        if (remove) {
+            return tr("Remove %1 from the variable %2 of user %3").arg(list, name, owner);
+        }
+        return restore
+                   ? tr("Restore the variable %1 of user %2 to its value before the installation")
+                         .arg(name, owner)
+                   : tr("Delete the variable %1 of user %2, which the installer created").arg(name, owner);
+    }
+    return registryText(edit.key) + u" : "_s + name;  // Not a key Avel edits values in
+}
+
+QString LeftoverText::valueEditDetails(const leftovers::ValueEditLocation& edit) {
+    QStringList lines;
+    lines << registryText(edit.key) + u" : "_s + valueNameText(edit.value_name);
+    if (const auto now = edit.expected ? leftovers::string_value_text(*edit.expected) : std::nullopt) {
+        lines << tr("Now: %1").arg(toQString(*now));
+    }
+    if (!edit.desired) {
+        lines << tr("Afterwards: deleted");
+    } else if (const auto then = leftovers::string_value_text(*edit.desired)) {
+        lines << tr("Afterwards: %1").arg(toQString(*then));
+    }
+    return lines.join(u'\n');
+}
+
+QString LeftoverText::tracedChangeText(leftovers::TracedChange change) {
+    using leftovers::TracedChange;
+    switch (change) {
+        case TracedChange::Created:
+            return tr("Created by the installer");
+        case TracedChange::Deleted:
+            return tr("Deleted by the installer; it existed before");
+        case TracedChange::Modified:
+            return tr("Changed by the installer; it existed before");
+        case TracedChange::Renamed:
+            return tr("Renamed or moved here by the installer; it existed before");
+    }
+    return {};
+}
+
+QString LeftoverText::traceUseText(const leftovers::TraceUse& use, const QString& program) {
+    const auto count = [](std::size_t value) { return static_cast<int>(value); };
+    QStringList parts;
+    parts << tr("%n item(s) its installer created", nullptr, count(use.items));
+    if (use.tied > 0) {
+        parts << tr("%n of them tied to the program", nullptr, count(use.tied));
+    }
+    if (use.value_edits > 0) {
+        parts << tr("%n edit(s) to environment variables or shared DLL counts", nullptr,
+                    count(use.value_edits));
+    }
+    if (use.gone > 0) {
+        parts << tr("%n already gone", nullptr, count(use.gone));
+    }
+    if (use.protected_count > 0) {
+        parts << tr("%n protected, left in place", nullptr, count(use.protected_count));
+    }
+    if (use.shown_only > 0) {
+        parts << tr("%n change(s) to what existed before, shown only", nullptr, count(use.shown_only));
+    }
+    if (use.excluded > 0) {
+        parts << tr("%n item(s) excluded in its review, not checked automatically", nullptr,
+                    count(use.excluded));
+    }
+    return tr("Install trace of %1: %2.").arg(program, parts.join(u"; "_s));
 }
 
 QString LeftoverText::confidenceLabel(Confidence confidence) {
@@ -199,6 +327,10 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
             return tr("Named exactly like the program");
         case Evidence::NoOwner:
             return tr("No installed program owns it");
+        case Evidence::ExcludedInTraceReview:
+            return tr("Excluded in the install trace's review: not checked automatically");
+        case Evidence::HoldsTraceReviewExclusion:
+            return tr("Holds an item excluded in the install trace's review: not checked automatically");
         case Evidence::Depth:
             return record.level <= 0 ? tr("At the top of a common location")
                                      : tr("%n level(s) below a common location", nullptr, record.level);
@@ -233,10 +365,16 @@ QString LeftoverText::evidenceText(const leftovers::Record& record) {
 
 QString LeftoverText::evidenceSummary(std::span<const leftovers::Record> records) {
     // Depth only fine-tunes the score; the list shows what actually matched. Evidence worth no
-    // points still says why the item is listed (an orphaned folder: no program owns it).
+    // points still says why the item is listed (an orphaned folder: no program owns it). An
+    // exclusion in a trace's review, of the item or of something it holds, comes first: it is why
+    // the item isn't checked.
     std::vector<const leftovers::Record*> sorted;
+    QStringList parts;
     for (const auto& record : records) {
-        if (record.evidence != Evidence::Depth) {
+        if (record.evidence == Evidence::ExcludedInTraceReview ||
+            record.evidence == Evidence::HoldsTraceReviewExclusion) {
+            parts = QStringList{evidenceText(record)};
+        } else if (record.evidence != Evidence::Depth) {
             sorted.push_back(&record);
         }
     }
@@ -250,12 +388,14 @@ QString LeftoverText::evidenceSummary(std::span<const leftovers::Record> records
     }
     const QString separator = u"; "_s;
     if (against.isEmpty()) {
-        return for_it.join(separator);
+        parts << for_it.join(separator);
+    } else if (for_it.isEmpty()) {
+        parts << tr("Against it: %1").arg(against.join(separator));
+    } else {
+        parts << tr("%1; against it: %2").arg(for_it.join(separator), against.join(separator));
     }
-    if (for_it.isEmpty()) {
-        return tr("Against it: %1").arg(against.join(separator));
-    }
-    return tr("%1; against it: %2").arg(for_it.join(separator), against.join(separator));
+    parts.removeAll(QString());
+    return parts.join(separator);
 }
 
 QString LeftoverText::evidenceDetails(std::span<const leftovers::Record> records) {
@@ -263,7 +403,16 @@ QString LeftoverText::evidenceDetails(std::span<const leftovers::Record> records
     for (const auto& record : records) {
         QString text = evidenceText(record).toHtmlEscaped();
         if (!record.detail.empty()) {
-            text += u"<br><small>"_s + toQString(record.detail).toHtmlEscaped() + u"</small>"_s;
+            // A tied item's detail is the tracker's reason, a code; an excluded item's, the trace's id.
+            QString detail =
+                record.evidence == Evidence::TracedInstallRoot ? tieText(record.detail) : QString();
+            if (record.evidence == Evidence::ExcludedInTraceReview) {
+                detail = tr("Install trace %1").arg(toQString(record.detail));
+            }
+            if (detail.isEmpty()) {
+                detail = toQString(record.detail);
+            }
+            text += u"<br><small>"_s + detail.toHtmlEscaped() + u"</small>"_s;
         }
         rows += u"<tr><td align=\"right\" style=\"padding-right:8px\">%1</td><td>%2</td></tr>"_s.arg(
             signedPoints(leftovers::points(record)), text);
@@ -273,6 +422,41 @@ QString LeftoverText::evidenceDetails(std::span<const leftovers::Record> records
             .arg(signedPoints(leftovers::score(records)), confidenceLabel(leftovers::level(records)))
             .toHtmlEscaped();
     return u"<table>%1</table><p><b>%2</b></p>"_s.arg(rows, total);
+}
+
+QString LeftoverText::tieText(std::wstring_view code) {
+    using tracker::TieReason;
+    for (const auto reason :
+         {TieReason::InstallFolder, TieReason::UninstallerFolder, TieReason::IconFolder,
+          TieReason::UninstallKey, TieReason::MsiRegistration, TieReason::NamedAfterProgram,
+          TieReason::NamedAfterPublisher, TieReason::InsideTied, TieReason::ReferencesTied}) {
+        if (code != platform::to_utf16(tracker::to_string(reason))) {
+            continue;
+        }
+        switch (reason) {
+            case TieReason::InstallFolder:
+                return tr("Tied to the program: its install folder, or in it");
+            case TieReason::UninstallerFolder:
+                return tr("Tied to the program: its uninstaller's folder, or in it");
+            case TieReason::IconFolder:
+                return tr("Tied to the program: its icon's folder, or in it");
+            case TieReason::UninstallKey:
+                return tr("Tied to the program: its Uninstall entry, or in it");
+            case TieReason::MsiRegistration:
+                return tr("Tied to the program: Windows Installer's registration of it");
+            case TieReason::NamedAfterProgram:
+                return tr("Tied to the program: named after it");
+            case TieReason::NamedAfterPublisher:
+                return tr("Tied to the program: named after its publisher");
+            case TieReason::InsideTied:
+                return tr("Tied to the program: inside another of its items");
+            case TieReason::ReferencesTied:
+                return tr("Tied to the program: refers to another of its items or folders");
+            case TieReason::None:
+                break;
+        }
+    }
+    return {};
 }
 
 QString LeftoverText::referenceText(ReferenceKind kind) {
@@ -413,6 +597,13 @@ QString LeftoverText::statusText(const changes::ItemStatus& status) {
         text = tr("%1: %2").arg(state, ProgramText::systemErrorText(status.code));
     }
     return text;
+}
+
+QString LeftoverText::statusText(const changes::ItemStatus& status, const leftovers::Location& location) {
+    if (status.state == ItemState::Done && std::holds_alternative<leftovers::ValueEditLocation>(location)) {
+        return tr("Edited");
+    }
+    return statusText(status);
 }
 
 QString LeftoverText::setStateText(changes::SetState state) {

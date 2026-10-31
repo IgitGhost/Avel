@@ -4,10 +4,76 @@
 <context>
     <name>LeftoverText</name>
     <message numerus="yes">
+        <source>%n item(s) its installer created</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n of them tied to the program</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n edit(s) to environment variables or shared DLL counts</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n already gone</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n protected, left in place</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n change(s) to what existed before, shown only</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) excluded in its review, not checked automatically</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
         <source>%n level(s) below a common location</source>
         <translation>
             <numerusform>%n level below a common location</numerusform>
             <numerusform>%n levels below a common location</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>TraceText</name>
+    <message numerus="yes">
+        <source>%n byte(s) of type %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 and %n more</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
 </context>
@@ -143,6 +209,30 @@
     </message>
 </context>
 <context>
+    <name>avel::app::ProgramTraces</name>
+    <message numerus="yes">
+        <source>%n item(s) created</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n change(s) to environment variables or shared DLLs</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n existing item(s) changed</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>avel::app::RunningProcessesDialog</name>
     <message numerus="yes">
         <source>%n program(s) run from the folders of %1. Avel ends them before it removes anything; unsaved work in them is lost.</source>
@@ -156,6 +246,67 @@
         <translation>
             <numerusform>%n process couldn&apos;t be ended. Files it uses stay in place; the rest can still be removed.</numerusform>
             <numerusform>%n processes couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::TraceModel</name>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation type="unfinished">
+            <numerusform>… and %n more</numerusform>
+            <numerusform>… and %n more</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%1, %n item(s) inside</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::TraceProgressDialog</name>
+    <message numerus="yes">
+        <source>%Ln change(s) recorded.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%Ln more set aside as noise.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::TraceReviewDialog</name>
+    <message numerus="yes">
+        <source>%n item(s) shown.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n excluded: removing the program by this trace won&apos;t offer them.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::TracesDialog</name>
+    <message numerus="yes">
+        <source>The file includes %n environment value(s) as they were on this machine: PATH and the other variables the installer changed, before and after. Share it only where those may be seen.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
 </context>
@@ -183,6 +334,20 @@
         <translation>
             <numerusform>Uninstall %n program</numerusform>
             <numerusform>Uninstall %n programs</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Use the install traces (%n item(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Use the install trace (%n item(s))</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">

@@ -4,9 +4,11 @@
 // link keeps enough to find the program again after an upgrade, and to name it once it's gone.
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/inventory/inventory.h"
@@ -76,6 +78,12 @@ bool refresh_links(TraceInfo& info, const inventory::Inventory& inventory);
 // TraceStore::list gives them). Package C uses the first as "the trace of program X".
 std::vector<std::wstring> traces_of(const inventory::Program& program, std::span<const TraceInfo> traces,
                                     const inventory::Inventory& inventory);
+
+// traces_of's first trace for every installed program at once, for a list of all programs (the
+// GUI's "Traced" mark): by the program's id, the index in `traces` of its newest finished trace
+// whose links lead to it. Programs without one aren't in the map.
+std::unordered_map<std::wstring, std::size_t> program_traces(std::span<const TraceInfo> traces,
+                                                             const inventory::Inventory& inventory);
 
 // Sets the trace's automatic links: those found for `result`, after the links set by hand, which
 // stay (and stay primary). Clears `unresolved_since` when a link leads to an installed program.

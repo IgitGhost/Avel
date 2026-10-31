@@ -1,5 +1,6 @@
 #include "core/leftovers/leftover.h"
 
+#include <algorithm>
 #include <type_traits>
 
 #include "core/platform/paths.h"
@@ -115,6 +116,35 @@ Category category_of(const Location& location) {
             }
         },
         location);
+}
+
+bool excluded_in_trace_review(const Leftover& leftover) {
+    return std::any_of(leftover.records.begin(), leftover.records.end(), [](const Record& record) {
+        return record.evidence == Evidence::ExcludedInTraceReview;
+    });
+}
+
+std::vector<bool> held_back(std::span<const Leftover> leftovers) {
+    const auto holds_exclusion = [](const Leftover& leftover) {
+        return std::any_of(leftover.records.begin(), leftover.records.end(), [](const Record& record) {
+            return record.evidence == Evidence::HoldsTraceReviewExclusion;
+        });
+    };
+    std::vector<bool> held(leftovers.size(), false);
+    for (std::size_t i = 0; i < leftovers.size(); ++i) {
+        if (!excluded_in_trace_review(leftovers[i]) && !holds_exclusion(leftovers[i])) {
+            continue;
+        }
+        held[i] = true;
+        // Bounded, in case the links ever loop.
+        auto container = leftovers[i].inside;
+        for (std::size_t steps = 0; container && *container < leftovers.size() && steps < leftovers.size();
+             ++steps) {
+            held[*container] = true;
+            container = leftovers[*container].inside;
+        }
+    }
+    return held;
 }
 
 std::string_view to_string(Category category) {

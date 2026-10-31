@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "core/changes/change_set.h"
 #include "core/leftovers/merge.h"
 
 namespace avel::leftovers {
@@ -68,6 +69,41 @@ TEST(MergeTest, ItemsPointAtTheirNearestContainer) {
     EXPECT_FALSE(items[3].inside.has_value());
     EXPECT_EQ(std::get<RegistryKeyLocation>(items[4].location).key.path, LR"(SOFTWARE\Contoso)");
     EXPECT_EQ(items[5].inside, 4u);
+}
+
+// What an install trace's review excludes is never selected by level, nor is what holds it, since
+// removing that would take it along; its contents and the rest are.
+TEST(MergeTest, WhatATracesReviewExcludesIsHeldBackWithWhatHoldsIt) {
+    const Record excluded{Evidence::ExcludedInTraceReview, 0, ReferenceKind::None,
+                          L"20261030-120000-00000001"};
+    std::vector<Leftover> items;
+    items.push_back(file_item(LR"(C:\Data\Contoso)", true, {{Evidence::UninstallerKey}}, L"reg:A"));
+    items.push_back(
+        file_item(LR"(C:\Data\Contoso\Shared)", true, {{Evidence::ExplicitConnection}, excluded}, L"reg:A"));
+    items.push_back(
+        file_item(LR"(C:\Data\Contoso\Shared\x.dat)", false, {{Evidence::ExplicitConnection}}, L"reg:A"));
+    items.push_back(file_item(LR"(C:\Data\Contoso\Cache)", true, {{Evidence::ExplicitConnection}}, L"reg:A"));
+    items.push_back(key_item(LR"(SOFTWARE\Contoso)", L"reg:A"));
+    items.back().records = {{Evidence::UninstallerKey}, excluded};
+    link_containment(items);
+    ASSERT_EQ(items.size(), 5u);
+    ASSERT_EQ(std::get<FileLocation>(items[1].location).path, LR"(C:\Data\Contoso\Cache)");
+    ASSERT_EQ(std::get<FileLocation>(items[2].location).path, LR"(C:\Data\Contoso\Shared)");
+
+    EXPECT_TRUE(excluded_in_trace_review(items[2]));
+    EXPECT_FALSE(excluded_in_trace_review(items[0]));
+    EXPECT_EQ(held_back(items), (std::vector<bool>{true, false, true, false, true}));
+    // The evidence is worth nothing: the level is what the rest says.
+    EXPECT_EQ(level(items[2].records), Confidence::Good);
+    EXPECT_EQ(level(items[4].records), Confidence::VeryGood);
+
+    const auto plan = changes::make_plan(items, Confidence::Good, nullptr, L"Leftovers of Contoso");
+    std::vector<std::wstring> planned;
+    for (const auto& item : plan.items) {
+        planned.push_back(std::get<FileLocation>(item.location).path);
+    }
+    EXPECT_EQ(planned,
+              (std::vector<std::wstring>{LR"(C:\Data\Contoso\Cache)", LR"(C:\Data\Contoso\Shared\x.dat)"}));
 }
 
 TEST(MergeTest, ContainmentAndIdentity) {

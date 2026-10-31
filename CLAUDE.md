@@ -51,7 +51,8 @@ cmake --build --preset release --target deploy
 ```
 
 - Scenarios are `tests/sandbox/scenarios/<name>.ps1`: `logon`, `uninstall`, `leftovers`,
-  `removal`, `force`, `trace`. Each phase's acceptance is one of them, and they end with
+  `removal`, `force`, `trace`, `trace_gui` (`trace`'s last round, the GUI's, alone). Each phase's
+  acceptance is one of them, and they end with
   `RESULT: PASS` or `RESULT: FAIL (n problem(s))` in `build\sandbox\results\<name>.txt` (also
   `<name>.json`, `<name>.log`).
 - The Sandbox maps `build\release\bin` live. Don't rebuild that preset while a scenario runs.

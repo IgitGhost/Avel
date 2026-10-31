@@ -44,6 +44,9 @@ struct TraceUse {
     // Evidence::ContainerHoldsMore, and isn't counted here.
     std::size_t split = 0;
     std::size_t split_into = 0;
+    // Reported items its review excludes (ScanTarget::trace_excluded) that the scan found anyway,
+    // by another scanner: Evidence::ExcludedInTraceReview, never selected automatically.
+    std::size_t excluded = 0;
     std::vector<TracedValueOutcome> values;  // In the order of ScanTarget::traced_values
 };
 
@@ -68,7 +71,8 @@ struct ScanOptions {
 // Finds what the target programs left behind, or would leave if their uninstallers removed
 // nothing (for a program that is still installed). A target with an install trace also gets what
 // the trace saw the installer create and the value edits that take back its changes to the
-// environment and SharedDLLs (Scanner::Trace, docs/leftovers.md).
+// environment and SharedDLLs (Scanner::Trace, docs/leftovers.md); what its review excludes, when
+// another scanner finds it, gets Evidence::ExcludedInTraceReview.
 // `installed` is what is installed now; the targets' own entries in it are ignored, the rest
 // tells which folders other programs still use. Every match passes the hard floor and the
 // protected-folder policy before it is reported.

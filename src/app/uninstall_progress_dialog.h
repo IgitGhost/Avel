@@ -11,6 +11,7 @@
 
 #include "core/inventory/inventory.h"
 #include "core/leftovers/scan.h"
+#include "core/tracker/trace_store.h"
 #include "core/uninstall/batch.h"
 
 class QLabel;
@@ -21,19 +22,24 @@ class QTableWidget;
 namespace avel::app {
 
 class ChangeStoreAccess;
+class TraceStoreAccess;
 
 // Runs an uninstall batch on a worker thread and shows its progress. Can't be closed while an
 // uninstaller runs; "Stop" ends the batch after the current program, or terminates it. Then it
-// looks for leftovers, if asked to, and opens the leftover review when it finds some. Programs
-// that failed to uninstall, or couldn't, are offered to Avel Force.
+// looks for leftovers, if asked to, and opens the leftover review when it finds some: with
+// `useTraces`, a program's install trace joins that scan, tied to it before its uninstaller runs,
+// as with avel-cli uninstall. Programs that failed to uninstall, or couldn't, are offered to Avel
+// Force. Once programs were removed, the trace store's retention runs.
 class UninstallProgressDialog : public QDialog {
     Q_OBJECT
 
 public:
-    // `inventory` keeps the programs the items point to alive. `stores` must outlive the dialog.
+    // `inventory` keeps the programs the items point to alive. `stores` and `traces` must outlive
+    // the dialog.
     UninstallProgressDialog(std::shared_ptr<const inventory::Inventory> inventory,
                             std::vector<uninstall::BatchItem> items, uninstall::BatchOptions options,
-                            bool scanLeftovers, ChangeStoreAccess* stores, QWidget* parent = nullptr);
+                            bool scanLeftovers, bool useTraces, ChangeStoreAccess* stores,
+                            TraceStoreAccess* traces, QWidget* parent = nullptr);
     ~UninstallProgressDialog() override;
 
     // Whether any uninstaller ran, so the program list needs refreshing.
@@ -67,6 +73,8 @@ private:
     uninstall::BatchOptions options_;
     bool scanLeftovers_ = false;
     ChangeStoreAccess* stores_ = nullptr;
+    TraceStoreAccess* traces_ = nullptr;
+    std::shared_ptr<tracker::TraceStore> traceStore_;  // Null when the traces aren't used
     // Captured by the worker before the batch runs; read here once it's done.
     std::vector<leftovers::ScanTarget> targets_;
     std::shared_ptr<const leftovers::ScanResult> scan_;

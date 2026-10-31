@@ -42,8 +42,10 @@ ChangePlan make_plan(std::span<const leftovers::Leftover> leftovers, leftovers::
                      std::wstring description) {
     ChangePlan plan;
     plan.description = std::move(description);
-    for (const auto& leftover : leftovers) {
-        if (leftovers::level(leftover.records) < minimum || !is_removable(leftover.location)) {
+    const std::vector<bool> held = leftovers::held_back(leftovers);
+    for (std::size_t i = 0; i < leftovers.size(); ++i) {
+        const auto& leftover = leftovers[i];
+        if (leftovers::level(leftover.records) < minimum || held[i] || !is_removable(leftover.location)) {
             continue;
         }
         std::vector<std::wstring> programs;

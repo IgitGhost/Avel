@@ -450,6 +450,31 @@ std::vector<std::wstring> traces_of(const Program& program, std::span<const Trac
     return ids;
 }
 
+std::unordered_map<std::wstring, std::size_t> program_traces(std::span<const TraceInfo> traces,
+                                                             const inventory::Inventory& inventory) {
+    // Newer as traces_of orders them.
+    const auto newer = [&](std::size_t a, std::size_t b) {
+        return traces[a].started != traces[b].started ? traces[a].started > traces[b].started
+                                                      : traces[a].id > traces[b].id;
+    };
+    std::unordered_map<std::wstring, std::size_t> found;
+    for (std::size_t i = 0; i < traces.size(); ++i) {
+        const auto& info = traces[i];
+        if (info.state != TraceState::Complete && info.state != TraceState::Incomplete) {
+            continue;
+        }
+        for (const auto& link : info.links) {
+            if (const auto* program = resolve_link(link, inventory)) {
+                const auto [entry, added] = found.try_emplace(program->id, i);
+                if (!added && entry->second != i && newer(i, entry->second)) {
+                    entry->second = i;
+                }
+            }
+        }
+    }
+    return found;
+}
+
 void set_links(TraceInfo& info, const TraceResult& result, const inventory::Inventory& inventory) {
     std::vector<TraceLink> links;
     for (const auto& link : info.links) {

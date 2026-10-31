@@ -71,6 +71,10 @@ struct ScanTarget {
     // traced_values[i] as it was when the target was captured, before the uninstaller ran. A
     // SharedDLLs count the uninstaller has changed since is its business: it isn't lowered again.
     std::vector<CapturedValue> captured_values;
+    // What the trace's review excludes (the user judged it isn't the program's): its changes'
+    // locations, and its known values as registry values. `traced` and `traced_values` leave them
+    // out; one that another scanner finds for the program gets Evidence::ExcludedInTraceReview.
+    std::vector<Location> trace_excluded;
 };
 
 ScanTarget make_scan_target(const inventory::Program& program);

@@ -124,7 +124,8 @@ Phase 3 adds Avel's own backup and undo, which don't depend on System Restore.
   - Select programs, then press **Uninstall** (Del), or use the context menu.
   - The confirmation dialog shows how each program will be removed. Options: silent mode (the
     default for several programs), a restore point, and **Simulate**, which runs the whole flow
-    without changing anything.
+    without changing anything. A program installed with Avel Trace adds **Use the install trace
+    (n items)**, on by default ([trace.md](trace.md), "Uninstalling by the trace").
   - The progress dialog lists each program's outcome. The program list refreshes afterwards.
 - **CLI:**
 

@@ -236,6 +236,10 @@ struct TraceValuePlan {
 
 TraceValuePlan plan_trace_values(const ScanEnvironment& environment, std::span<const ScanTarget> targets);
 
+// The item is still there as a trace recorded it (a file is still a file, a folder a folder;
+// trace_scanner.cpp). Packages and value edits, which a trace never records as items, always are.
+bool still_there(const ScanEnvironment& environment, const Location& location);
+
 // What the target's install trace saw the installer create, still there: tied items with the
 // strongest evidence, the rest with a weak one. Changes to items that existed before are never
 // offered. Counts what it leaves out in `use`.

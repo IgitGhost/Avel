@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/inventory/msi_codes.h"
+#include "core/platform/text.h"
 #include "core/tracker/linking.h"
 #include "trace_fakes.h"
 
@@ -395,6 +396,50 @@ TEST(LinkingTest, FindsTheTracesOfAProgramNewestFirst) {
     };
     EXPECT_EQ(traces_of(program, traces, inventory),
               (std::vector<std::wstring>{L"20261023-000000-00000003", L"20261023-000000-00000001"}));
+}
+
+// Every program's trace at once: what traces_of gives first, for each of them.
+TEST(LinkingTest, FindsEveryProgramsTraceAtOnce) {
+    Program app = entry(L"Contoso App", RegistryView::Machine64, L"Contoso");
+    Program tool = entry(L"Contoso Tool", RegistryView::Machine64, L"ContosoTool");
+    Program untraced = entry(L"Fabrikam", RegistryView::Machine64, L"Fabrikam");
+    inventory::Inventory inventory;
+    inventory.programs = {app, tool, untraced};
+    const auto trace = [&](std::wstring id, TraceState state, std::chrono::hours age,
+                           std::vector<const Program*> linked) {
+        TraceInfo info;
+        info.id = std::move(id);
+        info.state = state;
+        info.started = std::chrono::sys_days{std::chrono::year{2026} / 10 / 24} - age;
+        for (const auto* program : linked) {
+            info.links.push_back(make_link(*program, LinkMatch::CreatedKey));
+        }
+        return info;
+    };
+    Program gone = entry(L"Northwind", RegistryView::Machine64, L"Northwind");
+    const std::vector<TraceInfo> traces{
+        trace(L"20261023-000000-00000001", TraceState::Complete, 24h, {&app}),
+        trace(L"20261023-000000-00000002", TraceState::Open, 1h, {&app}),               // Not finished
+        trace(L"20261023-000000-00000003", TraceState::Incomplete, 2h, {&tool, &app}),  // A bundle
+        trace(L"20261023-000000-00000004", TraceState::Complete, 3h, {&tool}),
+        trace(L"20261023-000000-00000005", TraceState::Complete, 1h, {&gone}),  // Not installed
+        trace(L"20261023-000000-00000006", TraceState::Complete, 5h, {}),       // Unlinked
+    };
+    const auto found = program_traces(traces, inventory);
+    EXPECT_EQ(found.size(), 2u);
+    ASSERT_TRUE(found.contains(app.id));
+    EXPECT_EQ(found.at(app.id), 2u);
+    ASSERT_TRUE(found.contains(tool.id));
+    EXPECT_EQ(found.at(tool.id), 2u);
+    EXPECT_FALSE(found.contains(untraced.id));
+    for (const auto& program : inventory.programs) {
+        const auto ids = traces_of(program, traces, inventory);
+        const auto entry = found.find(program.id);
+        ASSERT_EQ(entry != found.end(), !ids.empty()) << platform::to_utf8(program.display_name);
+        if (!ids.empty()) {
+            EXPECT_EQ(traces[entry->second].id, ids.front());
+        }
+    }
 }
 
 // In a store: link_trace writes the links to trace.json; an open trace can't be linked.
