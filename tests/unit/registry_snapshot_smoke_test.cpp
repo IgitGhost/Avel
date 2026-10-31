@@ -105,7 +105,10 @@ TEST(RegistrySnapshotSmokeTest, SnapshotsAndComparesTheLiveRegistry) {
     }
 
     EXPECT_GT(snapshot.keys().size(), 1000u);
-    EXPECT_LT(changes.size(), 200u);  // Only what Windows and running programs changed in a few seconds
+    // Only what Windows and running programs changed in a few seconds: at most 0.5% of the keys (at
+    // least 200). A CI runner deploying packages meanwhile changed 245 of AppModel's keys and values
+    // in 21 s; a broken diff reports far more.
+    EXPECT_LT(changes.size(), std::max<std::size_t>(200, snapshot.keys().size() / 200));
 }
 
 }  // namespace
