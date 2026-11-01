@@ -122,6 +122,8 @@ add_library(avel_core STATIC
     platform/volume_folders.cpp
     platform/volume_folders.h
     platform/version_info.h
+    tools/startup.cpp
+    tools/startup.h
     tracker/file_changes.cpp
     tracker/file_changes.h
     tracker/install_trace.cpp
