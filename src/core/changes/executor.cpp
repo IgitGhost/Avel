@@ -26,7 +26,11 @@ using leftovers::PackageLocation;
 using leftovers::RegistryKeyLocation;
 using leftovers::RegistryValueLocation;
 using leftovers::ServiceLocation;
+using leftovers::ServiceStart;
+using leftovers::ServiceStartLocation;
+using leftovers::StartupApprovedLocation;
 using leftovers::TaskLocation;
+using leftovers::TaskStateLocation;
 using leftovers::ValueEditKind;
 using leftovers::ValueEditLocation;
 using platform::RawValue;
@@ -87,7 +91,7 @@ std::function<leftovers::ProtectionReason(const Location&)> protection_for(const
 }
 
 // Services and tasks first, so the files they run are free; then the task folders they leave
-// empty; files last.
+// empty; state changes after registry values; files last.
 int phase(const Location& location) {
     return std::visit(
         [](const auto& item) {
@@ -97,9 +101,15 @@ int phase(const Location& location) {
             else if constexpr (std::is_same_v<T, PackageLocation>) return 3;
             else if constexpr (std::is_same_v<T, RegistryValueLocation>) return 4;
             else if constexpr (std::is_same_v<T, ValueEditLocation>) return 4;
-            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 5;
-            else if constexpr (std::is_same_v<T, FileLocation>) return 6;
-            else return 7;
+            else if constexpr (std::is_same_v<T, StartupApprovedLocation>) return 5;
+            else if constexpr (std::is_same_v<T, TaskStateLocation>) return 5;
+            else if constexpr (std::is_same_v<T, ServiceStartLocation>) return 5;
+            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 6;
+            else if constexpr (std::is_same_v<T, FileLocation>) return 7;
+            else {
+                static_assert(std::is_same_v<T, FirewallRuleLocation>, "every kind needs its phase");
+                return 8;  // Reported only
+            }
         },
         location);
 }
@@ -279,6 +289,135 @@ Reason reason_for(LSTATUS status) {
         default:
             return Reason::Error;
     }
+}
+
+// `path` is `ancestor` or below it, comparing registry paths literally.
+bool key_path_is_under(const std::wstring& path, const std::wstring& ancestor) {
+    return platform::istarts_with(path, ancestor) &&
+           (path.size() == ancestor.size() || path[ancestor.size()] == L'\\');
+}
+
+// The topmost key of `path` that doesn't exist (empty when the key exists), for a change that will
+// create it. False on any error other than a missing key.
+bool first_missing_key(HKEY root, const std::wstring& path, std::wstring& missing, LSTATUS& status) {
+    missing.clear();
+    for (std::wstring current = path; !current.empty(); current = split_key(current).first) {
+        open_key(root, current, KEY_QUERY_VALUE, false, status);
+        if (status == ERROR_SUCCESS) {
+            return true;
+        }
+        if (status != ERROR_FILE_NOT_FOUND) {
+            return false;
+        }
+        missing = current;
+    }
+    status = ERROR_SUCCESS;
+    return true;
+}
+
+// Deletes the key at `path` if it holds no values and no subkeys.
+bool delete_empty_key(HKEY root, const std::wstring& path) {
+    LSTATUS status = ERROR_SUCCESS;
+    {
+        const auto key = open_key(root, path, KEY_QUERY_VALUE, false, status);
+        DWORD subkeys = 0;
+        DWORD values = 0;
+        if (!key ||
+            ::RegQueryInfoKeyW(key.get(), nullptr, nullptr, nullptr, &subkeys, nullptr, nullptr, &values,
+                               nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS ||
+            subkeys > 0 || values > 0) {
+            return false;
+        }
+    }
+    return ::RegDeleteKeyExW(root, path.c_str(), KEY_WOW64_64KEY, 0) == ERROR_SUCCESS;
+}
+
+// Deletes `path` and its ancestors up to `created`, each only while it's empty: the keys a change
+// created, unless something has been put in them since.
+void remove_created_keys(HKEY root, const std::wstring& path, const std::wstring& created) {
+    if (created.empty() || !key_path_is_under(path, created)) {
+        return;
+    }
+    for (std::wstring current = path; current.size() >= created.size(); current = split_key(current).first) {
+        if (!delete_empty_key(root, current) || current.size() == created.size()) {
+            return;
+        }
+    }
+}
+
+// state.json of a startup approval: the value before and the value written, as in edit.json, and
+// the topmost key the change created ("created_key", null if the key was there), which undo
+// deletes again once it's empty.
+struct ApprovalBackup {
+    std::optional<RawValue> before;
+    std::optional<RawValue> written;
+    std::wstring created_key;
+};
+
+Json approval_backup_json(const ApprovalBackup& backup) {
+    Json json;
+    json["before"] = edit_value_json(backup.before);
+    json["written"] = edit_value_json(backup.written);
+    json["created_key"] = nullptr;
+    if (!backup.created_key.empty()) {
+        json.erase("created_key");
+        put_text(json, "created_key", backup.created_key);
+    }
+    return json;
+}
+
+bool approval_backup_from(const Json& json, const StartupApprovedLocation& location, ApprovalBackup& backup) {
+    if (!json.is_object() || !json.contains("before") || !json.contains("written") ||
+        !edit_value_from(json["before"], backup.before) ||
+        !edit_value_from(json["written"], backup.written)) {
+        return false;
+    }
+    backup.created_key = get_text(json, "created_key").value_or(L"");
+    // Only the key or one of its ancestors: never anything else.
+    return backup.created_key.empty() || key_path_is_under(location.key.path, backup.created_key);
+}
+
+// state.json of a task's or a service's state: {"before", "written"}.
+template <typename State>
+Json state_backup_json(const State& before, const State& written) {
+    Json json;
+    if constexpr (std::is_same_v<State, bool>) {
+        json["before"] = before;
+        json["written"] = written;
+    } else {
+        json["before"] = to_json(before);
+        json["written"] = to_json(written);
+    }
+    return json;
+}
+
+bool state_backup_from(const Json& json, bool& before, bool& written) {
+    if (!json.is_object() || !json.contains("before") || !json["before"].is_boolean() ||
+        !json.contains("written") || !json["written"].is_boolean()) {
+        return false;
+    }
+    before = json["before"].get<bool>();
+    written = json["written"].get<bool>();
+    return true;
+}
+
+bool state_backup_from(const Json& json, ServiceStart& before, ServiceStart& written) {
+    return json.is_object() && json.contains("before") && json.contains("written") &&
+           from_json(json["before"], before) && from_json(json["written"], written);
+}
+
+// A state change's outcome, as undo reports it.
+ItemStatus as_restore(ItemStatus status) {
+    status.state = status.state == ItemState::Done      ? ItemState::Restored
+                   : status.state == ItemState::Skipped ? ItemState::RestoreSkipped
+                                                        : ItemState::RestoreFailed;
+    return status;
+}
+
+// Undo couldn't read the item's state: gone since (nothing to put back), or an error.
+ItemStatus restore_failure(const ItemStatus& failure) {
+    return {failure.reason == Reason::Missing ? ItemState::RestoreSkipped : ItemState::RestoreFailed,
+            failure.reason, failure.code};
 }
 
 bool write_json(const std::wstring& path, const Json& json) {
@@ -594,6 +733,98 @@ private:
         return finish({ItemState::Done, Reason::None, 0});
     }
 
+    // State changes (ADR 0007): compare-and-set, as for value edits. A missing StartupApproved key
+    // is created, and state.json says so, so undo (or recovery) deletes it again.
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const StartupApprovedLocation& location, ItemResult& result,
+                           Finish& finish) {
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        if (!root) {
+            return finish({ItemState::Skipped, Reason::Missing, 0});
+        }
+        LSTATUS status = ERROR_SUCCESS;
+        ApprovalBackup backup;
+        if (!first_missing_key(root, location.key.path, backup.created_key, status)) {
+            return finish({ItemState::Skipped, reason_for(status), static_cast<std::uint32_t>(status)});
+        }
+        wil::unique_hkey key;
+        if (backup.created_key.empty()) {
+            key = open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, false, status);
+            if (!key || !read_live_value(key.get(), location.value_name, backup.before, status)) {
+                return finish({ItemState::Skipped, reason_for(status), static_cast<std::uint32_t>(status)});
+            }
+        }
+        if (!same_value(backup.before, location.expected)) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        if (!key && !location.desired) {
+            backup.created_key.clear();  // Nothing to delete, and no key to create for it
+        }
+        backup.written = location.desired;
+        if (!write_json(set_.item_folder(index) + L"\\state.json", approval_backup_json(backup))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        if (!key && !location.desired) {
+            return finish({ItemState::Done, Reason::None, 0});
+        }
+        if (!key) {
+            key = open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, true, status);
+        }
+        if (key) {
+            status = write_live_value(key.get(), location.value_name, location.desired);
+        }
+        if (!key || (status != ERROR_SUCCESS && !(status == ERROR_FILE_NOT_FOUND && !location.desired))) {
+            key.reset();
+            remove_created_keys(root, location.key.path, backup.created_key);
+            return finish({ItemState::Failed, reason_for(status), static_cast<std::uint32_t>(status)});
+        }
+        return finish({ItemState::Done, Reason::None, 0});
+    }
+
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const TaskStateLocation& location, ItemResult& result,
+                           Finish& finish) {
+        bool enabled = false;
+        ItemStatus failure;
+        if (!task_enabled(location.path, enabled, failure)) {
+            return finish(failure);
+        }
+        if (enabled != location.enabled_before) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        if (!write_json(set_.item_folder(index) + L"\\state.json",
+                        state_backup_json(enabled, location.enabled_after))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        return finish(set_task_enabled(location.path, location.enabled_after));
+    }
+
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const ServiceStartLocation& location, ItemResult& result,
+                           Finish& finish) {
+        ServiceStart live;
+        ItemStatus failure;
+        if (!service_start(location.name, live, failure)) {
+            return finish(failure);
+        }
+        if (live != location.before) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        if (!write_json(set_.item_folder(index) + L"\\state.json", state_backup_json(live, location.after))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        return finish(set_service_start(location.name, location.after, live));
+    }
+
     ItemStatus restore_item(const std::wstring& folder, const FileLocation&, ItemResult& result) {
         const auto json = read_json(folder + L"\\file.json");
         FileMove move;
@@ -728,6 +959,82 @@ private:
         return {ItemState::Restored, Reason::None, 0};
     }
 
+    // State changes: the state before goes back only while the item is in the state written;
+    // otherwise it changed since, and stays as it is. A key the change created goes once empty.
+    ItemStatus restore_item(const std::wstring& folder, const StartupApprovedLocation& location,
+                            ItemResult&) {
+        const auto json = read_json(folder + L"\\state.json");
+        ApprovalBackup backup;
+        if (!json || !approval_backup_from(*json, location, backup)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        if (!root) {
+            return {ItemState::RestoreFailed, Reason::Missing, 0};
+        }
+        LSTATUS status = ERROR_SUCCESS;
+        auto key = open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, false, status);
+        std::optional<RawValue> live;
+        if ((!key && status != ERROR_FILE_NOT_FOUND) ||
+            (key && !read_live_value(key.get(), location.value_name, live, status))) {
+            return {ItemState::RestoreFailed, reason_for(status), static_cast<std::uint32_t>(status)};
+        }
+        if (!same_value(live, backup.written)) {
+            return {ItemState::RestoreSkipped, Reason::Changed, 0};
+        }
+        if (!key && backup.before) {
+            key = open_key(root, location.key.path, KEY_QUERY_VALUE | KEY_SET_VALUE, true, status);
+            if (!key) {
+                return {ItemState::RestoreFailed, reason_for(status), static_cast<std::uint32_t>(status)};
+            }
+        }
+        if (key) {
+            status = write_live_value(key.get(), location.value_name, backup.before);
+            if (status != ERROR_SUCCESS && !(status == ERROR_FILE_NOT_FOUND && !backup.before)) {
+                return {ItemState::RestoreFailed, reason_for(status), static_cast<std::uint32_t>(status)};
+            }
+        }
+        key.reset();
+        remove_created_keys(root, location.key.path, backup.created_key);
+        return {ItemState::Restored, Reason::None, 0};
+    }
+
+    ItemStatus restore_item(const std::wstring& folder, const TaskStateLocation& location, ItemResult&) {
+        const auto json = read_json(folder + L"\\state.json");
+        bool before = false;
+        bool written = false;
+        if (!json || !state_backup_from(*json, before, written)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        bool enabled = false;
+        ItemStatus failure;
+        if (!task_enabled(location.path, enabled, failure)) {
+            return restore_failure(failure);
+        }
+        if (enabled != written) {
+            return {ItemState::RestoreSkipped, Reason::Changed, 0};
+        }
+        return as_restore(set_task_enabled(location.path, before));
+    }
+
+    ItemStatus restore_item(const std::wstring& folder, const ServiceStartLocation& location, ItemResult&) {
+        const auto json = read_json(folder + L"\\state.json");
+        ServiceStart before;
+        ServiceStart written;
+        if (!json || !state_backup_from(*json, before, written)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        ServiceStart live;
+        ItemStatus failure;
+        if (!service_start(location.name, live, failure)) {
+            return restore_failure(failure);
+        }
+        if (live != written) {
+            return {ItemState::RestoreSkipped, Reason::Changed, 0};
+        }
+        return as_restore(set_service_start(location.name, before, live));
+    }
+
     // After a crash: was the item removed? Its backup is on disk; the system tells the rest.
     ItemStatus settle_item(const std::wstring& folder, const FileLocation&) {
         const auto json = read_json(folder + L"\\file.json");
@@ -813,6 +1120,55 @@ private:
             return {ItemState::Failed, Reason::Interrupted, 0};
         }
         environment_changed_ = environment_changed_ || is_environment(location.key);
+        return {ItemState::Done, Reason::None, 0};
+    }
+
+    // State changes: done if the item is in the state written. Anything else counts as untouched
+    // (as it was, or changed by someone else since, which undo mustn't take back); a key the run
+    // created and left empty goes again.
+    ItemStatus settle_item(const std::wstring& folder, const StartupApprovedLocation& location) {
+        const auto json = read_json(folder + L"\\state.json");
+        ApprovalBackup backup;
+        const HKEY root = roots_.get(location.key.hive, location.key.sid);
+        if (!json || !approval_backup_from(*json, location, backup) || !root) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        LSTATUS status = ERROR_SUCCESS;
+        auto key = open_key(root, location.key.path, KEY_QUERY_VALUE, false, status);
+        std::optional<RawValue> live;
+        const bool read = key ? read_live_value(key.get(), location.value_name, live, status)
+                              : status == ERROR_FILE_NOT_FOUND;
+        if (read && same_value(live, backup.written)) {
+            return {ItemState::Done, Reason::None, 0};
+        }
+        key.reset();
+        remove_created_keys(root, location.key.path, backup.created_key);
+        return {ItemState::Failed, Reason::Interrupted, 0};
+    }
+
+    ItemStatus settle_item(const std::wstring& folder, const TaskStateLocation& location) {
+        const auto json = read_json(folder + L"\\state.json");
+        bool before = false;
+        bool written = false;
+        bool enabled = false;
+        ItemStatus failure;
+        if (!json || !state_backup_from(*json, before, written) ||
+            !task_enabled(location.path, enabled, failure) || enabled != written) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        return {ItemState::Done, Reason::None, 0};
+    }
+
+    ItemStatus settle_item(const std::wstring& folder, const ServiceStartLocation& location) {
+        const auto json = read_json(folder + L"\\state.json");
+        ServiceStart before;
+        ServiceStart written;
+        ServiceStart live;
+        ItemStatus failure;
+        if (!json || !state_backup_from(*json, before, written) ||
+            !service_start(location.name, live, failure) || live != written) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
         return {ItemState::Done, Reason::None, 0};
     }
 

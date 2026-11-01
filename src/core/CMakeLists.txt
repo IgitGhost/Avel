@@ -72,6 +72,8 @@ add_library(avel_core STATIC
     leftovers/scan_target.h
     leftovers/scanners.h
     leftovers/snapshots.cpp
+    leftovers/startup_approved.cpp
+    leftovers/startup_approved.h
     leftovers/system_scanners.cpp
     leftovers/system_snapshots.cpp
     leftovers/trace_scanner.cpp

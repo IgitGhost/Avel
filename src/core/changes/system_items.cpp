@@ -40,6 +40,15 @@ Reason reason_for(DWORD error) {
     }
 }
 
+// The Task Scheduler's error for a task that couldn't be read or changed.
+Reason task_reason(HRESULT result) {
+    if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) ||
+        result == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) {
+        return Reason::Missing;
+    }
+    return result == E_ACCESSDENIED ? Reason::AccessDenied : Reason::Error;
+}
+
 // Accounts whose services need no password to recreate.
 bool is_passwordless_account(std::wstring_view account) {
     if (account.empty() || platform::iequals(account, L"LocalSystem") || platform::iequals(account, L".\\LocalSystem") ||
@@ -486,6 +495,97 @@ ItemStatus restore_task_folder(const TaskFolderBackup& backup) {
 bool task_folder_exists(const std::wstring& path) {
     const TaskScheduler scheduler;
     return static_cast<bool>(scheduler.folder(path, false));
+}
+
+bool task_enabled(const std::wstring& path, bool& enabled, ItemStatus& failure) {
+    const TaskScheduler scheduler;
+    HRESULT result = S_OK;
+    const auto task = scheduler.task(path, result);
+    VARIANT_BOOL value = VARIANT_FALSE;
+    if (task) {
+        result = task->get_Enabled(&value);
+    }
+    if (FAILED(result)) {
+        failure = skipped(task_reason(result), static_cast<DWORD>(result));
+        return false;
+    }
+    enabled = value != VARIANT_FALSE;
+    return true;
+}
+
+ItemStatus set_task_enabled(const std::wstring& path, bool enabled) {
+    if (platform::istarts_with(path, L"\\Microsoft\\")) {
+        return skipped(Reason::Protected);
+    }
+    const TaskScheduler scheduler;
+    HRESULT result = S_OK;
+    const auto task = scheduler.task(path, result);
+    if (task) {
+        result = task->put_Enabled(enabled ? VARIANT_TRUE : VARIANT_FALSE);
+    }
+    if (FAILED(result)) {
+        return {ItemState::Failed, task_reason(result), static_cast<std::uint32_t>(result)};
+    }
+    return {ItemState::Done, Reason::None, 0};
+}
+
+bool service_start(const std::wstring& name, leftovers::ServiceStart& start, ItemStatus& failure) {
+    DWORD error = 0;
+    const auto service = open_service(name, SERVICE_QUERY_CONFIG, error);
+    if (!service) {
+        failure = skipped(reason_for(error), error);
+        return false;
+    }
+    DWORD needed = 0;
+    ::QueryServiceConfigW(service.get(), nullptr, 0, &needed);
+    std::vector<std::byte> buffer(needed);
+    auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
+    if (needed == 0 || !::QueryServiceConfigW(service.get(), config, needed, &needed)) {
+        error = ::GetLastError();
+        failure = skipped(reason_for(error), error);
+        return false;
+    }
+    if (config->dwServiceType & SERVICE_DRIVER) {
+        failure = skipped(Reason::Protected);
+        return false;
+    }
+    SERVICE_DELAYED_AUTO_START_INFO delayed{};
+    if (!::QueryServiceConfig2W(service.get(), SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+                                reinterpret_cast<BYTE*>(&delayed), sizeof(delayed), &needed)) {
+        error = ::GetLastError();
+        failure = skipped(reason_for(error), error);
+        return false;
+    }
+    start = {config->dwStartType, delayed.fDelayedAutostart != FALSE};
+    return true;
+}
+
+ItemStatus set_service_start(const std::wstring& name, const leftovers::ServiceStart& target,
+                             const leftovers::ServiceStart& current) {
+    DWORD error = 0;
+    const auto service = open_service(name, SERVICE_CHANGE_CONFIG | SERVICE_QUERY_CONFIG, error);
+    if (!service) {
+        return {ItemState::Failed, reason_for(error), error};
+    }
+    const auto set_type = [&](std::uint32_t type) {
+        return ::ChangeServiceConfigW(service.get(), SERVICE_NO_CHANGE, type, SERVICE_NO_CHANGE, nullptr,
+                                      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) != FALSE;
+    };
+    if (target.start_type != current.start_type && !set_type(target.start_type)) {
+        error = ::GetLastError();
+        return {ItemState::Failed, reason_for(error), error};
+    }
+    if (target.delayed != current.delayed) {
+        SERVICE_DELAYED_AUTO_START_INFO delayed{target.delayed ? TRUE : FALSE};
+        if (!::ChangeServiceConfig2W(service.get(), SERVICE_CONFIG_DELAYED_AUTO_START_INFO, &delayed)) {
+            error = ::GetLastError();
+            if (target.start_type != current.start_type) {
+                set_type(current.start_type);  // Back as it was: the item failed, nothing changed
+            }
+            return {ItemState::Failed, reason_for(error), error};
+        }
+    }
+    return {ItemState::Done, Reason::None, 0};
 }
 
 ItemStatus remove_package_item(const std::wstring& full_name, const std::wstring& user_sid) {
