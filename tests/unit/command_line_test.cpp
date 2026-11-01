@@ -111,5 +111,16 @@ TEST(CommandLineTest, MissingScriptOrDllOfAWindowsHost) {
         L"");
 }
 
+TEST(CommandLineTest, HostedFileAsWritten) {
+    const auto hosted = [](std::wstring_view command) {
+        return hosted_file(split_command_line(command, files({})));
+    };
+    EXPECT_EQ(hosted(LR"(rundll32.exe "C:\App\x.dll",Entry)"), LR"(C:\App\x.dll)");
+    EXPECT_EQ(hosted(LR"(pwsh -f %APPDATA%\x.ps1 -Quiet)"), LR"(%APPDATA%\x.ps1)");
+    EXPECT_EQ(hosted(LR"(cscript.exe //Nologo x.vbs)"), L"x.vbs");
+    EXPECT_EQ(hosted(LR"(powershell.exe -Command Start-Process x)"), L"");
+    EXPECT_EQ(hosted(LR"("C:\App\app.exe" -File C:\App\x.ps1)"), L"");  // Not a Windows host
+}
+
 }  // namespace
 }  // namespace avel::platform

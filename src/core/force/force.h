@@ -53,9 +53,32 @@ struct FileOwner {
     std::wstring publisher;
 };
 
-// The program whose install (or uninstaller) folder holds `file`, the deepest such folder winning;
-// packaged apps match by their package folder. Protected folders (a program recording
-// C:\Program Files as its location) never match.
+// Who files belong to, for asking about many files: the programs' install and uninstaller folders
+// and their protection are worked out once, when it is built. Borrows `programs`.
+class OwnerIndex {
+public:
+    OwnerIndex(const leftovers::ScanEnvironment& environment, std::span<const inventory::Program> programs);
+
+    // The program whose install (or uninstaller) folder holds `file`, the deepest such folder
+    // winning; packaged apps match by their package folder. Protected folders (a program recording
+    // C:\Program Files as its location) never match. Null if there is none.
+    const inventory::Program* program_of(std::wstring_view file) const;
+
+    // program_of, and without a program, the folder to remove and the names from the file's
+    // version resource (see FileOwner).
+    FileOwner owner_of(std::wstring_view file) const;
+
+private:
+    struct Folder {
+        std::wstring path;  // Normalized
+        const inventory::Program* program = nullptr;
+        bool listed = false;  // inventory::is_listed_in_settings
+    };
+    leftovers::ProtectedPolicy policy_;
+    std::vector<Folder> folders_;  // In the programs' order, each one's install folder first
+};
+
+// OwnerIndex::owner_of for one file.
 FileOwner owner_of(const leftovers::ScanEnvironment& environment,
                    std::span<const inventory::Program> programs, std::wstring_view file);
 

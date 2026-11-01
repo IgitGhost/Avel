@@ -1,11 +1,7 @@
 // Ported in part from Bulk Crap Uninstaller, Copyright (c) 2017 Marcin Szeniak, Apache License 2.0.
 // See scanners.h for the original source files.
 #include <windows.h>
-#include <objbase.h>
-#include <shlobj.h>
-#include <shobjidl.h>
 
-#include <wil/com.h>
 #include <wil/resource.h>
 
 #include <algorithm>
@@ -19,6 +15,7 @@
 #include "core/leftovers/scanners.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
+#include "core/platform/shortcuts.h"
 #include "core/platform/text.h"
 
 namespace avel::leftovers::detail {
@@ -221,24 +218,6 @@ void take_keys(const ScanEnvironment& environment, Snapshots& snapshots) {
     }
 }
 
-std::wstring resolve_shortcut(const std::wstring& file) {
-    wil::com_ptr_nothrow<IShellLinkW> link;
-    if (FAILED(::CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(link.put())))) {
-        return {};
-    }
-    const auto persist = link.try_query<IPersistFile>();
-    if (!persist || FAILED(persist->Load(file.c_str(), STGM_READ))) {
-        return {};
-    }
-    wchar_t target[MAX_PATH] = {};
-    // The raw path keeps %VARIABLES% so they can be expanded for the shortcut's owner. Advertised
-    // (Windows Installer) shortcuts have no path and are skipped, as in BCU.
-    if (link->GetPath(target, MAX_PATH, nullptr, SLGP_RAWPATH) != S_OK) {
-        return {};
-    }
-    return target;
-}
-
 void collect_shortcuts(Snapshots& snapshots, const std::wstring& folder, bool recursive, const UserScope* user,
                        const std::wstring& windows) {
     if (folder.empty()) {
@@ -255,10 +234,13 @@ void collect_shortcuts(Snapshots& snapshots, const std::wstring& folder, bool re
         if (!platform::iends_with(name, L".lnk")) {
             return;
         }
-        const std::wstring raw = resolve_shortcut(path);
-        if (raw.empty()) {
+        // The raw path keeps %VARIABLES% so they can be expanded for the shortcut's owner. Advertised
+        // (Windows Installer) shortcuts have no path and are skipped, as in BCU.
+        const auto shortcut = platform::resolve_shortcut(path);
+        if (!shortcut || shortcut->target.empty()) {
             return;
         }
+        const std::wstring& raw = shortcut->target;
         const std::wstring target = platform::normalize_path(
             user ? platform::expand_environment_for_user(raw, user->profile) : platform::expand_environment(raw));
         if (target.empty() || (!windows.empty() && platform::path_is_under(target, windows))) {

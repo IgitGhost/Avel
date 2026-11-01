@@ -72,36 +72,47 @@ FolderTarget folder_target(const leftovers::ScanEnvironment& environment, std::w
     return result;
 }
 
-FileOwner owner_of(const leftovers::ScanEnvironment& environment,
-                   std::span<const inventory::Program> programs, std::wstring_view file) {
-    FileOwner owner;
-    const std::wstring path = platform::long_path(file);
-    const leftovers::ProtectedPolicy policy(known_folders(environment));
-
-    std::size_t best_length = 0;
+OwnerIndex::OwnerIndex(const leftovers::ScanEnvironment& environment,
+                       std::span<const inventory::Program> programs)
+    : policy_(known_folders(environment)) {
     for (const auto& program : programs) {
         const auto target = leftovers::make_scan_target(program);
         const bool package = program.source == inventory::Source::Appx;
         for (const auto* folder : {&target.install_location, &target.uninstaller_folder}) {
             // A package's folder is protected (WindowsApps), but it is the package's own.
-            if (folder->empty() || folder->size() < best_length || !platform::path_is_under(path, *folder) ||
-                (!package && check(policy, *folder) != ProtectionReason::None)) {
+            if (folder->empty() || (!package && check(policy_, *folder) != ProtectionReason::None)) {
                 continue;
             }
-            // On a tie, the entry Settings lists beats a hidden component of the same program.
-            const bool better = !owner.program || folder->size() > best_length ||
-                                (!inventory::is_listed_in_settings(*owner.program) &&
-                                 inventory::is_listed_in_settings(program));
-            if (better) {
-                owner.program = &program;
-                best_length = folder->size();
-            }
+            folders_.push_back(
+                {platform::normalize_path(*folder), &program, inventory::is_listed_in_settings(program)});
         }
     }
+}
+
+const inventory::Program* OwnerIndex::program_of(std::wstring_view file) const {
+    const std::wstring path = platform::long_path(file);
+    const Folder* best = nullptr;
+    for (const auto& folder : folders_) {
+        if ((best && folder.path.size() < best->path.size()) ||
+            !platform::normalized_path_is_under(path, folder.path)) {
+            continue;
+        }
+        // On a tie, the entry Settings lists beats a hidden component of the same program.
+        if (!best || folder.path.size() > best->path.size() || (!best->listed && folder.listed)) {
+            best = &folder;
+        }
+    }
+    return best ? best->program : nullptr;
+}
+
+FileOwner OwnerIndex::owner_of(std::wstring_view file) const {
+    FileOwner owner;
+    owner.program = program_of(file);
     if (owner.program) {
         return owner;
     }
 
+    const std::wstring path = platform::long_path(file);
     const platform::FileProduct product = platform::file_product(path);
     owner.name = product.product_name;
     owner.publisher = product.company_name;
@@ -112,7 +123,7 @@ FileOwner owner_of(const leftovers::ScanEnvironment& environment,
         const auto names = leftovers::make_product_names(owner.name, owner.publisher);
         for (std::wstring folder = platform::parent_path(owner.folder);
              !folder.empty() && !platform::is_root_path(folder) &&
-             check(policy, folder) == ProtectionReason::None;
+             check(policy_, folder) == ProtectionReason::None;
              folder = platform::parent_path(folder)) {
             if (leftovers::match_product_name(names, platform::last_path_component(folder)) >= 0) {
                 owner.folder = folder;
@@ -123,6 +134,11 @@ FileOwner owner_of(const leftovers::ScanEnvironment& environment,
         owner.name = std::wstring(platform::last_path_component(owner.folder));
     }
     return owner;
+}
+
+FileOwner owner_of(const leftovers::ScanEnvironment& environment,
+                   std::span<const inventory::Program> programs, std::wstring_view file) {
+    return OwnerIndex(environment, programs).owner_of(file);
 }
 
 std::vector<platform::ProcessInfo> processes_in(const leftovers::ScanEnvironment& environment,

@@ -100,8 +100,14 @@ add_library(avel_core STATIC
     platform/registry.cpp
     platform/registry.h
     platform/registry_address.h
+    platform/scheduled_tasks.cpp
+    platform/scheduled_tasks.h
     platform/secure_folder.cpp
     platform/secure_folder.h
+    platform/services.cpp
+    platform/services.h
+    platform/shortcuts.cpp
+    platform/shortcuts.h
     platform/text.cpp
     platform/text.h
     platform/time.cpp
