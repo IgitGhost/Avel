@@ -12,16 +12,19 @@
 #include <cstdint>
 #include <format>
 #include <map>
+#include <memory>
 #include <set>
 #include <thread>
 #include <unordered_map>
 
 #include "core/force/force.h"
+#include "core/leftovers/startup_approved.h"
 #include "core/platform/command_line.h"
 #include "core/platform/hash.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
 #include "core/platform/shortcuts.h"
+#include "core/platform/signature.h"
 #include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
 
@@ -201,11 +204,6 @@ const std::vector<platform::RawValue>& approved_values(Collector& collector, con
     return found->second;
 }
 
-// Task Manager's mark: the first byte's low bit set means disabled (03, 01), clear enabled (02, 06).
-bool approval_disabled(const std::optional<platform::RawValue>& value) {
-    return value && !value->data.empty() && (std::to_integer<unsigned>(value->data.front()) & 1u) != 0;
-}
-
 // Pairs the entry with its value in `list` (Run, Run32 or StartupFolder) of the same hive. Comes
 // after the entry's own delete location: the value, if there is one, goes with it.
 void pair_approval(Collector& collector, StartupEntry& entry, const UserScope* user, std::wstring_view list,
@@ -218,7 +216,7 @@ void pair_approval(Collector& collector, StartupEntry& entry, const UserScope* u
             break;
         }
     }
-    if (approval_disabled(approval.value)) {
+    if (approval.value && leftovers::approval_disabled(*approval.value)) {
         entry.state = StartupState::Disabled;
     }
     if (approval.value) {
@@ -469,11 +467,12 @@ std::vector<StartupEntry> finish(Collector& collector) {
     for (std::size_t i = 0; i < collector.entries.size(); ++i) {
         auto& entry = collector.entries[i];
         const Pending& pending = collector.pending[i];
-        // Microsoft's own services aren't listed, unless Avel disabled one.
-        if (entry.kind == StartupKind::Service && entry.signer.microsoft && !pending.avel_disabled) {
+        // Windows' own services aren't listed, unless Avel disabled one. Microsoft's other
+        // programs' services (Edge's updater, SQL Server's, WSL's) are, like anyone's.
+        if (entry.kind == StartupKind::Service && entry.signer.windows && !pending.avel_disabled) {
             continue;
         }
-        if (entry.signer.microsoft && !pending.command_host && !collector.windows.empty() &&
+        if (entry.signer.windows && !pending.command_host && !collector.windows.empty() &&
             platform::path_is_under(entry.target, collector.windows)) {
             entry.protection = StartupProtection::WindowsOwn;
         }
@@ -489,6 +488,19 @@ std::vector<StartupEntry> finish(Collector& collector) {
 }
 
 }  // namespace
+
+SignerFunction live_signer() {
+    return [cache = std::make_shared<platform::SignatureCache>()](const std::wstring& path) {
+        const platform::Signature signature = cache->get(path);
+        StartupSigner signer;
+        signer.checked = signature.state != platform::SignatureState::Missing &&
+                         signature.state != platform::SignatureState::Error;
+        signer.valid = signature.state == platform::SignatureState::Valid;
+        signer.windows = signature.windows;
+        signer.name = signature.signer;
+        return signer;
+    };
+}
 
 StartupList list_startup(const StartupEnvironment& environment) {
     // The caller may already have COM (in either apartment); only balance what this call starts.

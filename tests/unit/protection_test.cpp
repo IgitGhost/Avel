@@ -339,7 +339,7 @@ TEST(HardFloorTest, GuardsWindowsTasksStates) {
               Reason::None);
 }
 
-TEST(HardFloorTest, GuardsDriversAndMicrosoftsServices) {
+TEST(HardFloorTest, GuardsDriversAndWindowsServices) {
     HardFloor::Data data{LR"(C:\Windows)", {}, {}};
     data.services = [](const std::wstring& name) {
         using Status = ServiceFacts::Status;
@@ -377,7 +377,7 @@ TEST(HardFloorTest, LiveFloorGuardsWindowsServices) {
         GTEST_SKIP() << "EventLog can't be read here";
     }
     EXPECT_FALSE(facts.driver);
-    EXPECT_TRUE(facts.microsoft);
+    EXPECT_TRUE(facts.windows);
     EXPECT_TRUE(live_service_facts(L"Tcpip").driver);
     EXPECT_EQ(live_service_facts(L"Avel.Tests.No.Such.Service").status, ServiceFacts::Status::Missing);
     const HardFloor& floor = HardFloor::live();
@@ -387,6 +387,29 @@ TEST(HardFloorTest, LiveFloorGuardsWindowsServices) {
     EXPECT_EQ(floor.check(ServiceStartLocation{
                   L"Avel.Tests.No.Such.Service", {SERVICE_AUTO_START, false}, {SERVICE_DEMAND_START, false}}),
               Reason::None);
+}
+
+// Microsoft's applications' services (signed through its application root) aren't Windows' own:
+// their start may change like anyone's. Read-only; skipped where none of them is installed.
+TEST(HardFloorTest, LiveFloorLetsMicrosoftsApplicationServicesChange) {
+    const HardFloor& floor = HardFloor::live();
+    bool found = false;
+    for (const auto* name : {L"edgeupdate", L"MicrosoftEdgeElevationService", L"SQLWriter", L"WSLService"}) {
+        const ServiceFacts facts = live_service_facts(name);
+        if (facts.status != ServiceFacts::Status::Found) {
+            continue;
+        }
+        found = true;
+        EXPECT_FALSE(facts.driver) << platform::to_utf8(name);
+        EXPECT_FALSE(facts.windows) << platform::to_utf8(name);
+        EXPECT_EQ(floor.check(
+                      ServiceStartLocation{name, {SERVICE_AUTO_START, false}, {SERVICE_DEMAND_START, false}}),
+                  Reason::None)
+            << platform::to_utf8(name);
+    }
+    if (!found) {
+        GTEST_SKIP() << "None of Microsoft's application services is installed here";
+    }
 }
 
 TEST(HardFloorTest, LiveFloorGuardsThisMachine) {

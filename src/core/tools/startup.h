@@ -41,20 +41,27 @@ enum class StartupState : std::uint8_t {
 
 enum class StartupProtection : std::uint8_t {
     None,
-    WindowsOwn,  // Windows' own: a Microsoft-signed file under the Windows folder. Listed, never changed
+    WindowsOwn,  // Windows' own: a file of Windows' own under the Windows folder. Listed, never changed
 };
 
-// What the signature check says about a file (platform::verify_signature, plugged in by the front
-// ends through StartupEnvironment::signer).
+// What the signature check says about a file (platform::verify_signature through live_signer,
+// plugged in by the front ends through StartupEnvironment::signer).
 struct StartupSigner {
-    bool checked = false;    // The file's signature was looked at
-    bool valid = false;      // Signed, validly, by a trusted publisher
-    bool microsoft = false;  // Signed by Microsoft
-    std::wstring name;       // The signer's name
+    bool checked = false;  // The file's signature was looked at
+    bool valid = false;    // Signed, validly, by a trusted publisher
+    // Windows' own file: validly signed through one of Microsoft's product roots, and not a
+    // hardware vendor's WHQL-signed file. Microsoft's other programs (Edge, SQL Server, WSL, ...)
+    // are signed through its application root, and aren't (platform::Signature::windows).
+    bool windows = false;
+    std::wstring name;  // The signer's name
 };
 
 // Called from several threads at once, once per distinct file.
 using SignerFunction = std::function<StartupSigner(const std::wstring& path)>;
+
+// The Authenticode check (platform::verify_signature), with a cache of its own that the copies of
+// the function share: keep it to reuse the answers across listings. Thread-safe.
+SignerFunction live_signer();
 
 // The StartupApproved value Task Manager writes to disable or enable a Run value or a Startup folder
 // item: REG_BINARY, 12 bytes; the first byte's low bit set means disabled (03, 01), clear means
@@ -114,7 +121,7 @@ struct StartupEntry {
 struct StartupEnvironment {
     leftovers::ScanEnvironment scan;               // Machine root, folders, users and their hives (borrowed)
     std::span<const inventory::Program> programs;  // Installed programs, for owners (borrowed)
-    SignerFunction signer;                         // Unset: nothing is checked, nothing counts as Microsoft's
+    SignerFunction signer;                         // Unset: nothing is checked, nothing counts as Windows'
     // Services Avel disabled (ChangeSets done and not undone): listed whatever their start.
     std::vector<std::wstring> avel_disabled_services;
     // When set, these instead of the Task Scheduler's and the Service Control Manager's (tests).
@@ -139,9 +146,9 @@ struct StartupList {
     std::vector<StartupDiagnostic> diagnostics;
 };
 
-// Lists the entries, machine first, then each user. Skips what this account can't read. Microsoft's
-// tasks (\Microsoft) and services whose file is Microsoft-signed aren't listed. Initializes COM on
-// the calling thread if it isn't yet.
+// Lists the entries, machine first, then each user. Skips what this account can't read. Windows'
+// own tasks (\Microsoft) and services whose file is Windows' own (StartupSigner::windows) aren't
+// listed. Initializes COM on the calling thread if it isn't yet.
 StartupList list_startup(const StartupEnvironment& environment);
 
 // An entry's id, from its first delete location.

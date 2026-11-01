@@ -10,7 +10,7 @@
 //     edits are allowed only in a narrow list of keys: the machine's and each user's Environment
 //     and both SharedDLLs keys (see value_edits.h). State changes (ADR 0007) have their own rules:
 //     startup approvals only in Explorer's three StartupApproved keys and only as Task Manager
-//     writes them; never Windows' own tasks; never a driver's or a Microsoft service's start type.
+//     writes them; never Windows' own tasks; never a driver's or a Windows service's start type.
 //   - ProtectedPolicy: known folders of every user and of the machine (and their ancestors), plus
 //     the folder and key names Bulk Crap Uninstaller never treats as a program's own
 //     (UninstallTools/UninstallToolsGlobalConfig.cs, Junk/Finders/Registry/SoftwareRegKeyScanner.cs;
@@ -48,7 +48,7 @@ enum class ProtectionReason : std::uint8_t {
                           // with the package (PackageLocation), never as raw keys or values
     NotEditable,     // A value edit outside the environment and SharedDLLs, or of a variable Windows needs;
                      // a startup approval outside StartupApproved, or not as Task Manager writes it
-    WindowsService,  // A start type change of a driver, of a service whose image Microsoft signed, or
+    WindowsService,  // A start type change of a driver, of a service whose image is Windows' own, or
                      // to a start type other than automatic, manual or disabled
 };
 
@@ -63,7 +63,9 @@ struct ServiceFacts {
     };
     Status status = Status::Unreadable;
     bool driver = false;
-    bool microsoft = false;  // Its image (a svchost service's ServiceDll) is signed by Microsoft
+    // Its image (a svchost service's ServiceDll) is Windows' own: validly signed through one of
+    // Microsoft's product roots, and not a hardware vendor's (see platform/signature.h)
+    bool windows = false;
 };
 
 // The live service's facts, from the Service Control Manager, its key and its image's signature.

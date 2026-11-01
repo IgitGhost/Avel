@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 
+#include "core/platform/paths.h"
 #include "core/platform/registry.h"
 #include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
@@ -36,22 +37,32 @@ std::wstring service_dll(const std::wstring& name) {
     return {};
 }
 
-bool read_config(SC_HANDLE manager, ServiceInfo& info) {
+// The error of the call that just failed, never ERROR_SUCCESS.
+DWORD last_error() {
+    const DWORD error = ::GetLastError();
+    return error != ERROR_SUCCESS ? error : ERROR_GEN_FAILURE;
+}
+
+// Returns ERROR_SUCCESS or the error that kept the configuration from being read.
+DWORD read_config(SC_HANDLE manager, ServiceInfo& info) {
     wil::unique_schandle service(::OpenServiceW(manager, info.name.c_str(), SERVICE_QUERY_CONFIG));
     if (!service) {
-        return false;
+        return last_error();
     }
     DWORD needed = 0;
     ::QueryServiceConfigW(service.get(), nullptr, 0, &needed);
     if (needed == 0) {
-        return false;
+        return last_error();
     }
     // QUERY_SERVICE_CONFIGW holds pointers: allocate it as such so it is aligned.
     std::vector<std::uint64_t> buffer((needed + sizeof(std::uint64_t) - 1) / sizeof(std::uint64_t));
     auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
     if (!::QueryServiceConfigW(service.get(), config,
                                static_cast<DWORD>(buffer.size() * sizeof(std::uint64_t)), &needed)) {
-        return false;
+        return last_error();
+    }
+    if (info.display_name.empty() && config->lpDisplayName) {
+        info.display_name = config->lpDisplayName;
     }
     info.type = config->dwServiceType;
     info.start_type = config->dwStartType;
@@ -64,7 +75,7 @@ bool read_config(SC_HANDLE manager, ServiceInfo& info) {
     if (icontains(info.image_path, L"svchost.exe")) {
         info.service_dll = service_dll(info.name);
     }
-    return true;
+    return ERROR_SUCCESS;
 }
 
 }  // namespace
@@ -75,7 +86,7 @@ DWORD win32_services(std::vector<ServiceInfo>& services) {
     services.clear();
     wil::unique_schandle manager(::OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ENUMERATE_SERVICE));
     if (!manager) {
-        return ::GetLastError();
+        return last_error();
     }
     std::vector<ServiceInfo> listed;
     // ENUM_SERVICE_STATUS_PROCESSW holds pointers: allocate the buffer as such so it is aligned.
@@ -111,11 +122,30 @@ DWORD win32_services(std::vector<ServiceInfo>& services) {
     }
     for (auto& info : listed) {
         // Services this account may not query, or that were deleted meanwhile, are left out.
-        if (!info.name.empty() && !is_driver_type(info.type) && read_config(manager.get(), info)) {
+        if (!info.name.empty() && !is_driver_type(info.type) &&
+            read_config(manager.get(), info) == ERROR_SUCCESS) {
             services.push_back(std::move(info));
         }
     }
     return ERROR_SUCCESS;
+}
+
+DWORD query_service(const std::wstring& name, ServiceInfo& info) {
+    info = {};
+    info.name = name;
+    wil::unique_schandle manager(::OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) {
+        return last_error();
+    }
+    return read_config(manager.get(), info);
+}
+
+std::wstring service_file(const ServiceInfo& info) {
+    if (!info.service_dll.empty()) {
+        return info.service_dll;
+    }
+    const auto paths = referenced_paths(info.image_path);
+    return paths.empty() ? std::wstring() : paths.front();
 }
 
 }  // namespace avel::platform

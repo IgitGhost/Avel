@@ -18,6 +18,7 @@
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
+#include "core/platform/services.h"
 #include "core/platform/signature.h"
 #include "core/platform/text.h"
 #include "core/platform/user_hives.h"
@@ -256,58 +257,23 @@ std::wstring module_directory() {
     return length > 0 && length < MAX_PATH ? platform::parent_path(buffer) : std::wstring();
 }
 
-// The file a service runs: its image, or for one svchost.exe hosts, its ServiceDll (under
-// Parameters, or the service's own key).
-std::wstring service_image(const std::wstring& name, const wchar_t* binary_path) {
-    const auto paths = platform::referenced_paths(binary_path ? binary_path : L"");
-    const std::wstring image = paths.empty() ? std::wstring() : paths.front();
-    if (!platform::iequals(platform::last_path_component(image), L"svchost.exe")) {
-        return image;
-    }
-    const std::wstring key_path = LR"(SYSTEM\CurrentControlSet\Services\)" + name;
-    for (const std::wstring& path : {key_path + L"\\Parameters", key_path}) {
-        platform::RegistryKey key;
-        if (platform::RegistryKey::open(HKEY_LOCAL_MACHINE, path, KEY_READ, key) != ERROR_SUCCESS) {
-            continue;
-        }
-        const auto values = key.values();
-        const auto* dll = platform::find_value(values, L"ServiceDll");
-        const auto text = dll ? dll->as_string() : std::nullopt;
-        const auto dll_paths = text ? platform::referenced_paths(*text) : std::vector<std::wstring>();
-        if (!dll_paths.empty()) {
-            return dll_paths.front();
-        }
-    }
-    return image;  // svchost.exe itself
-}
-
 }  // namespace
 
 ServiceFacts live_service_facts(const std::wstring& name) {
     ServiceFacts facts;
-    wil::unique_schandle manager(::OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
-    if (!manager) {
-        return facts;
-    }
-    wil::unique_schandle service(::OpenServiceW(manager.get(), name.c_str(), SERVICE_QUERY_CONFIG));
-    if (!service) {
-        if (::GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) {
+    platform::ServiceInfo info;
+    if (const DWORD error = platform::query_service(name, info); error != ERROR_SUCCESS) {
+        if (error == ERROR_SERVICE_DOES_NOT_EXIST) {
             facts.status = ServiceFacts::Status::Missing;
         }
         return facts;
     }
-    DWORD needed = 0;
-    ::QueryServiceConfigW(service.get(), nullptr, 0, &needed);
-    std::vector<std::byte> buffer(needed);
-    auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
-    if (needed == 0 || !::QueryServiceConfigW(service.get(), config, needed, &needed)) {
-        return facts;
-    }
     facts.status = ServiceFacts::Status::Found;
-    facts.driver = (config->dwServiceType & SERVICE_DRIVER) != 0;
+    facts.driver = platform::is_driver_type(info.type);
     if (!facts.driver) {
-        // Whatever the signature's state: a Microsoft file that fails its check is still Windows'.
-        facts.microsoft = platform::verify_signature(service_image(name, config->lpBinaryPathName)).microsoft;
+        // The same rule as the Startup manager's list: Windows' own file (see signature.h), not
+        // Microsoft's other programs nor a hardware vendor's WHQL-signed one.
+        facts.windows = platform::verify_signature(platform::service_file(info)).windows;
     }
     return facts;
 }
@@ -512,7 +478,7 @@ ProtectionReason HardFloor::check(const Location& location) const {
             case ServiceFacts::Status::Found:
                 break;
         }
-        return facts.driver || facts.microsoft ? ProtectionReason::WindowsService : ProtectionReason::None;
+        return facts.driver || facts.windows ? ProtectionReason::WindowsService : ProtectionReason::None;
     }
     return ProtectionReason::None;
 }

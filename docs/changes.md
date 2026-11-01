@@ -105,9 +105,12 @@ How they behave:
 - **Protection.** HardFloor allows approvals only in the three `StartupApproved` keys and only in
   Task Manager's two shapes (or the value deleted), never touches Windows' own tasks
   (`\Microsoft\...`), and never changes the start type of a driver or of a service whose image
-  (a `svchost.exe` service's `ServiceDll`) Microsoft signed (`windows-service`), nor to anything
+  (a `svchost.exe` service's `ServiceDll`) is Windows' own (`windows-service`), nor to anything
   but Automatic, Manual or Disabled. Signatures are read by `platform/signature`: the embedded
-  signature, then the catalogs, Microsoft decided by the chain's root, never the network.
+  signature, then the catalogs, never the network. Windows' own means validly signed through one
+  of Microsoft's product roots, and not by the publisher of hardware vendors' WHQL-signed driver
+  packages; Microsoft's applications, signed through its application root (Edge's updater, SQL
+  Server's writer, WSL), aren't (see [tools.md](tools.md#protection)).
 - **Signed-out users.** A user's approval goes through the same writable private load of their
   `NTUSER.DAT` as removals do (`Roots`).
 

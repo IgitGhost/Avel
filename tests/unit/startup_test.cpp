@@ -76,6 +76,7 @@ protected:
         file(LR"(PF\Contoso\svc.dll)");
         file(LR"(Users\fixture\tool.exe)");
         file(LR"(Microsoft\mssvc.exe)");
+        file(LR"(MicrosoftApp\app.exe)");
         fs::create_directories(root_ / L"Gone");  // Holds nothing: gone.exe and gone.ps1 are missing
 
         wchar_t windows[MAX_PATH] = {};
@@ -151,15 +152,19 @@ protected:
         return environment;
     }
 
-    // Microsoft signs what is under the Windows folder, and the fixture's "Microsoft" service.
+    // What is under the Windows folder, and the fixture's "Microsoft" service, are Windows' own; the
+    // fixture's "MicrosoftApp" is one of Microsoft's applications (signed through its application
+    // root), which isn't.
     SignerFunction fake_signer() const {
-        return [windows = windows_, microsoft = path(LR"(Microsoft\mssvc.exe)")](const std::wstring& file) {
+        return [windows = windows_, microsoft = path(LR"(Microsoft\mssvc.exe)"),
+                application = path(LR"(MicrosoftApp\app.exe)")](const std::wstring& file) {
             StartupSigner signer;
             signer.checked = true;
             signer.valid = true;
-            signer.microsoft =
-                platform::path_is_under(file, windows) || platform::paths_equal(file, microsoft);
-            signer.name = signer.microsoft ? L"Microsoft Windows" : L"Contoso Ltd";
+            signer.windows = platform::path_is_under(file, windows) || platform::paths_equal(file, microsoft);
+            signer.name = signer.windows                             ? L"Microsoft Windows"
+                          : platform::paths_equal(file, application) ? L"Microsoft Corporation"
+                                                                     : L"Contoso Ltd";
             return signer;
         };
     }
@@ -488,7 +493,7 @@ TEST_F(StartupTest, TasksWithALogonOrBootTriggerOutsideMicrosoft) {
     EXPECT_FALSE(handler->target_missing);
 }
 
-TEST_F(StartupTest, AutomaticServicesNotFromMicrosoftAndTheOnesAvelDisabled) {
+TEST_F(StartupTest, AutomaticServicesNotWindowsOwnAndTheOnesAvelDisabled) {
     const auto service = [](std::wstring name, std::uint32_t type, std::uint32_t start, std::wstring image,
                             std::wstring dll = L"", bool delayed = false) {
         platform::ServiceInfo info;
@@ -503,6 +508,7 @@ TEST_F(StartupTest, AutomaticServicesNotFromMicrosoftAndTheOnesAvelDisabled) {
     };
     const std::wstring image = L"\"" + app_ + L"\" -service";
     const std::wstring microsoft = path(LR"(Microsoft\mssvc.exe)");
+    const std::wstring microsoft_app = path(LR"(MicrosoftApp\app.exe)");
     auto env = environment();
     env.signer = fake_signer();
     env.services = std::vector<platform::ServiceInfo>{
@@ -514,6 +520,7 @@ TEST_F(StartupTest, AutomaticServicesNotFromMicrosoftAndTheOnesAvelDisabled) {
         service(L"ContosoHosted", SERVICE_WIN32_SHARE_PROCESS, SERVICE_AUTO_START,
                 LR"(%SystemRoot%\System32\svchost.exe -k ContosoGroup -p)", path(LR"(PF\Contoso\svc.dll)")),
         service(L"MicrosoftAuto", SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, microsoft),
+        service(L"MicrosoftAppAuto", SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, microsoft_app),
         service(L"AvelManual", SERVICE_WIN32_OWN_PROCESS, SERVICE_DEMAND_START, image),
         service(L"AvelDisabled", SERVICE_WIN32_OWN_PROCESS, SERVICE_DISABLED, image),
         service(L"AvelAuto", SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, image),
@@ -546,6 +553,12 @@ TEST_F(StartupTest, AutomaticServicesNotFromMicrosoftAndTheOnesAvelDisabled) {
     EXPECT_EQ(find(list, StartupKind::Service, L"ContosoManual"), nullptr);
     EXPECT_EQ(find(list, StartupKind::Service, L"ContosoDriver"), nullptr);
     EXPECT_EQ(find(list, StartupKind::Service, L"MicrosoftAuto"), nullptr);
+    // Microsoft's applications aren't Windows' own: listed, and not protected.
+    const auto* application = find(list, StartupKind::Service, L"MicrosoftAppAuto");
+    ASSERT_NE(application, nullptr);
+    EXPECT_EQ(application->signer.name, L"Microsoft Corporation");
+    EXPECT_FALSE(application->signer.windows);
+    EXPECT_EQ(application->protection, StartupProtection::None);
 
     for (const auto* name : {L"AvelManual", L"AvelDisabled"}) {
         const auto* disabled = find(list, StartupKind::Service, name);
@@ -560,7 +573,7 @@ TEST_F(StartupTest, AutomaticServicesNotFromMicrosoftAndTheOnesAvelDisabled) {
     EXPECT_NE(find(list, StartupKind::Service, L"MicrosoftAvel"), nullptr);
 }
 
-TEST_F(StartupTest, WithoutASignerNothingIsMicrosofts) {
+TEST_F(StartupTest, WithoutASignerNothingIsWindowsOwn) {
     auto env = environment();
     env.services =
         std::vector<platform::ServiceInfo>{{L"MicrosoftAuto", L"", SERVICE_WIN32_OWN_PROCESS,
@@ -587,7 +600,7 @@ TEST_F(StartupTest, WindowsOwnEntriesAreProtected) {
     const auto* windows = find(list, StartupKind::Run, L"SecurityHealth");
     ASSERT_NE(windows, nullptr);
     EXPECT_TRUE(platform::paths_equal(windows->target, windows_ + LR"(\System32\svchost.exe)"));
-    EXPECT_TRUE(windows->signer.microsoft);
+    EXPECT_TRUE(windows->signer.windows);
     EXPECT_EQ(windows->protection, StartupProtection::WindowsOwn);
 
     const auto* shell = find(list, StartupKind::Run, L"Shell");

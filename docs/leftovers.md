@@ -159,7 +159,8 @@ removal code in 3b, right before it acts.
     own rules: a startup approval only in Explorer's `StartupApproved\Run`, `Run32` and
     `StartupFolder` keys and only as Task Manager writes it (`not-editable` otherwise); never the
     state of Windows' own tasks; never the start type of a driver or of a service whose image (a
-    `svchost.exe` service's `ServiceDll`) Microsoft signed, nor to boot or system start
+    `svchost.exe` service's `ServiceDll`) is Windows' own (signed through one of Microsoft's
+    product roots, not a WHQL-signed driver package's), nor to boot or system start
     (`windows-service`).
 - **ProtectedPolicy**: the known folders (and their ancestors) of the machine and every scanned
   user, and BCU's blacklists of shared folder and key names (`Common Files`, `Microsoft`,

@@ -30,4 +30,12 @@ bool is_driver_type(std::uint32_t type);
 // enumerating its services.
 DWORD win32_services(std::vector<ServiceInfo>& services);
 
+// One service (a driver too) by its key name. Returns ERROR_SUCCESS,
+// ERROR_SERVICE_DOES_NOT_EXIST, or the error that kept its configuration from being read.
+DWORD query_service(const std::wstring& name, ServiceInfo& info);
+
+// The file a service runs: its ServiceDll when svchost.exe hosts it, else its image path's
+// program (expanded, \SystemRoot\ and \??\ understood). Empty when there is none.
+std::wstring service_file(const ServiceInfo& info);
+
 }  // namespace avel::platform

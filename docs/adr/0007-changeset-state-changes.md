@@ -54,12 +54,19 @@ whatever states the change goes between, so one item has one identity.
   `not-editable`.
 - A task's state: never one of Windows' own tasks (`\Microsoft\...`, `windows-task`).
 - A service's start type (new reason `windows-service`): never a driver's, never a service whose
-  image is signed by Microsoft (for a `svchost.exe` service, its `ServiceDll`; checked by
-  Authenticode through `platform/signature`, embedded signature or catalog, chain ending in a
-  Microsoft root), never to anything but Automatic, Manual or Disabled. A service that can't be
-  read is refused; one that doesn't exist is left to the executor, which reports it missing.
-  `ServiceLocation` (removal) keeps its rules: the Sandbox's leftover fixtures run a copy of
-  `cmd.exe` as a service, which the catalog would call Microsoft's.
+  image is Windows' own (for a `svchost.exe` service, its `ServiceDll`; checked by Authenticode
+  through `platform/signature`, embedded signature or catalog), never to anything but Automatic,
+  Manual or Disabled. A service that can't be read is refused; one that doesn't exist is left to
+  the executor, which reports it missing. `ServiceLocation` (removal) keeps its rules: the
+  Sandbox's leftover fixtures run a copy of `cmd.exe` as a service, which the catalog would call
+  Microsoft's.
+  - *Amended 2026-11-02 (maintainer's decision):* "Windows' own" means a valid signature whose
+    chain ends in one of Microsoft's **product** roots, and whose signer isn't the publisher
+    Microsoft signs hardware vendors' driver packages as (WHQL: "Microsoft Windows Hardware
+    Compatibility Publisher", issued by "Microsoft Windows Third Party Component CA"). Microsoft's
+    **application** root (Edge and its updater, SQL Server, WSL, Office) no longer counts: those
+    services can be disabled, with undo, like anyone's. The first version refused every chain
+    ending in either root.
 
 **4. Exactness.**
 - A `StartupApproved` key can be missing (a fresh profile, the Sandbox). Execute creates it, and
