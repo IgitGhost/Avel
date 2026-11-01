@@ -19,7 +19,12 @@ changes::ExecuteOptions cli_execute_options(bool allow_irreversible);
 
 nlohmann::ordered_json item_status_to_json(const changes::ItemStatus& status);
 nlohmann::ordered_json execute_result_to_json(const changes::ChangePlan& plan, const changes::ExecuteResult& result);
-void print_execute_result(const changes::ChangePlan& plan, const changes::ExecuteResult& result);
+// How a run's summary reads: what it removed (and how much went to quarantine), or what it changed
+// (state changes: startup entries disabled or enabled).
+enum class ResultWording { Removal, StateChange };
+
+void print_execute_result(const changes::ChangePlan& plan, const changes::ExecuteResult& result,
+                          ResultWording wording = ResultWording::Removal);
 nlohmann::ordered_json summary_to_json(const changes::SetSummary& summary);
 
 }  // namespace avel::cli

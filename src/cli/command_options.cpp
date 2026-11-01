@@ -162,4 +162,80 @@ std::optional<UsageError> parse_scan_options(const std::vector<std::wstring_view
     return std::nullopt;
 }
 
+std::optional<tools::StartupAction> startup_action(StartupCommand command) {
+    switch (command) {
+        case StartupCommand::Disable:
+            return tools::StartupAction::Disable;
+        case StartupCommand::Enable:
+            return tools::StartupAction::Enable;
+        case StartupCommand::Delete:
+            return tools::StartupAction::Delete;
+        case StartupCommand::List:
+            break;
+    }
+    return std::nullopt;
+}
+
+std::optional<UsageError> parse_startup_options(const std::vector<std::wstring_view>& arguments,
+                                                StartupCommandOptions& options) {
+    if (arguments.empty()) {
+        return UsageError{};
+    }
+    const auto name = arguments.front();
+    if (name == L"list") {
+        options.command = StartupCommand::List;
+    } else if (name == L"disable") {
+        options.command = StartupCommand::Disable;
+    } else if (name == L"enable") {
+        options.command = StartupCommand::Enable;
+    } else if (name == L"delete") {
+        options.command = StartupCommand::Delete;
+    } else {
+        return UsageError{"startup: unknown command " + to_utf8(name) + "\n"};
+    }
+    const bool list = options.command == StartupCommand::List;
+    const auto known = [](std::wstring_view option) {
+        return option == L"--all-users" || option == L"--dry-run" || option == L"--yes" || option == L"-y" ||
+               option == L"--service-start";
+    };
+    for (std::size_t i = 1; i < arguments.size(); ++i) {
+        const auto argument = arguments[i];
+        if (argument == L"--json") {
+            options.json = true;
+        } else if (argument == L"--all-users" && list) {
+            options.all_users = true;
+        } else if (argument == L"--dry-run" && !list) {
+            options.dry_run = true;
+        } else if ((argument == L"--yes" || argument == L"-y") && !list) {
+            options.yes = true;
+        } else if (argument == L"--service-start" && options.command == StartupCommand::Disable) {
+            const auto value = i + 1 < arguments.size() ? arguments[++i] : std::wstring_view();
+            if (value == L"manual") {
+                options.service_start = tools::ServiceDisable::Manual;
+            } else if (value == L"disabled") {
+                options.service_start = tools::ServiceDisable::Disabled;
+            } else {
+                return UsageError{"startup: --service-start is manual or disabled\n", false};
+            }
+        } else if (known(argument)) {
+            return UsageError{"startup: " + to_utf8(argument) + " doesn't go with " + to_utf8(name) + "\n"};
+        } else if (argument.starts_with(L"-")) {
+            return UsageError{"startup: unknown option " + to_utf8(argument) + "\n"};
+        } else if (list) {
+            return UsageError{"startup: list takes no ids\n"};
+        } else {
+            options.ids.emplace_back(argument);
+        }
+    }
+    if (!list && options.ids.empty()) {
+        return UsageError{"startup: " + to_utf8(name) +
+                          " needs the ids of the entries (see `avel-cli startup list`)\n"};
+    }
+    if (options.json && !list && !options.yes && !options.dry_run) {
+        return UsageError{"startup: --json needs --yes or --dry-run (it can't ask for confirmation)\n",
+                          false};
+    }
+    return std::nullopt;
+}
+
 }  // namespace avel::cli

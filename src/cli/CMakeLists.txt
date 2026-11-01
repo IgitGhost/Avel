@@ -24,6 +24,8 @@ add_executable(avel_cli
     program_lookup.h
     scan_command.cpp
     scan_command.h
+    startup_command.cpp
+    startup_command.h
     trace_command.cpp
     trace_command.h
     trace_output.cpp

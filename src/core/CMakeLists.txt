@@ -128,6 +128,8 @@ add_library(avel_core STATIC
     platform/version_info.h
     tools/startup.cpp
     tools/startup.h
+    tools/startup_changes.cpp
+    tools/startup_changes.h
     tracker/file_changes.cpp
     tracker/file_changes.h
     tracker/install_trace.cpp

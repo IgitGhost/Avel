@@ -69,6 +69,7 @@ add_executable(avel_core_tests
     unit/serialization_test.cpp
     unit/signature_test.cpp
     unit/startup_approved_test.cpp
+    unit/startup_changes_test.cpp
     unit/startup_sources_test.cpp
     unit/startup_test.cpp
     unit/temp_root.h
