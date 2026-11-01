@@ -25,8 +25,12 @@ public:
     // "Folder", "Registry value", "Scheduled task", ...
     static QString kindLabel(const leftovers::Location& location, leftovers::Category category);
     // The path, key, service or task name. Keys in the current user's hive read HKCU\... A value
-    // edit is described in words (valueEditText).
+    // edit is described in words (valueEditText), and so is a state change ("Disable Contoso at
+    // startup (HKCU\...\StartupApproved\Run)", "Change the start type of the service ContosoSvc
+    // from Automatic to Manual").
     static QString locationText(const leftovers::Location& location);
+    // "Automatic (delayed start)", "Manual", "Disabled", as the Services console says it.
+    static QString serviceStartText(const leftovers::ServiceStart& start);
     // "Remove C:\Contoso\bin from the system variable Path", "Lower the shared DLL count of
     // C:\Program Files\Common Files\x.dll from 2 to 1", "Delete the user variable CONTOSO_HOME,
     // which the installer created", "Restore the system variable X to its value before the
@@ -58,7 +62,9 @@ public:
     static QString reasonText(changes::Reason reason);
     // "Skipped: in use by a running program", with the system's text for an error code.
     static QString statusText(const changes::ItemStatus& status);
-    // The same, worded for the item: a value edit that was made is "Edited", not "Removed".
+    // The same, worded for the item: a value edit that was made is "Edited", not "Removed"; a state
+    // change reads "Disabled", "Enabled" or "Start type changed", and "...: its state has changed
+    // since" when compare-and-set left it alone.
     static QString statusText(const changes::ItemStatus& status, const leftovers::Location& location);
     static QString setStateText(changes::SetState state);
     static QString folderStatusText(platform::FolderStatus status);

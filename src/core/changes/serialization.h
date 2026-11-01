@@ -35,6 +35,10 @@ std::optional<std::string> read_file(const std::wstring& path);
 Json to_json(const leftovers::Location& location);
 bool from_json(const Json& json, leftovers::Location& location);
 
+// A service's start: {"start_type", "delayed"}.
+Json to_json(const leftovers::ServiceStart& start);
+bool from_json(const Json& json, leftovers::ServiceStart& start);
+
 // Registry snapshots. from_json returns false for malformed input.
 Json to_json(const ValueSnapshot& value);
 Json to_json(const KeySnapshot& key);

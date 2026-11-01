@@ -155,6 +155,12 @@ removal code in 3b, right before it acts.
     own lists (`Path`, `PATHEXT`, `PSModulePath`) may only lose entries, or be deleted in a user's
     environment when the installer created them; no list is ever restored whole. Every other kind
     stays refused in these keys as before.
+  - **State changes** (Avel Tools, [ADR 0007](adr/0007-changeset-state-changes.md)) have their
+    own rules: a startup approval only in Explorer's `StartupApproved\Run`, `Run32` and
+    `StartupFolder` keys and only as Task Manager writes it (`not-editable` otherwise); never the
+    state of Windows' own tasks; never the start type of a driver or of a service whose image (a
+    `svchost.exe` service's `ServiceDll`) Microsoft signed, nor to boot or system start
+    (`windows-service`).
 - **ProtectedPolicy**: the known folders (and their ancestors) of the machine and every scanned
   user, and BCU's blacklists of shared folder and key names (`Common Files`, `Microsoft`,
   `Windows`, ...). A folder name also counts without its extension (`Microsoft.NET`).

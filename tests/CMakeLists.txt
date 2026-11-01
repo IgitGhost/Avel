@@ -29,6 +29,7 @@ add_executable(avel_core_tests
     unit/cli_options_test.cpp
     unit/command_line_test.cpp
     unit/deep_search_test.cpp
+    unit/executor_state_change_test.cpp
     unit/executor_test.cpp
     unit/executor_value_edit_test.cpp
     unit/file_changes_test.cpp
@@ -66,6 +67,8 @@ add_executable(avel_core_tests
     unit/related_entries_test.cpp
     unit/scratch_registry.h
     unit/serialization_test.cpp
+    unit/signature_test.cpp
+    unit/startup_approved_test.cpp
     unit/temp_root.h
     unit/test_spawner.h
     unit/text_test.cpp

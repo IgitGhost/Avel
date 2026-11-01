@@ -3,7 +3,9 @@
 Removal lives in `src/core/changes`. Like the rest of `avel_core`, it has no Qt dependency and
 returns codes rather than text. Every removal is a **ChangeSet**: a plan of items, each backed up
 before it changes and recorded as it goes, so the set can be undone exactly and survives a crash.
-How sets are stored is decided in [ADR 0004](adr/0004-changeset-folder-journal.md).
+How sets are stored is decided in [ADR 0004](adr/0004-changeset-folder-journal.md). Since Phase 6
+a set also holds **state changes**, items turned off or on rather than removed
+([ADR 0007](adr/0007-changeset-state-changes.md)).
 
 ```
 ScanResult ──make_plan()──▶ ChangePlan ──execute()──▶ ChangeSet (store) ──restore()──▶ items back
@@ -47,6 +49,9 @@ is a rename on one volume.
 | Scheduled task | Its XML and security (`task.json`, `task.xml`) | `DeleteTask` | Registered again as the principal it names |
 | Task folder | Its security (`task-folder.json`) | `DeleteFolder`, only when empty: after its tasks, deeper folders first | Created again (parents too), then given its security where it differs |
 | Value edit | The value before and the value written, raw (`edit.json`) | Written only while the value is exactly what was planned, otherwise `skipped (changed)` | Exactly back while the value is what was written; otherwise the inverse, where there is one |
+| Startup approval (state change) | The value before and the value written, raw, and the topmost key the change created (`state.json`) | Written only while the value is what was planned (the key created if missing), otherwise `skipped (changed)` | Back while the value is what was written, otherwise `restore-skipped (changed)`; created keys deleted again once empty |
+| Task state (state change) | Enabled before and written (`state.json`) | `put_Enabled` only while the flag is what was planned | `put_Enabled` back while the flag is what was written |
+| Service start type (state change) | Start type and delayed flag before and written (`state.json`) | `ChangeServiceConfig(2)W` only while both are what was planned, each only where it differs | The same, back, while both are what was written |
 | Package | Its name (`package.json`) | `RemovePackageAsync` for the current user | Not possible |
 | Firewall rule | | Never: reported only | |
 | Driver | | Never: reported only (removing a driver can leave Windows unable to start) | |
@@ -73,6 +78,38 @@ value it writes, both raw, and HardFloor allows them only in the machine's and e
 - **Broadcast.** After a run, an undo or a recovery that changed an environment variable,
   `WM_SETTINGCHANGE "Environment"` is sent once (`ExecuteOptions::environment_changed`, which tests
   replace), so Explorer and new processes see the change.
+
+**State changes** ([ADR 0007](adr/0007-changeset-state-changes.md)) change an item's state rather
+than removing it, for Avel Tools (Phase 6). Each records the state it applies to and the state it
+sets:
+- `StartupApprovedLocation`: Explorer's record of whether a Run value or a Startup folder item
+  starts, a 12-byte `REG_BINARY` named after the entry in `...\Explorer\StartupApproved\Run`,
+  `Run32` or `StartupFolder` (machine or user; absent means enabled). The first byte's low bit
+  set means disabled. Avel writes what Task Manager writes, `03 00 00 00` and the FILETIME of the
+  change to disable, `02` and 11 zero bytes to enable, so Task Manager agrees
+  (`leftovers/startup_approved.h`).
+- `TaskStateLocation`: a scheduled task's Enabled flag.
+- `ServiceStartLocation`: a service's start type and delayed flag (`ServiceStart`).
+
+How they behave:
+- **Compare-and-set both ways.** Execute changes the item only while its live state is the state
+  planned (`skipped (changed)` otherwise). Undo puts the old state back only while the item is in
+  the state written (`restore-skipped (changed)` otherwise, "its state has changed since"); there
+  is no inverse to apply. A task or service gone since is `restore-skipped (missing)`.
+- **Missing keys.** A `StartupApproved` key that doesn't exist yet is created with its missing
+  parents. `state.json` names the topmost key created (`created_key`); undo, and recovery of a
+  change a crash interrupted, delete those keys again, deepest first, each only while it's empty.
+- **Only what differs.** A service's start type and its delayed flag are each written only when
+  they differ from the live ones, so undo leaves the service's key as it was: setting the flag
+  where it wasn't set adds a `DelayedAutostart` value.
+- **Protection.** HardFloor allows approvals only in the three `StartupApproved` keys and only in
+  Task Manager's two shapes (or the value deleted), never touches Windows' own tasks
+  (`\Microsoft\...`), and never changes the start type of a driver or of a service whose image
+  (a `svchost.exe` service's `ServiceDll`) Microsoft signed (`windows-service`), nor to anything
+  but Automatic, Manual or Disabled. Signatures are read by `platform/signature`: the embedded
+  signature, then the catalogs, Microsoft decided by the chain's root, never the network.
+- **Signed-out users.** A user's approval goes through the same writable private load of their
+  `NTUSER.DAT` as removals do (`Roots`).
 
 **Exactness.** Values are read and written through `NtEnumerateValueKey`, `NtQueryValueKey` and
 `NtSetValueKey`. The Win32 calls may add a terminator to a string value that was stored without
@@ -101,7 +138,8 @@ exactly as recorded.
   - services other services depend on;
   - services running as an account with a password, which undo couldn't restore.
 - Tasks that store a password are skipped, and task folders that aren't empty (`not-empty`).
-- A value edit never overwrites a value that changed since it was planned (`changed`).
+- A value edit or a state change never overwrites a value or a state that changed since it was
+  planned (`changed`).
 - Packages registered for other users are skipped.
 
 ## Running a plan
@@ -109,8 +147,8 @@ exactly as recorded.
 `execute(store, plan, options)` does the following:
 1. **Creates the set** and writes its plan.
 2. **Orders the items:** services first, then tasks, task folders (deepest first), packages,
-   registry values and value edits, registry keys, and files last. A service or task stops using
-   its files before they move, and a task folder is empty by its turn.
+   registry values and value edits, state changes, registry keys, and files last. A service or
+   task stops using its files before they move, and a task folder is empty by its turn.
 3. **Skips an item inside another planned item** (`contained`); it goes with its container.
 4. **Checks each item again** right before it changes:
    - HardFloor;
@@ -142,9 +180,13 @@ process. It looks at each item that was backed up but not finished:
 | Registry key | `failed` if identical to the backup, `partial` otherwise | `done` | |
 | Value, service, task, task folder, package | `failed (interrupted)` | `done` | |
 
-A value edit is `done` if the value is what the edit writes, and `failed (interrupted)` otherwise
-(untouched, or changed by someone else since, which undo mustn't take back). If the interrupted
-run had edited the environment, recovery sends the broadcast it never got to.
+| Item | In the state written | Anything else |
+|---|---|---|
+| Value edit | `done` | `failed (interrupted)` |
+| Startup approval, task state, service start type | `done` | `failed (interrupted)`; keys the change created and left empty are deleted |
+
+"Anything else" is untouched, or changed by someone else since, which undo mustn't take back. If
+the interrupted run had edited the environment, recovery sends the broadcast it never got to.
 
 Items never reached are marked `skipped (interrupted)`. After that the set is complete and can
 be undone like any other.
@@ -184,7 +226,11 @@ be undone like any other.
   translated text. A set's description ("Leftovers of Notepad++") is stored in the language that
   was active when the set was made. A value edit is described as what it does ("Remove
   C:\Contoso\bin from the system variable Path"). Once made, it reads "Edited", and when its value
-  changed since the scan, "Skipped: the value has changed since" (`changed`).
+  changed since the scan, "Skipped: the value has changed since" (`changed`). A state change is
+  described the same way ("Disable Contoso at startup (HKLM\...\StartupApproved\Run)", "Change
+  the start type of the service ContosoSvc from Automatic to Manual"); once made it reads
+  "Disabled", "Enabled" or "Start type changed", and "...: its state has changed since" when
+  compare-and-set left it alone.
 
 ## Testing
 
@@ -227,8 +273,26 @@ be undone like any other.
   undone by the inverse when the user edited a value after the removal; killed after every record
   (11 crash points), recovered and undone; the broadcast hook called once, and only for the
   environment. The planner's cases are in [leftovers.md](leftovers.md).
-- **Serialization (`serialization_test.cpp`):** every location kind through JSON, value edits with
-  raw values and names UTF-8 can't carry, the task-folder flag, and malformed edits refused.
+- **State changes (`executor_state_change_test.cpp`, `startup_approved_test.cpp`).** Startup
+  approvals in scratch keys standing in for HKLM and a user's hive, with a machine list that
+  exists, one that doesn't, and a user hive with no `Software` key at all: disabled and enabled
+  with Task Manager's exact bytes and undone byte for byte, the created keys gone again; skipped
+  when a value changed after planning; undo skipped when it changed after the change, and a
+  created key kept when something else was put in it; killed after every record (7 crash points),
+  recovered and undone; an empty key a crash left behind removed by recovery; the floor refusing
+  other keys and other bytes. Tasks and services only read: a missing one is skipped as missing,
+  EventLog is refused by the floor and, with the floor out of the way, skipped as changed for a
+  plan made for another start type. The bytes' decoding (`01`, `02`, `03`, `06`) and the three
+  keys have their own tests.
+- **Signatures (`signature_test.cpp`):** Windows' own files, embedded and catalog-signed, are
+  valid and Microsoft's; the unsigned test helper is unsigned; a missing file is missing; a folder
+  is an error; the cache answers the same.
+- **Serialization (`serialization_test.cpp`):** every location kind through JSON, value edits and
+  state changes with raw values and names UTF-8 can't carry, the task-folder flag, a state
+  change's identity, and malformed edits and state changes refused.
+- **Protection (`protection_test.cpp`):** the startup approval allow-list and its two shapes,
+  Windows' own tasks, and drivers, Microsoft's services and boot or system start types refused
+  (through injected service facts, and EventLog read live).
 - **Windows Sandbox (`tests/sandbox`, scenario `removal`):**
   - `Contoso Fixture` leaves one leftover of every kind behind, and `avel_state_dump` dumps them.
   - Uninstall with `--remove-leftovers` must remove all of them and Notepad++'s sparse package,

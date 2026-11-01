@@ -72,6 +72,8 @@ add_library(avel_core STATIC
     leftovers/scan_target.h
     leftovers/scanners.h
     leftovers/snapshots.cpp
+    leftovers/startup_approved.cpp
+    leftovers/startup_approved.h
     leftovers/system_scanners.cpp
     leftovers/system_snapshots.cpp
     leftovers/trace_scanner.cpp
@@ -102,6 +104,8 @@ add_library(avel_core STATIC
     platform/registry_address.h
     platform/secure_folder.cpp
     platform/secure_folder.h
+    platform/signature.cpp
+    platform/signature.h
     platform/text.cpp
     platform/text.h
     platform/time.cpp
@@ -171,5 +175,5 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE nlohmann_json::nlohmann_json advapi32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd user32 version
-            windowsapp xmllite)
+    PRIVATE nlohmann_json::nlohmann_json advapi32 crypt32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd user32
+            version windowsapp wintrust xmllite)

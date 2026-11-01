@@ -67,6 +67,24 @@ ItemStatus remove_task_folder(const TaskFolderBackup& backup);
 ItemStatus restore_task_folder(const TaskFolderBackup& backup);
 bool task_folder_exists(const std::wstring& path);
 
+// State changes (ADR 0007). The queries fail with `failure` set to a skipped status (missing,
+// access-denied, error); the changes return done, or failed with the reason. The executor maps
+// those to restore states for undo.
+
+// Whether the task is enabled.
+bool task_enabled(const std::wstring& path, bool& enabled, ItemStatus& failure);
+// Turns it on or off (IRegisteredTask::put_Enabled). Windows' own tasks (\Microsoft\...) are
+// skipped as protected.
+ItemStatus set_task_enabled(const std::wstring& path, bool enabled);
+
+// How the service starts. Drivers are skipped as protected: their start is never Avel's to change.
+bool service_start(const std::wstring& name, leftovers::ServiceStart& start, ItemStatus& failure);
+// Changes the start type from `current` to `target`'s (ChangeServiceConfigW, SERVICE_NO_CHANGE for
+// everything else), and the delayed flag only where it differs, so nothing else in the service's
+// key changes: a DelayedAutostart value is never added where there was none.
+ItemStatus set_service_start(const std::wstring& name, const leftovers::ServiceStart& target,
+                             const leftovers::ServiceStart& current);
+
 // Removes a package registered for the current user (`user_sid`); other users' are skipped.
 // Packages can't be put back: the caller must have allowed that.
 ItemStatus remove_package_item(const std::wstring& full_name, const std::wstring& user_sid);

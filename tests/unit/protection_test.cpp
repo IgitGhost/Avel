@@ -266,6 +266,129 @@ TEST(HardFloorTest, AllowsValueEditsOnlyInTheEnvironmentAndSharedDlls) {
     EXPECT_EQ(policy.check(edit_of(machine, L"Path", ValueEditKind::RemovePathEntries)), Reason::None);
 }
 
+platform::RawValue approval_bytes(std::initializer_list<int> values, DWORD type = REG_BINARY) {
+    platform::RawValue value{L"Contoso", type, {}};
+    for (const int byte : values) {
+        value.data.push_back(static_cast<std::byte>(byte));
+    }
+    return value;
+}
+
+TEST(HardFloorTest, AllowsStartupApprovalsOnlyInTheirKeysAsTaskManagerWritesThem) {
+    const HardFloor floor = fixture_floor();
+    const auto disabled = approval_bytes({3, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8});
+    const auto enabled = approval_bytes({2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    const auto check = [&](const RegistryAddress& key, std::optional<platform::RawValue> desired) {
+        return floor.check(StartupApprovedLocation{key, L"Contoso", std::nullopt, std::move(desired)});
+    };
+    for (const auto* list : {L"Run", L"Run32", L"StartupFolder"}) {
+        const std::wstring tail =
+            LR"(\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\)" + std::wstring(list);
+        for (const auto& key : {RegistryAddress{Hive::Machine, L"", L"SOFTWARE" + tail},
+                                RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001", L"Software" + tail}}) {
+            EXPECT_EQ(check(key, disabled), Reason::None) << platform::to_utf8(key.path);
+            EXPECT_EQ(check(key, enabled), Reason::None);
+            EXPECT_EQ(check(key, std::nullopt), Reason::None);  // The approval deleted
+            // Only 02 or 03, 12 bytes of REG_BINARY.
+            EXPECT_EQ(check(key, approval_bytes({1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})), Reason::NotEditable);
+            EXPECT_EQ(check(key, approval_bytes({6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})), Reason::NotEditable);
+            EXPECT_EQ(check(key, approval_bytes({3, 0, 0, 0})), Reason::NotEditable);
+            EXPECT_EQ(check(key, approval_bytes({3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})),
+                      Reason::NotEditable);
+            EXPECT_EQ(check(key, approval_bytes({2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, REG_DWORD)),
+                      Reason::NotEditable);
+        }
+    }
+    // Nowhere else: the Run keys themselves, the list's parent or a key below it, other lists, the
+    // WOW6432Node view, a user's classes.
+    for (const auto& key : {
+             RegistryAddress{Hive::Machine, L"", LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Run)"},
+             RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001",
+                             LR"(Software\Microsoft\Windows\CurrentVersion\Run)"},
+             RegistryAddress{Hive::Machine, L"",
+                             LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved)"},
+             RegistryAddress{
+                 Hive::Machine, L"",
+                 LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Contoso)"},
+             RegistryAddress{
+                 Hive::Machine, L"",
+                 LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce)"},
+             RegistryAddress{
+                 Hive::Machine, L"",
+                 LR"(SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+             RegistryAddress{Hive::User, L"S-1-5-21-1-2-3-1001_Classes",
+                             LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+         }) {
+        EXPECT_EQ(check(key, disabled), Reason::NotEditable)
+            << platform::to_utf8(platform::display_path(key));
+    }
+    // An approval is no raw value: the other layer has nothing to say about it.
+    const ProtectedPolicy policy({LR"(C:\Users\me\AppData\Roaming)"});
+    EXPECT_EQ(policy.check(StartupApprovedLocation{{Hive::Machine, L"", L"SOFTWARE\\Microsoft"}, L"x"}),
+              Reason::None);
+}
+
+TEST(HardFloorTest, GuardsWindowsTasksStates) {
+    const HardFloor floor = fixture_floor();
+    EXPECT_EQ(floor.check(TaskStateLocation{LR"(\Microsoft\Windows\Defrag\ScheduledDefrag)", true, false}),
+              Reason::WindowsTask);
+    EXPECT_EQ(floor.check(TaskStateLocation{LR"(\microsoft\Office\Updater)", false, true}),
+              Reason::WindowsTask);
+    EXPECT_EQ(floor.check(TaskStateLocation{LR"(\Contoso\Updater)", true, false}), Reason::None);
+    EXPECT_EQ(floor.check(TaskStateLocation{LR"(\MicrosoftEdgeUpdateTaskMachineUA)", true, false}),
+              Reason::None);
+}
+
+TEST(HardFloorTest, GuardsDriversAndMicrosoftsServices) {
+    HardFloor::Data data{LR"(C:\Windows)", {}, {}};
+    data.services = [](const std::wstring& name) {
+        using Status = ServiceFacts::Status;
+        if (name == L"ContosoSvc") return ServiceFacts{Status::Found, false, false};
+        if (name == L"ContosoDriver") return ServiceFacts{Status::Found, true, false};
+        if (name == L"WindowsSvc") return ServiceFacts{Status::Found, false, true};
+        if (name == L"Gone") return ServiceFacts{Status::Missing, false, false};
+        return ServiceFacts{Status::Unreadable, false, false};
+    };
+    const HardFloor floor(data);
+    const auto change = [&](const wchar_t* name, std::uint32_t after) {
+        return floor.check(ServiceStartLocation{name, {SERVICE_AUTO_START, false}, {after, false}});
+    };
+    for (const DWORD after : {SERVICE_AUTO_START, SERVICE_DEMAND_START, SERVICE_DISABLED}) {
+        EXPECT_EQ(change(L"ContosoSvc", after), Reason::None) << after;
+        EXPECT_EQ(change(L"ContosoDriver", after), Reason::WindowsService) << after;
+        EXPECT_EQ(change(L"WindowsSvc", after), Reason::WindowsService) << after;
+        EXPECT_EQ(change(L"Gone", after), Reason::None) << after;  // The executor reports it missing
+        EXPECT_EQ(change(L"Locked", after), Reason::WindowsService) << after;
+    }
+    // Never to boot or system start, or anything else.
+    for (const std::uint32_t after :
+         std::initializer_list<std::uint32_t>{SERVICE_BOOT_START, SERVICE_SYSTEM_START, 5, 0xFFFFFFFF}) {
+        EXPECT_EQ(change(L"ContosoSvc", after), Reason::WindowsService) << after;
+    }
+    // Removing a service is ServiceLocation's business, and stays as it was.
+    EXPECT_EQ(floor.check(ServiceLocation{L"WindowsSvc"}), Reason::None);
+}
+
+// Read-only queries of the live system: Windows' event log service (a svchost.exe service whose
+// ServiceDll Windows signs through a catalog) is refused; a service that doesn't exist isn't.
+TEST(HardFloorTest, LiveFloorGuardsWindowsServices) {
+    const ServiceFacts facts = live_service_facts(L"EventLog");
+    if (facts.status != ServiceFacts::Status::Found) {
+        GTEST_SKIP() << "EventLog can't be read here";
+    }
+    EXPECT_FALSE(facts.driver);
+    EXPECT_TRUE(facts.microsoft);
+    EXPECT_TRUE(live_service_facts(L"Tcpip").driver);
+    EXPECT_EQ(live_service_facts(L"Avel.Tests.No.Such.Service").status, ServiceFacts::Status::Missing);
+    const HardFloor& floor = HardFloor::live();
+    EXPECT_EQ(floor.check(ServiceStartLocation{
+                  L"EventLog", {SERVICE_AUTO_START, false}, {SERVICE_DEMAND_START, false}}),
+              Reason::WindowsService);
+    EXPECT_EQ(floor.check(ServiceStartLocation{
+                  L"Avel.Tests.No.Such.Service", {SERVICE_AUTO_START, false}, {SERVICE_DEMAND_START, false}}),
+              Reason::None);
+}
+
 TEST(HardFloorTest, LiveFloorGuardsThisMachine) {
     const HardFloor& floor = HardFloor::live();
     const auto machine = platform::machine_folders();

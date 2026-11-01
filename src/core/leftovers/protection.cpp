@@ -4,15 +4,21 @@
 #include "core/leftovers/protection.h"
 
 #include <windows.h>
+#include <winsvc.h>
+
+#include <wil/resource.h>
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <optional>
 
+#include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
+#include "core/platform/signature.h"
 #include "core/platform/text.h"
 #include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
@@ -250,7 +256,61 @@ std::wstring module_directory() {
     return length > 0 && length < MAX_PATH ? platform::parent_path(buffer) : std::wstring();
 }
 
+// The file a service runs: its image, or for one svchost.exe hosts, its ServiceDll (under
+// Parameters, or the service's own key).
+std::wstring service_image(const std::wstring& name, const wchar_t* binary_path) {
+    const auto paths = platform::referenced_paths(binary_path ? binary_path : L"");
+    const std::wstring image = paths.empty() ? std::wstring() : paths.front();
+    if (!platform::iequals(platform::last_path_component(image), L"svchost.exe")) {
+        return image;
+    }
+    const std::wstring key_path = LR"(SYSTEM\CurrentControlSet\Services\)" + name;
+    for (const std::wstring& path : {key_path + L"\\Parameters", key_path}) {
+        platform::RegistryKey key;
+        if (platform::RegistryKey::open(HKEY_LOCAL_MACHINE, path, KEY_READ, key) != ERROR_SUCCESS) {
+            continue;
+        }
+        const auto values = key.values();
+        const auto* dll = platform::find_value(values, L"ServiceDll");
+        const auto text = dll ? dll->as_string() : std::nullopt;
+        const auto dll_paths = text ? platform::referenced_paths(*text) : std::vector<std::wstring>();
+        if (!dll_paths.empty()) {
+            return dll_paths.front();
+        }
+    }
+    return image;  // svchost.exe itself
+}
+
 }  // namespace
+
+ServiceFacts live_service_facts(const std::wstring& name) {
+    ServiceFacts facts;
+    wil::unique_schandle manager(::OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!manager) {
+        return facts;
+    }
+    wil::unique_schandle service(::OpenServiceW(manager.get(), name.c_str(), SERVICE_QUERY_CONFIG));
+    if (!service) {
+        if (::GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) {
+            facts.status = ServiceFacts::Status::Missing;
+        }
+        return facts;
+    }
+    DWORD needed = 0;
+    ::QueryServiceConfigW(service.get(), nullptr, 0, &needed);
+    std::vector<std::byte> buffer(needed);
+    auto* config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(buffer.data());
+    if (needed == 0 || !::QueryServiceConfigW(service.get(), config, needed, &needed)) {
+        return facts;
+    }
+    facts.status = ServiceFacts::Status::Found;
+    facts.driver = (config->dwServiceType & SERVICE_DRIVER) != 0;
+    if (!facts.driver) {
+        // Whatever the signature's state: a Microsoft file that fails its check is still Windows'.
+        facts.microsoft = platform::verify_signature(service_image(name, config->lpBinaryPathName)).microsoft;
+    }
+    return facts;
+}
 
 std::string_view to_string(ProtectionReason reason) {
     switch (reason) {
@@ -288,6 +348,8 @@ std::string_view to_string(ProtectionReason reason) {
             return "package-registration";
         case ProtectionReason::NotEditable:
             return "not-editable";
+        case ProtectionReason::WindowsService:
+            return "windows-service";
     }
     return "unknown";
 }
@@ -422,6 +484,36 @@ ProtectionReason HardFloor::check(const Location& location) const {
         return may_edit_variable(*spot, edit->value_name, edit->kind) ? ProtectionReason::None
                                                                       : ProtectionReason::NotEditable;
     }
+    if (const auto* approval = std::get_if<StartupApprovedLocation>(&location)) {
+        // The other allow-list: Explorer's three StartupApproved keys, written only as Task Manager
+        // writes them (or the value deleted).
+        if (!approval_list(approval->key)) {
+            return ProtectionReason::NotEditable;
+        }
+        return !approval->desired || is_approval_value(*approval->desired) ? ProtectionReason::None
+                                                                           : ProtectionReason::NotEditable;
+    }
+    if (const auto* task = std::get_if<TaskStateLocation>(&location)) {
+        return platform::istarts_with(task->path, LR"(\Microsoft\)") ? ProtectionReason::WindowsTask
+                                                                     : ProtectionReason::None;
+    }
+    if (const auto* service = std::get_if<ServiceStartLocation>(&location)) {
+        const std::uint32_t type = service->after.start_type;
+        if (type != SERVICE_AUTO_START && type != SERVICE_DEMAND_START && type != SERVICE_DISABLED) {
+            return ProtectionReason::WindowsService;  // Never boot or system start: those are drivers'
+        }
+        const ServiceFacts facts =
+            data_.services ? data_.services(service->name) : live_service_facts(service->name);
+        switch (facts.status) {
+            case ServiceFacts::Status::Missing:
+                return ProtectionReason::None;  // Nothing to protect; the executor reports it missing
+            case ServiceFacts::Status::Unreadable:
+                return ProtectionReason::WindowsService;  // Unknown: refused
+            case ServiceFacts::Status::Found:
+                break;
+        }
+        return facts.driver || facts.microsoft ? ProtectionReason::WindowsService : ProtectionReason::None;
+    }
     return ProtectionReason::None;
 }
 
@@ -449,6 +541,8 @@ ProtectionReason ProtectedPolicy::check(const Location& location) const {
             return ProtectionReason::BlacklistedName;
         }
     }
+    // Values, services, tasks, packages, firewall rules, value edits and state changes: no known
+    // folder or shared name to guard.
     return ProtectionReason::None;
 }
 

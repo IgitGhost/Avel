@@ -55,9 +55,9 @@ struct ChangeEvents {
 
 // Removes the plan's items, in a safe order: services and tasks first (so their files are free),
 // then task folders (deepest first, once their tasks are gone), packages, registry values and value
-// edits, registry keys, and files last. An item inside another planned item is left to go with it.
-// A value edit is applied only while the value is still what it expects; otherwise it is skipped
-// as `changed`. Hold store.lock() around this.
+// edits, state changes, registry keys, and files last. An item inside another planned item is left
+// to go with it. A value edit or a state change (ADR 0007) is applied only while the item is still
+// what it expects; otherwise it is skipped as `changed`. Hold store.lock() around this.
 ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteOptions& options = {},
                       const ChangeEvents& events = {});
 
@@ -70,13 +70,15 @@ struct RestoreResult {
 // Undoes a set, in the reverse order of removal: all of its removed items, or only `only`. Nothing
 // that has appeared in an item's place since is ever replaced. A value edit is reverted exactly
 // while the value is still what was written; otherwise its inverse is applied (the entries put back
-// into the list, the count raised again) where there is one. events.item_finished is called for
-// each item it tries.
+// into the list, the count raised again) where there is one. A state change goes back only while
+// the item is in the state it set (otherwise `restore-skipped (changed)`). events.item_finished is
+// called for each item it tries.
 RestoreResult restore(ChangeStore& store, const std::wstring& id, const std::vector<std::size_t>& only = {},
                       const ExecuteOptions& options = {}, const ChangeEvents& events = {});
 
 // Settles sets a crash left running: each item backed up but not finished is checked against the
-// system (still in place: untouched; gone: removed), items never reached are marked skipped.
+// system (still in place: untouched; gone: removed; a value edit or a state change: done if the
+// item is in the state written), items never reached are marked skipped.
 // Returns the ids of the sets it settled.
 std::vector<std::wstring> recover(ChangeStore& store, const ExecuteOptions& options = {});
 
