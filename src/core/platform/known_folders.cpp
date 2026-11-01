@@ -64,13 +64,14 @@ UserFolders user_folders(HKEY user_hive, const UserProfile& profile) {
     folders.local_low_app_data = folder(kLocalLowValue, LR"(AppData\LocalLow)");
     folders.desktop = folder(L"Desktop", L"Desktop");
     folders.programs = folder(L"Programs", LR"(AppData\Roaming\Microsoft\Windows\Start Menu\Programs)");
+    folders.startup = folder(L"Startup", LR"(AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup)");
 
     add_unique(folders.all, folders.profile);
     if (!folders.profile.empty()) {
         add_unique(folders.all, normalize_path(folders.profile + LR"(\AppData)"));
     }
     for (const auto* path : {&folders.roaming_app_data, &folders.local_app_data, &folders.local_low_app_data,
-                             &folders.desktop, &folders.programs}) {
+                             &folders.desktop, &folders.programs, &folders.startup}) {
         add_unique(folders.all, *path);
     }
     for (const auto& value : values) {
@@ -100,11 +101,12 @@ MachineFolders machine_folders() {
     folders.program_data = known_folder(FOLDERID_ProgramData);
     folders.common_programs = known_folder(FOLDERID_CommonPrograms);
     folders.common_desktop = known_folder(FOLDERID_PublicDesktop);
+    folders.common_startup = known_folder(FOLDERID_CommonStartup);
     folders.users = known_folder(FOLDERID_UserProfiles);
 
-    for (const auto* path : {&folders.windows, &folders.program_files, &folders.program_files_x86,
-                             &folders.program_data, &folders.common_programs, &folders.common_desktop,
-                             &folders.users}) {
+    for (const auto* path :
+         {&folders.windows, &folders.program_files, &folders.program_files_x86, &folders.program_data,
+          &folders.common_programs, &folders.common_desktop, &folders.common_startup, &folders.users}) {
         add_unique(folders.all, *path);
     }
 

@@ -102,8 +102,14 @@ add_library(avel_core STATIC
     platform/registry.cpp
     platform/registry.h
     platform/registry_address.h
+    platform/scheduled_tasks.cpp
+    platform/scheduled_tasks.h
     platform/secure_folder.cpp
     platform/secure_folder.h
+    platform/services.cpp
+    platform/services.h
+    platform/shortcuts.cpp
+    platform/shortcuts.h
     platform/signature.cpp
     platform/signature.h
     platform/text.cpp
@@ -120,6 +126,8 @@ add_library(avel_core STATIC
     platform/volume_folders.cpp
     platform/volume_folders.h
     platform/version_info.h
+    tools/startup.cpp
+    tools/startup.h
     tracker/file_changes.cpp
     tracker/file_changes.h
     tracker/install_trace.cpp

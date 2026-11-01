@@ -1,11 +1,5 @@
 // Snapshots of services, scheduled tasks, COM classes and firewall rules for the leftover scan.
 #include <windows.h>
-#include <objbase.h>
-#include <oleauto.h>
-#include <taskschd.h>
-
-#include <wil/com.h>
-#include <wil/resource.h>
 
 #include <array>
 #include <string>
@@ -13,6 +7,7 @@
 #include "core/leftovers/scanners.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
+#include "core/platform/scheduled_tasks.h"
 #include "core/platform/text.h"
 
 namespace avel::leftovers::detail {
@@ -43,76 +38,6 @@ std::wstring default_string(HKEY parent, const std::wstring& subkey) {
     }
     const std::wstring text(buffer);
     return type == REG_EXPAND_SZ ? platform::expand_environment(text) : text;
-}
-
-// Collects the tasks of `folder` and its subfolders, skipping Windows' own (\Microsoft).
-void collect_tasks(ITaskFolder* folder, std::vector<ScheduledTask>& tasks) {
-    wil::unique_bstr folder_path;
-    if (SUCCEEDED(folder->get_Path(&folder_path)) && folder_path &&
-        platform::istarts_with(folder_path.get(), LR"(\Microsoft)") &&
-        (folder_path.get()[10] == L'\0' || folder_path.get()[10] == L'\\')) {
-        return;
-    }
-    wil::com_ptr_nothrow<IRegisteredTaskCollection> collection;
-    LONG count = 0;
-    if (SUCCEEDED(folder->GetTasks(TASK_ENUM_HIDDEN, collection.put())) && SUCCEEDED(collection->get_Count(&count))) {
-        for (LONG i = 1; i <= count; ++i) {
-            VARIANT index{};
-            index.vt = VT_I4;
-            index.lVal = i;
-            wil::com_ptr_nothrow<IRegisteredTask> task;
-            wil::unique_bstr path;
-            wil::com_ptr_nothrow<ITaskDefinition> definition;
-            wil::com_ptr_nothrow<IActionCollection> actions;
-            if (FAILED(collection->get_Item(index, task.put())) || FAILED(task->get_Path(&path)) ||
-                FAILED(task->get_Definition(definition.put())) || FAILED(definition->get_Actions(actions.put()))) {
-                continue;  // Tasks this account may not read
-            }
-            ScheduledTask entry;
-            entry.path = path.get();
-            LONG action_count = 0;
-            actions->get_Count(&action_count);
-            for (LONG a = 1; a <= action_count; ++a) {
-                wil::com_ptr_nothrow<IAction> action;
-                TASK_ACTION_TYPE type{};
-                if (FAILED(actions->get_Item(a, action.put())) || FAILED(action->get_Type(&type)) ||
-                    type != TASK_ACTION_EXEC) {
-                    continue;
-                }
-                const auto exec = action.try_query<IExecAction>();
-                wil::unique_bstr program;
-                wil::unique_bstr arguments;
-                if (!exec || FAILED(exec->get_Path(&program)) || !program) {
-                    continue;
-                }
-                exec->get_Arguments(&arguments);
-                std::wstring command(platform::trim(program.get()));
-                if (command.find(L' ') != std::wstring::npos && command.front() != L'"') {
-                    command = L"\"" + command + L"\"";
-                }
-                if (arguments && *arguments.get()) {
-                    command += L" " + std::wstring(arguments.get());
-                }
-                entry.actions.push_back(std::move(command));
-            }
-            if (!entry.actions.empty()) {
-                tasks.push_back(std::move(entry));
-            }
-        }
-    }
-    wil::com_ptr_nothrow<ITaskFolderCollection> folders;
-    LONG folder_count = 0;
-    if (SUCCEEDED(folder->GetFolders(0, folders.put())) && SUCCEEDED(folders->get_Count(&folder_count))) {
-        for (LONG i = 1; i <= folder_count; ++i) {
-            VARIANT index{};
-            index.vt = VT_I4;
-            index.lVal = i;
-            wil::com_ptr_nothrow<ITaskFolder> subfolder;
-            if (SUCCEEDED(folders->get_Item(index, subfolder.put()))) {
-                collect_tasks(subfolder.get(), tasks);
-            }
-        }
-    }
 }
 
 }  // namespace
@@ -176,16 +101,7 @@ void take_tasks(const ScanEnvironment& environment, Snapshots& snapshots) {
     if (environment.tasks) {
         tasks = *environment.tasks;
     } else {
-        wil::com_ptr_nothrow<ITaskService> service;
-        const VARIANT empty{};
-        wil::com_ptr_nothrow<ITaskFolder> root;
-        const auto root_path = wil::make_bstr_nothrow(L"\\");
-        if (SUCCEEDED(::CoCreateInstance(CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER,
-                                         IID_PPV_ARGS(service.put()))) &&
-            SUCCEEDED(service->Connect(empty, empty, empty, empty)) && root_path &&
-            SUCCEEDED(service->GetFolder(root_path.get(), root.put()))) {
-            collect_tasks(root.get(), tasks);
-        }
+        platform::scheduled_tasks(true, tasks);  // Windows' own (\Microsoft) skipped
     }
     for (const auto& task : tasks) {
         TaskEntry entry{task.path, {}};
