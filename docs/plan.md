@@ -470,7 +470,7 @@ D:\Avel\
     - **Follow-ups:**
       - Windows' update scan 15 minutes after logon fell between the GUI round's removal and its undo in both runs. Should it fall during the removal or the undo instead, its random COM classes would fail the undo check.
       - `LeftoverSmokeTest` exceeded its 20 s budget on the host again (23 s for 598 programs, 20.6 s of it in matching; see 5b).
-- **Phase 6 (Avel Tools): planned, in four sub-phases.** Plan approved 2026-10-31; nothing implemented yet.
+- **Phase 6 (Avel Tools): in progress, in four sub-phases.** Plan approved 2026-10-31; 6a under way on the branch `phase6a`.
   - **User decisions (2026-10-31, asked interactively):**
     - **Sub-phases by tool,** each a vertical slice (core, CLI, GUI, RU/HY, a Sandbox scenario, docs, one commit): **6a** Startup manager; **6b** Windows apps, and Windows features and capabilities; **6c** browser extensions; **6d** Steam and Epic sources.
     - **Startup manager, "Task Manager plus":** Run and RunOnce (machine 64/32-bit and every user), the Startup folders, scheduled tasks with logon or boot triggers, and auto-start services not from Microsoft. Disable as Task Manager does (`StartupApproved`; a task's Enabled flag; a service's start type), delete through the ChangeSet, everything undoable. Winlogon, AppInit_DLLs, shell extensions, IFEO and drivers aren't in scope.
@@ -482,4 +482,15 @@ D:\Avel\
   - **Groundwork (start of 6a):** ChangeSet *state changes* (ADR 0007): new location kinds for a `StartupApproved` value, a task's Enabled flag and a service's start type (6b adds package modes and Windows features), each recording the state before and after and undone only while the item is still as Avel left it. A `src/core/tools` module. Writable loading of signed-out users' hives for their changes. Authenticode signer reading (`platform/signature`), which nothing does yet.
   - **6b starts with a spike** (ADR 0008): removing a package for one other user, re-registering it as undo, deprovisioning, and which DismAPI operations work offline in the Sandbox.
   - **Sandbox scenarios:** `startup`, `apps`, `features`, `extensions` and a games round (fake Steam and Epic libraries: no client can be installed offline, so uninstall reports the missing client and Avel Force removes the game).
-- **Next: 6a** (Startup manager), on a branch `phase6a` from `main`.
+  - **6a (Startup manager), in progress on `phase6a`** (started 2026-11-01 from `a18d1ec`):
+    - **Done:** core, CLI and docs. 483 unit tests pass (5 admin-only ones skip on the host).
+      - ChangeSet state changes ([ADR 0007](adr/0007-changeset-state-changes.md)): `StartupApprovedLocation`, `TaskStateLocation`, `ServiceStartLocation`, compare-and-set on execute and undo, recovery, the hard floor's rules for each.
+      - `platform/signature`: Authenticode, embedded then catalog, never the network; which Microsoft root a chain ends in.
+      - Shared helpers `platform/shortcuts`, `platform/scheduled_tasks`, `platform/services`; `force::OwnerIndex`.
+      - `tools/startup` (the list) and `tools/startup_changes` (the planner, the services Avel disabled); `avel-cli startup list|disable|enable|delete`. See [tools.md](tools.md).
+      - On the host (unelevated): 63 entries in about 0.3 s.
+    - **Found in the code:** signed-out users' hives were already writable for the executor (`RegLoadAppKeyW`); no new loading code was needed. A hive can be loaded privately only once per process, so a listing's environment is destroyed before a ChangeSet runs.
+    - **User decisions:**
+      - (2026-11-01) A service Avel disabled stays in the list as disabled, with Enable. It is found from the ChangeSet store (done, not undone start-type changes); nothing new is stored.
+      - (2026-11-02) Only Windows' own files are protected: a valid signature chaining to a Microsoft *product* root, not the WHQL publisher of third-party driver packages. Microsoft's *applications* (its 2011 application root: Edge and its updater, SQL Server's VSS writer, WSL) are listed and can be changed like any other entry.
+    - **Next:** the GUI (Tools > Startup…, the first non-modal window), RU/HY, the Sandbox scenario `startup` (with a second, signed-out account), then `leftovers`, `removal`, `force` and `trace_gui` again, and the squash onto `main`.
