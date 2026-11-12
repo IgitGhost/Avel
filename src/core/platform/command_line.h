@@ -23,6 +23,11 @@ CommandLine split_command_line(std::wstring_view command, const FileExistsFuncti
 // Same, probing the real file system.
 CommandLine split_command_line(std::wstring_view command);
 
+// The script or DLL a Windows host runs, as written in the command: `rundll32 <dll>,<entry>`,
+// `powershell -File <script>` (or pwsh, -File abbreviated down to -f), `wscript`/`cscript <script>`.
+// Empty for other programs, and when the host's arguments name no file.
+std::wstring hosted_file(const CommandLine& command);
+
 // The file a command can't run without, if it is known to be missing: the executable when the
 // command names it by full path, or the script or DLL a Windows host would run
 // (`powershell -File <script>`, `wscript`/`cscript <script>`, `rundll32 <dll>,<entry>`). Empty when

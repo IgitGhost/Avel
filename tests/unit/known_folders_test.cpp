@@ -47,6 +47,17 @@ TEST(KnownFoldersTest, UserFoldersWithoutAHiveUseDefaults) {
     const UserFolders folders = user_folders(nullptr, profile);
     EXPECT_EQ(folders.roaming_app_data, LR"(C:\Users\other\AppData\Roaming)");
     EXPECT_EQ(folders.desktop, LR"(C:\Users\other\Desktop)");
+    EXPECT_EQ(folders.startup,
+              LR"(C:\Users\other\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup)");
+}
+
+TEST(KnownFoldersTest, TheUsersStartupFolderComesFromTheirHive) {
+    testing::ScratchKey hive;
+    hive.set_string(kShellFolders, L"Startup", LR"(%USERPROFILE%\Redirected\Startup)", REG_EXPAND_SZ);
+    const UserProfile profile{L"S-1-5-21-1-2-3-1001", L"PC\\fixture", LR"(C:\Users\fixture)", false};
+    const UserFolders folders = user_folders(hive.get(), profile);
+    EXPECT_EQ(folders.startup, LR"(C:\Users\fixture\Redirected\Startup)");
+    EXPECT_TRUE(contains(folders.all, folders.startup));
 }
 
 // Where Windows keeps the current user's profile, read from its ProfileList entry (once read through
@@ -80,6 +91,7 @@ TEST(KnownFoldersTest, MachineFoldersOnThisSystem) {
     EXPECT_FALSE(folders.users.empty());
     EXPECT_TRUE(contains(folders.all, folders.windows));
     EXPECT_TRUE(contains(folders.all, folders.users));
+    EXPECT_TRUE(iends_with(folders.common_startup, LR"(\Start Menu\Programs\Startup)"));
     EXPECT_GT(folders.all.size(), 20u);  // Fonts, System32, Public folders, common Start Menu, ...
 }
 

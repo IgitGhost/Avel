@@ -12,6 +12,7 @@
 #include "cli/list_command.h"
 #include "cli/orphans_command.h"
 #include "cli/scan_command.h"
+#include "cli/startup_command.h"
 #include "cli/trace_command.h"
 #include "cli/undo_command.h"
 #include "cli/uninstall_command.h"
@@ -64,6 +65,13 @@ constexpr std::string_view kUsage =
     "             installer that run launches and waits for. A finished trace is linked to\n"
     "             the program it installed, and can be moved to another machine. --json for\n"
     "             all but cancel, delete and export. Run as administrator.\n"
+    "  startup list [--all-users] [--json]\n"
+    "  startup disable <id>... [--service-start manual|disabled] | enable <id>... | delete <id>...\n"
+    "          [--dry-run] [--yes] [--json]\n"
+    "             List what starts with Windows (Run values, Startup folders, tasks,\n"
+    "             automatic services), or disable, enable or delete entries, backed up so\n"
+    "             undo can put them back. list runs without administrator rights; the\n"
+    "             other commands need them.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n";
 
@@ -107,6 +115,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"trace") {
         return avel::cli::run_trace_command(arguments);
+    }
+    if (command == L"startup") {
+        return avel::cli::run_startup_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

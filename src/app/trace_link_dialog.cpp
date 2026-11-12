@@ -8,6 +8,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include "hive_access.h"
 #include "program_text.h"
 
 using namespace Qt::StringLiterals;
@@ -86,7 +87,7 @@ TraceLinkDialog::TraceLinkDialog(std::shared_ptr<const inventory::Inventory> inv
     pool_.start([this] {
         inventory::ScanOptions scan;
         scan.appx = false;
-        auto scanned = std::make_shared<const inventory::Inventory>(inventory::scan_inventory(scan));
+        auto scanned = std::make_shared<const inventory::Inventory>(scanInventory(scan));
         QMetaObject::invokeMethod(
             this, [this, scanned = std::move(scanned)] { setInventory(scanned); }, Qt::QueuedConnection);
     });

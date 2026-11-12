@@ -96,6 +96,42 @@
         <translation>(Լռելյայն)</translation>
     </message>
     <message>
+        <source>Startup entry</source>
+        <translation>Ինքնագործարկման տարր</translation>
+    </message>
+    <message>
+        <source>Scheduled task state</source>
+        <translation>Պլանավորված առաջադրանքի վիճակ</translation>
+    </message>
+    <message>
+        <source>Service start type</source>
+        <translation>Ծառայության գործարկման տեսակ</translation>
+    </message>
+    <message>
+        <source>Clear the startup state of %1 (%2)</source>
+        <translation>Մաքրել %1-ի ինքնագործարկման վիճակը (%2)</translation>
+    </message>
+    <message>
+        <source>Disable %1 at startup (%2)</source>
+        <translation>Անջատել %1-ը ինքնագործարկումից (%2)</translation>
+    </message>
+    <message>
+        <source>Enable %1 at startup (%2)</source>
+        <translation>Միացնել %1-ը ինքնագործարկմանը (%2)</translation>
+    </message>
+    <message>
+        <source>Enable the scheduled task %1</source>
+        <translation>Միացնել %1 պլանավորված առաջադրանքը</translation>
+    </message>
+    <message>
+        <source>Disable the scheduled task %1</source>
+        <translation>Անջատել %1 պլանավորված առաջադրանքը</translation>
+    </message>
+    <message>
+        <source>Change the start type of the service %1 from %2 to %3</source>
+        <translation>Փոխել %1 ծառայության գործարկման տեսակը «%2»-ից «%3»</translation>
+    </message>
+    <message>
         <source>Delete the shared DLL count of %1, which the installer created</source>
         <translation>Ջնջել տեղադրիչի ստեղծած ընդհանուր DLL-ի հաշվիչը՝ %1</translation>
     </message>
@@ -608,6 +644,46 @@
         <translation>Խմբագրված է</translation>
     </message>
     <message>
+        <source>Cleared</source>
+        <translation>Մաքրված է</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Անջատված է</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Միացված է</translation>
+    </message>
+    <message>
+        <source>Start type changed</source>
+        <translation>Գործարկման տեսակը փոխված է</translation>
+    </message>
+    <message>
+        <source>its state has changed since</source>
+        <translation>դրա վիճակն այդ ընթացքում փոխվել է</translation>
+    </message>
+    <message>
+        <source>Boot</source>
+        <translation>Բեռնում</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation>Համակարգ</translation>
+    </message>
+    <message>
+        <source>Automatic (delayed start)</source>
+        <translation>Ավտոմատ (հետաձգված մեկնարկ)</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Ավտոմատ</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <translation>Ձեռքով</translation>
+    </message>
+    <message>
         <source>Unfinished</source>
         <translation>Չավարտված</translation>
     </message>
@@ -793,6 +869,177 @@
     <message>
         <source>error %1</source>
         <translation>սխալ %1</translation>
+    </message>
+</context>
+<context>
+    <name>StartupText</name>
+    <message>
+        <source>Run</source>
+        <translation>Run</translation>
+    </message>
+    <message>
+        <source>RunOnce</source>
+        <translation>RunOnce</translation>
+    </message>
+    <message>
+        <source>RunOnceEx</source>
+        <translation>RunOnceEx</translation>
+    </message>
+    <message>
+        <source>Startup folder</source>
+        <translation>Ինքնագործարկման թղթապանակ</translation>
+    </message>
+    <message>
+        <source>Scheduled task</source>
+        <translation>Պլանավորված առաջադրանք</translation>
+    </message>
+    <message>
+        <source>Service</source>
+        <translation>Ծառայություն</translation>
+    </message>
+    <message>
+        <source>%1 (32-bit)</source>
+        <translation>%1 (32-բիթ)</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Միացված է</translation>
+    </message>
+    <message>
+        <source>Disabled completely</source>
+        <translation>Ամբողջությամբ անջատված է</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Անջատված է</translation>
+    </message>
+    <message>
+        <source>Runs at every sign-in. Windows keeps no enabled or disabled state for this key, so it can only be deleted.</source>
+        <translation>Գործարկվում է համակարգ յուրաքանչյուր մուտքի ժամանակ։ Windows-ը այս բանալու համար միացված կամ անջատված վիճակ չի պահում, ուստի այն կարելի է միայն ջնջել։</translation>
+    </message>
+    <message>
+        <source>Enabled in Task Manager&apos;s list of startup apps</source>
+        <translation>Միացված է Առաջադրանքների կառավարչի ինքնագործարկման ցանկում</translation>
+    </message>
+    <message>
+        <source>Disabled in Task Manager&apos;s list of startup apps</source>
+        <translation>Անջատված է Առաջադրանքների կառավարչի ինքնագործարկման ցանկում</translation>
+    </message>
+    <message>
+        <source>Runs once at the next sign-in, then Windows deletes it. It has no disabled state, so it can only be deleted.</source>
+        <translation>Գործարկվում է մեկ անգամ՝ համակարգ հաջորդ մուտքի ժամանակ, որից հետո Windows-ը ջնջում է այն։ Այն անջատված վիճակ չունի, ուստի կարելի է միայն ջնջել։</translation>
+    </message>
+    <message>
+        <source>Runs once at the next start, then Windows deletes it. It has no disabled state, so it can only be deleted.</source>
+        <translation>Գործարկվում է մեկ անգամ՝ Windows-ի հաջորդ մեկնարկի ժամանակ, որից հետո Windows-ը ջնջում է այն։ Այն անջատված վիճակ չունի, ուստի կարելի է միայն ջնջել։</translation>
+    </message>
+    <message>
+        <source>The scheduled task is enabled</source>
+        <translation>Պլանավորված առաջադրանքը միացված է</translation>
+    </message>
+    <message>
+        <source>The scheduled task is disabled</source>
+        <translation>Պլանավորված առաջադրանքն անջատված է</translation>
+    </message>
+    <message>
+        <source>Start type: %1</source>
+        <translation>Գործարկման տեսակ՝ %1</translation>
+    </message>
+    <message>
+        <source>Machine</source>
+        <translation>Համակարգիչ</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Չի ստուգվել</translation>
+    </message>
+    <message>
+        <source>Valid</source>
+        <translation>Վավեր է</translation>
+    </message>
+    <message>
+        <source>Valid, signed by %1</source>
+        <translation>Վավեր է, ստորագրող՝ %1</translation>
+    </message>
+    <message>
+        <source>Not signed</source>
+        <translation>Ստորագրված չէ</translation>
+    </message>
+    <message>
+        <source>Not valid (signed by %1)</source>
+        <translation>Վավեր չէ (ստորագրող՝ %1)</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Այլևս ցանկում չէ․ թարմացրեք F5-ով</translation>
+    </message>
+    <message>
+        <source>Windows&apos; own entry: Avel never changes it</source>
+        <translation>Windows-ի սեփական տարր է․ Avel-ը այն երբեք չի փոխում</translation>
+    </message>
+    <message>
+        <source>Has no disabled state: it can only be deleted</source>
+        <translation>Անջատված վիճակ չունի․ այն կարելի է միայն ջնջել</translation>
+    </message>
+    <message>
+        <source>Already enabled</source>
+        <translation>Արդեն միացված է</translation>
+    </message>
+    <message>
+        <source>Already disabled</source>
+        <translation>Արդեն անջատված է</translation>
+    </message>
+    <message>
+        <source>The Task Scheduler couldn&apos;t be read, so no scheduled tasks are listed.</source>
+        <translation>Չհաջողվեց կարդալ Առաջադրանքների պլանավորիչը, ուստի պլանավորված առաջադրանքները ցուցադրված չեն։</translation>
+    </message>
+    <message>
+        <source>The services couldn&apos;t be read, so no services are listed.</source>
+        <translation>Չհաջողվեց կարդալ ծառայությունները, ուստի ծառայությունները ցուցադրված չեն։</translation>
+    </message>
+    <message>
+        <source>Disable startup entry %1 completely</source>
+        <translation>Ամբողջությամբ անջատել %1 ինքնագործարկման տարրը</translation>
+    </message>
+    <message>
+        <source>Disable startup entry %1</source>
+        <translation>Անջատել %1 ինքնագործարկման տարրը</translation>
+    </message>
+    <message>
+        <source>Enable startup entry %1</source>
+        <translation>Միացնել %1 ինքնագործարկման տարրը</translation>
+    </message>
+    <message>
+        <source>Delete startup entry %1</source>
+        <translation>Ջնջել %1 ինքնագործարկման տարրը</translation>
+    </message>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s) completely</source>
+        <translation>
+            <numerusform>Ամբողջությամբ անջատել ինքնագործարկման %n տարր</numerusform>
+            <numerusform>Ամբողջությամբ անջատել ինքնագործարկման %n տարր</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Անջատել ինքնագործարկման %n տարր</numerusform>
+            <numerusform>Անջատել ինքնագործարկման %n տարր</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Enable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Միացնել ինքնագործարկման %n տարր</numerusform>
+            <numerusform>Միացնել ինքնագործարկման %n տարր</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)</source>
+        <translation>
+            <numerusform>Ջնջել ինքնագործարկման %n տարր</numerusform>
+            <numerusform>Ջնջել ինքնագործարկման %n տարր</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -1549,6 +1796,13 @@
     </message>
 </context>
 <context>
+    <name>avel::app::HiveAccess</name>
+    <message>
+        <source>Waiting for a scan elsewhere in Avel to finish…</source>
+        <translation>Սպասում՝ մինչև Avel-ի մեկ այլ մասում որոնումն ավարտվի…</translation>
+    </message>
+</context>
+<context>
     <name>avel::app::InstallTraceDialog</name>
     <message>
         <source>Install and trace</source>
@@ -1933,6 +2187,14 @@ Left by %2</source>
         <translation>Վերադարձնել վերջին 30 օրում Avel-ի հեռացրած մնացորդները</translation>
     </message>
     <message>
+        <source>&amp;Startup…</source>
+        <translation>&amp;Ինքնագործարկում…</translation>
+    </message>
+    <message>
+        <source>See and change what starts with Windows, for the machine and every user</source>
+        <translation>Դիտել և փոխել այն, ինչ գործարկվում է Windows-ի հետ՝ համակարգչի և յուրաքանչյուր օգտատիրոջ համար</translation>
+    </message>
+    <message>
         <source>&amp;View</source>
         <translation>&amp;Տեսք</translation>
     </message>
@@ -2111,6 +2373,10 @@ Left by %2</source>
     <message>
         <source>%1: %2</source>
         <translation>%1․ %2</translation>
+    </message>
+    <message>
+        <source>That program is no longer listed; refresh with F5.</source>
+        <translation>Այդ ծրագիրն այլևս ցանկում չէ․ թարմացրեք F5-ով։</translation>
     </message>
     <message>
         <source>Interrupted removal</source>
@@ -2355,6 +2621,447 @@ Left by %2</source>
     <message>
         <source>Continue</source>
         <translation>Շարունակել</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::StartupTableModel</name>
+    <message>
+        <source>Name</source>
+        <translation>Անվանում</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Վիճակ</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Աղբյուր</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Օգտատեր</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Հրատարակիչ</translation>
+    </message>
+    <message>
+        <source>Command</source>
+        <translation>Հրաման</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::StartupWindow</name>
+    <message>
+        <source>Avel is changing startup entries. Close the window once that is done.</source>
+        <translation>Avel-ը փոփոխում է ինքնագործարկման տարրերը։ Փակեք պատուհանը, երբ փոփոխությունն ավարտվի։</translation>
+    </message>
+    <message>
+        <source>Startup</source>
+        <translation>Ինքնագործարկում</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Թարմացնել</translation>
+    </message>
+    <message>
+        <source>List the startup entries again (F5)</source>
+        <translation>Կրկին ստանալ ինքնագործարկման ցանկը (F5)</translation>
+    </message>
+    <message>
+        <source>&amp;Enable</source>
+        <translation>&amp;Միացնել</translation>
+    </message>
+    <message>
+        <source>Let the selected entries start with Windows again</source>
+        <translation>Կրկին թույլ տալ ընտրված տարրերին գործարկվել Windows-ի հետ</translation>
+    </message>
+    <message>
+        <source>&amp;Disable</source>
+        <translation>&amp;Անջատել</translation>
+    </message>
+    <message>
+        <source>Keep the selected entries from starting with Windows. A service is set to start manually, when a program asks for it.</source>
+        <translation>Թույլ չտալ ընտրված տարրերին գործարկվել Windows-ի հետ։ Ծառայությունը դառնում է ձեռքով գործարկվող․ այն կգործարկվի, երբ որևէ ծրագիր այն պահանջի։</translation>
+    </message>
+    <message>
+        <source>Disable &amp;completely</source>
+        <translation>Անջատել ա&amp;մբողջությամբ</translation>
+    </message>
+    <message>
+        <source>Set the selected services to Disabled: they never start</source>
+        <translation>Ընտրված ծառայությունները դարձնել «Անջատված»․ դրանք երբեք չեն գործարկվի</translation>
+    </message>
+    <message>
+        <source>De&amp;lete…</source>
+        <translation>&amp;Ջնջել…</translation>
+    </message>
+    <message>
+        <source>Delete the selected entries: the value, file, task or service (Del)</source>
+        <translation>Ջնջել ընտրված տարրերը՝ ռեեստրի արժեքը, ֆայլը, առաջադրանքը կամ ծառայությունը (Del)</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>&amp;Հետարկել վերջին փոփոխությունը</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>Հետարկման &amp;կենտրոն…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Այն ամենը, ինչ Avel-ը փոխել է վերջին 30 օրում՝ վերադարձնելու համար</translation>
+    </message>
+    <message>
+        <source>&amp;Open file location</source>
+        <translation>Բացել ֆայլի &amp;տեղը</translation>
+    </message>
+    <message>
+        <source>&amp;Copy command</source>
+        <translation>&amp;Պատճենել հրամանը</translation>
+    </message>
+    <message>
+        <source>&amp;Go to program</source>
+        <translation>Անցնել &amp;ծրագրին</translation>
+    </message>
+    <message>
+        <source>Show the program this entry belongs to in the main window</source>
+        <translation>Ցույց տալ հիմնական պատուհանում այն ծրագիրը, որին պատկանում է այս տարրը</translation>
+    </message>
+    <message>
+        <source>Open in &amp;Registry Editor</source>
+        <translation>Բացել &amp;Ռեեստրի խմբագրիչում</translation>
+    </message>
+    <message>
+        <source>Open &amp;Task Scheduler</source>
+        <translation>Բացել Առաջադրանքների &amp;պլանավորիչը</translation>
+    </message>
+    <message>
+        <source>Open &amp;Services</source>
+        <translation>Բացել Ծառայու&amp;թյունները</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Գտնել</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Գործիքագոտի</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Զտիչներ</translation>
+    </message>
+    <message>
+        <source>Search by name, command or publisher (Ctrl+F)</source>
+        <translation>Որոնում ըստ անվանման, հրամանի կամ հրատարակչի (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Որոնում</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Աղբյուր</translation>
+    </message>
+    <message>
+        <source>All sources</source>
+        <translation>Բոլոր աղբյուրները</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Օգտատեր</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Բոլոր օգտատերերը</translation>
+    </message>
+    <message>
+        <source>Machine (all users)</source>
+        <translation>Համակարգիչ (բոլոր օգտատերերը)</translation>
+    </message>
+    <message>
+        <source>Listing startup entries…</source>
+        <translation>Ինքնագործարկման ցանկի ստացում…</translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Հետարկել այս պատուհանում արված վերջին փոփոխությունը (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Հետարկել «%1»-ը (Ctrl+Z)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s)</source>
+        <translation>
+            <numerusform>%n տարր</numerusform>
+            <numerusform>%n տարր</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n entry(s)</source>
+        <translation>
+            <numerusform>Ցուցադրված է %1-ը՝ %n տարրից</numerusform>
+            <numerusform>Ցուցադրված է %1-ը՝ %n տարրից</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>անջատված՝ %n</numerusform>
+            <numerusform>անջատված՝ %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Another Avel process was changing the system, so services Avel disabled may be missing from the list. Refresh with F5.</source>
+        <translation>Avel-ի մեկ այլ գործընթաց փոփոխում էր համակարգը, ուստի Avel-ի անջատած ծառայությունները կարող են բացակայել ցանկից։ Թարմացրեք F5-ով։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n զգուշացում</numerusform>
+            <numerusform>%n զգուշացում</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an entry to see its details.</source>
+        <translation>Ընտրեք տարր՝ մանրամասները տեսնելու համար։</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Վիճակ</translation>
+    </message>
+    <message>
+        <source>Command</source>
+        <translation>Հրաման</translation>
+    </message>
+    <message>
+        <source>None: the task runs a COM handler</source>
+        <translation>Չկա․ առաջադրանքը գործարկում է COM մշակիչ</translation>
+    </message>
+    <message>
+        <source>None: an advertised shortcut, which Windows Installer resolves when it runs</source>
+        <translation>Չկա․ սա հայտարարված (advertised) դյուրանցում է, որի թիրախը Windows Installer-ը որոշում է գործարկման ժամանակ</translation>
+    </message>
+    <message>
+        <source>(file not found)</source>
+        <translation>(ֆայլը չի գտնվել)</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Ֆայլ</translation>
+    </message>
+    <message>
+        <source>Signature</source>
+        <translation>Ստորագրություն</translation>
+    </message>
+    <message>
+        <source>Product</source>
+        <translation>Արտադրանք</translation>
+    </message>
+    <message>
+        <source>Company</source>
+        <translation>Ընկերություն</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Տարբերակ</translation>
+    </message>
+    <message>
+        <source>Program</source>
+        <translation>Ծրագիր</translation>
+    </message>
+    <message>
+        <source>No installed program&apos;s folder holds the file</source>
+        <translation>Ֆայլը չի գտնվում որևէ տեղադրված ծրագրի թղթապանակում</translation>
+    </message>
+    <message>
+        <source>Stored in</source>
+        <translation>Որտեղ է պահվում</translation>
+    </message>
+    <message>
+        <source>Registry key</source>
+        <translation>Ռեեստրի բանալի</translation>
+    </message>
+    <message>
+        <source>State kept in</source>
+        <translation>Որտեղ է պահվում վիճակը</translation>
+    </message>
+    <message>
+        <source>No value yet: enabled</source>
+        <translation>Արժեք դեռ չկա․ միացված է</translation>
+    </message>
+    <message>
+        <source>Delete removes</source>
+        <translation>Ջնջումը կհեռացնի</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Նույնացուցիչ</translation>
+    </message>
+    <message>
+        <source>Windows&apos; own entry: it runs a file of Windows itself, from the Windows folder, signed by Microsoft. Avel lists it but never changes it.</source>
+        <translation>Windows-ի սեփական տարր է․ այն գործարկում է հենց Windows-ի ֆայլը՝ Windows թղթապանակից, ստորագրված Microsoft-ի կողմից։ Avel-ը ցուցադրում է այն, բայց երբեք չի փոխում։</translation>
+    </message>
+    <message>
+        <source>Avel disabled this service. Enable sets it to start automatically again.</source>
+        <translation>Այս ծառայությունն անջատել է Avel-ը։ «Միացնել»-ը կրկին այն կդարձնի ավտոմատ գործարկվող։</translation>
+    </message>
+    <message>
+        <source>The file it runs is missing, so it does nothing at startup. Deleting it is safe.</source>
+        <translation>Ֆայլը, որը այն գործարկում է, բացակայում է, ուստի մեկնարկի ժամանակ այն ոչինչ չի անում։ Այն կարելի է ապահով ջնջել։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) selected; an action applies to each of them it fits. Details of this one:</source>
+        <translation>
+            <numerusform>Ընտրված է %n տարր․ գործողությունը կիրառվում է դրանցից յուրաքանչյուրին, որին այն համապատասխանում է։ Այս մեկի մանրամասները՝</numerusform>
+            <numerusform>Ընտրված է %n տարր․ գործողությունը կիրառվում է դրանցից յուրաքանչյուրին, որին այն համապատասխանում է։ Այս մեկի մանրամասները՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Փոխելու բան չկա․ ընտրված %n տարր բաց է թողնվել։</numerusform>
+            <numerusform>Փոխելու բան չկա․ ընտրված %n տարր բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to delete: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Ջնջելու բան չկա․ ընտրված %n տարր բաց է թողնվել։</numerusform>
+            <numerusform>Ջնջելու բան չկա․ ընտրված %n տարր բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… և ևս %n</numerusform>
+            <numerusform>… և ևս %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This removes:</source>
+        <translation>Կհեռացվի՝</translation>
+    </message>
+    <message>
+        <source>Avel backs it up first: Undo last change (Ctrl+Z) or the Undo Center puts it back within 30 days.</source>
+        <translation>Avel-ը նախ պահուստային պատճեն է ստեղծում․ «Հետարկել վերջին փոփոխությունը» (Ctrl+Z) կամ Հետարկման կենտրոնը կվերադարձնի ամեն ինչ 30 օրվա ընթացքում։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected entry(s) will be skipped:</source>
+        <translation>
+            <numerusform>Ընտրված %n տարր բաց կթողնվի՝</numerusform>
+            <numerusform>Ընտրված %n տարր բաց կթողնվի՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete startup entries</source>
+        <translation>Ինքնագործարկման տարրերի ջնջում</translation>
+    </message>
+    <message>
+        <source>Delete the startup entry %1?</source>
+        <translation>Ջնջե՞լ %1 ինքնագործարկման տարրը։</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)?</source>
+        <translation>
+            <numerusform>Ջնջե՞լ ինքնագործարկման %n տարր։</numerusform>
+            <numerusform>Ջնջե՞լ ինքնագործարկման %n տարր։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Ջնջել</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Կատարվում է՝ %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Avel-ի մեկ այլ գործընթաց այժմ փոփոխում է համակարգը։ Ոչինչ չի փոխվել․ կրկին փորձեք, երբ այն ավարտի։</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel-ը չկարողացավ գրել այս փոփոխության պահուստային պատճենը, ուստի ոչինչ չի փոխվել։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled completely.</source>
+        <translation>
+            <numerusform>%n տարր ամբողջությամբ անջատված է։</numerusform>
+            <numerusform>%n տարր ամբողջությամբ անջատված է։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled.</source>
+        <translation>
+            <numerusform>%n տարր անջատված է։</numerusform>
+            <numerusform>%n տարր անջատված է։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) enabled.</source>
+        <translation>
+            <numerusform>%n տարր միացված է։</numerusform>
+            <numerusform>%n տարր միացված է։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) deleted.</source>
+        <translation>
+            <numerusform>%n տարր ջնջված է։</numerusform>
+            <numerusform>%n տարր ջնջված է։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n-ը չհաջողվեց փոխել։</numerusform>
+            <numerusform>%n-ը չհաջողվեց փոխել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Հետարկել կարելի է Ctrl+Z-ով կամ Հետարկման կենտրոնում։</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Հետարկում՝ %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1»-ը հնարավոր չէ հետարկել այստեղ․ դրա պահուստային պատճենը բացակայում է կամ օգտագործվում է Avel-ի մեկ այլ գործընթացի կողմից։ Հետարկման կենտրոնը ցույց է տալիս, թե ինչ դեռ կարելի է վերադարձնել։</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>«%1»-ում հետարկելու այլևս ոչինչ չկա։</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Հետարկված է՝ %1։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 is signed out, so their registry isn&apos;t loaded where Registry Editor sees it. In Registry Editor, File &gt; Load Hive opens their NTUSER.DAT.</source>
+        <translation>%1 օգտատերը մուտք գործած չէ, ուստի նրա ռեեստրը բեռնված չէ այնտեղ, որտեղ այն տեսնում է Ռեեստրի խմբագրիչը։ Ռեեստրի խմբագրիչում նրա NTUSER.DAT-ը բացում է «Ֆայլ &gt; Բեռնել փունջը» հրամանը։</translation>
     </message>
 </context>
 <context>

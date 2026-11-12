@@ -11,6 +11,7 @@
 #include "change_set_progress_dialog.h"
 #include "change_store_access.h"
 #include "core/tracker/trace_source.h"
+#include "hive_access.h"
 #include "leftover_dialog.h"
 #include "program_text.h"
 #include "program_traces.h"
@@ -57,7 +58,8 @@ void ForceFlow::start() {
 ForceFlow::Scan ForceFlow::scan(const Request& request, std::shared_ptr<const tracker::TraceStore> traces) {
     Scan result;
     // Afresh: the program list the request came from may be older than an uninstall that failed.
-    result.inventory = std::make_shared<const inventory::Inventory>(inventory::scan_inventory());
+    result.inventory = std::make_shared<const inventory::Inventory>(scanInventory());
+    const auto hives = sharedHiveAccess();
     const leftovers::LiveEnvironment live;
     const auto& environment = live.environment();
     if (!request.traceId.empty()) {
@@ -148,6 +150,7 @@ void ForceFlow::onScanned(std::shared_ptr<Scan> scan) {
     review->setRescan(
         [inventory = scan_->inventory, targets = scan_->targets](const leftovers::ScanOptions& options,
                                                                  bool useTraces) {
+            const auto hives = sharedHiveAccess();
             const leftovers::LiveEnvironment live;
             return leftovers::scan_leftovers(live.environment(),
                                              useTraces ? targets : LeftoverDialog::withoutTraces(targets),
@@ -166,6 +169,7 @@ void ForceFlow::onReviewed(const changes::ChangePlan& plan, bool allowIrreversib
     // Listed now rather than with the scan: the review may have taken a while.
     QApplication::setOverrideCursor(Qt::BusyCursor);
     pool_.start([this, targets = scan_->scan->targets] {
+        const auto hives = sharedHiveAccess();
         const leftovers::LiveEnvironment live;
         auto processes = force::processes_in(live.environment(), targets, platform::running_processes(),
                                              platform::service_process_ids());

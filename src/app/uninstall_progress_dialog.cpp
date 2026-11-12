@@ -18,6 +18,7 @@
 #include "change_store_access.h"
 #include "core/leftovers/post_uninstall.h"
 #include "force_flow.h"
+#include "hive_access.h"
 #include "leftover_dialog.h"
 #include "program_text.h"
 #include "program_traces.h"
@@ -174,6 +175,8 @@ void UninstallProgressDialog::start() {
         std::shared_ptr<const leftovers::ScanResult> scan;
         if (scanLeftovers_) {
             QMetaObject::invokeMethod(this, [this] { onScanStarted(); }, Qt::QueuedConnection);
+            // Its LiveEnvironment keeps users' hives loaded while it runs (hive_access.h).
+            const auto hives = sharedHiveAccess();
             scan = std::make_shared<const leftovers::ScanResult>(
                 leftovers::scan_after_uninstall(targets_, batch.results));
         }
@@ -330,6 +333,7 @@ void UninstallProgressDialog::showLeftovers() {
     review->setAttribute(Qt::WA_DeleteOnClose);
     review->setRescan(
         [targets = targets_, results = results_](const leftovers::ScanOptions& options, bool useTraces) {
+            const auto hives = sharedHiveAccess();
             return leftovers::scan_after_uninstall(
                 useTraces ? targets : LeftoverDialog::withoutTraces(targets), results, options);
         },

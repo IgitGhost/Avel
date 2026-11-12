@@ -96,6 +96,42 @@
         <translation>(По умолчанию)</translation>
     </message>
     <message>
+        <source>Startup entry</source>
+        <translation>Элемент автозагрузки</translation>
+    </message>
+    <message>
+        <source>Scheduled task state</source>
+        <translation>Состояние задачи планировщика</translation>
+    </message>
+    <message>
+        <source>Service start type</source>
+        <translation>Тип запуска службы</translation>
+    </message>
+    <message>
+        <source>Clear the startup state of %1 (%2)</source>
+        <translation>Сбросить состояние автозагрузки %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Disable %1 at startup (%2)</source>
+        <translation>Отключить %1 в автозагрузке (%2)</translation>
+    </message>
+    <message>
+        <source>Enable %1 at startup (%2)</source>
+        <translation>Включить %1 в автозагрузке (%2)</translation>
+    </message>
+    <message>
+        <source>Enable the scheduled task %1</source>
+        <translation>Включить задачу планировщика %1</translation>
+    </message>
+    <message>
+        <source>Disable the scheduled task %1</source>
+        <translation>Отключить задачу планировщика %1</translation>
+    </message>
+    <message>
+        <source>Change the start type of the service %1 from %2 to %3</source>
+        <translation>Изменить тип запуска службы %1 с «%2» на «%3»</translation>
+    </message>
+    <message>
         <source>Delete the shared DLL count of %1, which the installer created</source>
         <translation>Удалить счётчик общей DLL %1, созданный установщиком</translation>
     </message>
@@ -616,6 +652,46 @@
         <translation>Изменено</translation>
     </message>
     <message>
+        <source>Cleared</source>
+        <translation>Сброшено</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Отключено</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Включено</translation>
+    </message>
+    <message>
+        <source>Start type changed</source>
+        <translation>Тип запуска изменён</translation>
+    </message>
+    <message>
+        <source>its state has changed since</source>
+        <translation>его состояние с тех пор изменилось</translation>
+    </message>
+    <message>
+        <source>Boot</source>
+        <translation>Загрузка</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation>Система</translation>
+    </message>
+    <message>
+        <source>Automatic (delayed start)</source>
+        <translation>Автоматически (отложенный запуск)</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Автоматически</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <translation>Вручную</translation>
+    </message>
+    <message>
         <source>Unfinished</source>
         <translation>Не завершено</translation>
     </message>
@@ -801,6 +877,181 @@
     <message>
         <source>error %1</source>
         <translation>ошибка %1</translation>
+    </message>
+</context>
+<context>
+    <name>StartupText</name>
+    <message>
+        <source>Run</source>
+        <translation>Run</translation>
+    </message>
+    <message>
+        <source>RunOnce</source>
+        <translation>RunOnce</translation>
+    </message>
+    <message>
+        <source>RunOnceEx</source>
+        <translation>RunOnceEx</translation>
+    </message>
+    <message>
+        <source>Startup folder</source>
+        <translation>Папка автозагрузки</translation>
+    </message>
+    <message>
+        <source>Scheduled task</source>
+        <translation>Задача планировщика</translation>
+    </message>
+    <message>
+        <source>Service</source>
+        <translation>Служба</translation>
+    </message>
+    <message>
+        <source>%1 (32-bit)</source>
+        <translation>%1 (32-бит)</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Включено</translation>
+    </message>
+    <message>
+        <source>Disabled completely</source>
+        <translation>Отключено полностью</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Отключено</translation>
+    </message>
+    <message>
+        <source>Runs at every sign-in. Windows keeps no enabled or disabled state for this key, so it can only be deleted.</source>
+        <translation>Запускается при каждом входе в систему. Windows не хранит для этого раздела состояние «включено» или «отключено», поэтому его можно только удалить.</translation>
+    </message>
+    <message>
+        <source>Enabled in Task Manager&apos;s list of startup apps</source>
+        <translation>Включено в списке автозагрузки диспетчера задач</translation>
+    </message>
+    <message>
+        <source>Disabled in Task Manager&apos;s list of startup apps</source>
+        <translation>Отключено в списке автозагрузки диспетчера задач</translation>
+    </message>
+    <message>
+        <source>Runs once at the next sign-in, then Windows deletes it. It has no disabled state, so it can only be deleted.</source>
+        <translation>Запускается один раз при следующем входе в систему, затем Windows удаляет запись. Состояния «отключено» у неё нет, поэтому её можно только удалить.</translation>
+    </message>
+    <message>
+        <source>Runs once at the next start, then Windows deletes it. It has no disabled state, so it can only be deleted.</source>
+        <translation>Запускается один раз при следующем запуске Windows, затем Windows удаляет запись. Состояния «отключено» у неё нет, поэтому её можно только удалить.</translation>
+    </message>
+    <message>
+        <source>The scheduled task is enabled</source>
+        <translation>Задача планировщика включена</translation>
+    </message>
+    <message>
+        <source>The scheduled task is disabled</source>
+        <translation>Задача планировщика отключена</translation>
+    </message>
+    <message>
+        <source>Start type: %1</source>
+        <translation>Тип запуска: %1</translation>
+    </message>
+    <message>
+        <source>Machine</source>
+        <translation>Компьютер</translation>
+    </message>
+    <message>
+        <source>Not checked</source>
+        <translation>Не проверялась</translation>
+    </message>
+    <message>
+        <source>Valid</source>
+        <translation>Действительна</translation>
+    </message>
+    <message>
+        <source>Valid, signed by %1</source>
+        <translation>Действительна, подписано: %1</translation>
+    </message>
+    <message>
+        <source>Not signed</source>
+        <translation>Нет подписи</translation>
+    </message>
+    <message>
+        <source>Not valid (signed by %1)</source>
+        <translation>Недействительна (подписано: %1)</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Больше нет в списке; обновите по F5</translation>
+    </message>
+    <message>
+        <source>Windows&apos; own entry: Avel never changes it</source>
+        <translation>Собственный элемент Windows: Avel никогда его не изменяет</translation>
+    </message>
+    <message>
+        <source>Has no disabled state: it can only be deleted</source>
+        <translation>Не имеет состояния «отключено»: его можно только удалить</translation>
+    </message>
+    <message>
+        <source>Already enabled</source>
+        <translation>Уже включено</translation>
+    </message>
+    <message>
+        <source>Already disabled</source>
+        <translation>Уже отключено</translation>
+    </message>
+    <message>
+        <source>The Task Scheduler couldn&apos;t be read, so no scheduled tasks are listed.</source>
+        <translation>Не удалось прочитать планировщик заданий, поэтому задачи планировщика не показаны.</translation>
+    </message>
+    <message>
+        <source>The services couldn&apos;t be read, so no services are listed.</source>
+        <translation>Не удалось прочитать службы, поэтому службы не показаны.</translation>
+    </message>
+    <message>
+        <source>Disable startup entry %1 completely</source>
+        <translation>Полностью отключить элемент автозагрузки %1</translation>
+    </message>
+    <message>
+        <source>Disable startup entry %1</source>
+        <translation>Отключить элемент автозагрузки %1</translation>
+    </message>
+    <message>
+        <source>Enable startup entry %1</source>
+        <translation>Включить элемент автозагрузки %1</translation>
+    </message>
+    <message>
+        <source>Delete startup entry %1</source>
+        <translation>Удалить элемент автозагрузки %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s) completely</source>
+        <translation>
+            <numerusform>Полностью отключить %n элемент автозагрузки</numerusform>
+            <numerusform>Полностью отключить %n элемента автозагрузки</numerusform>
+            <numerusform>Полностью отключить %n элементов автозагрузки</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Отключить %n элемент автозагрузки</numerusform>
+            <numerusform>Отключить %n элемента автозагрузки</numerusform>
+            <numerusform>Отключить %n элементов автозагрузки</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Enable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Включить %n элемент автозагрузки</numerusform>
+            <numerusform>Включить %n элемента автозагрузки</numerusform>
+            <numerusform>Включить %n элементов автозагрузки</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)</source>
+        <translation>
+            <numerusform>Удалить %n элемент автозагрузки</numerusform>
+            <numerusform>Удалить %n элемента автозагрузки</numerusform>
+            <numerusform>Удалить %n элементов автозагрузки</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -1567,6 +1818,13 @@
     </message>
 </context>
 <context>
+    <name>avel::app::HiveAccess</name>
+    <message>
+        <source>Waiting for a scan elsewhere in Avel to finish…</source>
+        <translation>Ожидание завершения поиска в другой части Avel…</translation>
+    </message>
+</context>
+<context>
     <name>avel::app::InstallTraceDialog</name>
     <message>
         <source>Install and trace</source>
@@ -1956,6 +2214,14 @@ Left by %2</source>
         <translation>Вернуть остатки, удалённые Avel за последние 30 дней</translation>
     </message>
     <message>
+        <source>&amp;Startup…</source>
+        <translation>&amp;Автозагрузка…</translation>
+    </message>
+    <message>
+        <source>See and change what starts with Windows, for the machine and every user</source>
+        <translation>Посмотреть и изменить, что запускается вместе с Windows, для компьютера и каждого пользователя</translation>
+    </message>
+    <message>
         <source>&amp;View</source>
         <translation>&amp;Вид</translation>
     </message>
@@ -2134,6 +2400,10 @@ Left by %2</source>
     <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>That program is no longer listed; refresh with F5.</source>
+        <translation>Этой программы больше нет в списке; обновите по F5.</translation>
     </message>
     <message>
         <source>Interrupted removal</source>
@@ -2387,6 +2657,464 @@ Left by %2</source>
     <message>
         <source>Continue</source>
         <translation>Продолжить</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::StartupTableModel</name>
+    <message>
+        <source>Name</source>
+        <translation>Название</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Состояние</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Источник</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Издатель</translation>
+    </message>
+    <message>
+        <source>Command</source>
+        <translation>Команда</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::StartupWindow</name>
+    <message>
+        <source>Avel is changing startup entries. Close the window once that is done.</source>
+        <translation>Avel изменяет элементы автозагрузки. Закройте окно, когда изменение завершится.</translation>
+    </message>
+    <message>
+        <source>Startup</source>
+        <translation>Автозагрузка</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Обновить</translation>
+    </message>
+    <message>
+        <source>List the startup entries again (F5)</source>
+        <translation>Заново получить список автозагрузки (F5)</translation>
+    </message>
+    <message>
+        <source>&amp;Enable</source>
+        <translation>&amp;Включить</translation>
+    </message>
+    <message>
+        <source>Let the selected entries start with Windows again</source>
+        <translation>Снова разрешить выбранным элементам запускаться вместе с Windows</translation>
+    </message>
+    <message>
+        <source>&amp;Disable</source>
+        <translation>О&amp;тключить</translation>
+    </message>
+    <message>
+        <source>Keep the selected entries from starting with Windows. A service is set to start manually, when a program asks for it.</source>
+        <translation>Не давать выбранным элементам запускаться вместе с Windows. Служба переводится на ручной запуск: она запустится, когда её запросит программа.</translation>
+    </message>
+    <message>
+        <source>Disable &amp;completely</source>
+        <translation>Отключить по&amp;лностью</translation>
+    </message>
+    <message>
+        <source>Set the selected services to Disabled: they never start</source>
+        <translation>Перевести выбранные службы в состояние «Отключена»: они не будут запускаться совсем</translation>
+    </message>
+    <message>
+        <source>De&amp;lete…</source>
+        <translation>&amp;Удалить…</translation>
+    </message>
+    <message>
+        <source>Delete the selected entries: the value, file, task or service (Del)</source>
+        <translation>Удалить выбранные элементы: параметр реестра, файл, задачу или службу (Del)</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>Отменить последнее &amp;изменение</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>&amp;Центр отмены…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Всё, что Avel изменил за последние 30 дней, — чтобы вернуть</translation>
+    </message>
+    <message>
+        <source>&amp;Open file location</source>
+        <translation>Открыть &amp;расположение файла</translation>
+    </message>
+    <message>
+        <source>&amp;Copy command</source>
+        <translation>&amp;Копировать команду</translation>
+    </message>
+    <message>
+        <source>&amp;Go to program</source>
+        <translation>Перейти к &amp;программе</translation>
+    </message>
+    <message>
+        <source>Show the program this entry belongs to in the main window</source>
+        <translation>Показать в главном окне программу, которой принадлежит этот элемент</translation>
+    </message>
+    <message>
+        <source>Open in &amp;Registry Editor</source>
+        <translation>Открыть в редакторе р&amp;еестра</translation>
+    </message>
+    <message>
+        <source>Open &amp;Task Scheduler</source>
+        <translation>Открыть планировщик &amp;заданий</translation>
+    </message>
+    <message>
+        <source>Open &amp;Services</source>
+        <translation>Открыть &amp;службы</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Найти</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Панель инструментов</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Фильтры</translation>
+    </message>
+    <message>
+        <source>Search by name, command or publisher (Ctrl+F)</source>
+        <translation>Поиск по названию, команде или издателю (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Поиск</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Источник</translation>
+    </message>
+    <message>
+        <source>All sources</source>
+        <translation>Все источники</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Все пользователи</translation>
+    </message>
+    <message>
+        <source>Machine (all users)</source>
+        <translation>Компьютер (все пользователи)</translation>
+    </message>
+    <message>
+        <source>Listing startup entries…</source>
+        <translation>Получение списка автозагрузки…</translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Отменить последнее изменение, сделанное в этом окне (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Отменить «%1» (Ctrl+Z)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s)</source>
+        <translation>
+            <numerusform>%n элемент</numerusform>
+            <numerusform>%n элемента</numerusform>
+            <numerusform>%n элементов</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n entry(s)</source>
+        <translation>
+            <numerusform>Показано %1 из %n элемента</numerusform>
+            <numerusform>Показано %1 из %n элементов</numerusform>
+            <numerusform>Показано %1 из %n элементов</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>%n отключён</numerusform>
+            <numerusform>%n отключены</numerusform>
+            <numerusform>%n отключено</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Another Avel process was changing the system, so services Avel disabled may be missing from the list. Refresh with F5.</source>
+        <translation>Другой процесс Avel изменял систему, поэтому в списке могут отсутствовать службы, отключённые Avel. Обновите по F5.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n предупреждение</numerusform>
+            <numerusform>%n предупреждения</numerusform>
+            <numerusform>%n предупреждений</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an entry to see its details.</source>
+        <translation>Выберите элемент, чтобы увидеть подробности.</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Состояние</translation>
+    </message>
+    <message>
+        <source>Command</source>
+        <translation>Команда</translation>
+    </message>
+    <message>
+        <source>None: the task runs a COM handler</source>
+        <translation>Нет: задача запускает COM-обработчик</translation>
+    </message>
+    <message>
+        <source>None: an advertised shortcut, which Windows Installer resolves when it runs</source>
+        <translation>Нет: это объявленный (advertised) ярлык, его цель Windows Installer определяет при запуске</translation>
+    </message>
+    <message>
+        <source>(file not found)</source>
+        <translation>(файл не найден)</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Файл</translation>
+    </message>
+    <message>
+        <source>Signature</source>
+        <translation>Подпись</translation>
+    </message>
+    <message>
+        <source>Product</source>
+        <translation>Продукт</translation>
+    </message>
+    <message>
+        <source>Company</source>
+        <translation>Компания</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Версия</translation>
+    </message>
+    <message>
+        <source>Program</source>
+        <translation>Программа</translation>
+    </message>
+    <message>
+        <source>No installed program&apos;s folder holds the file</source>
+        <translation>Файл не лежит в папке ни одной установленной программы</translation>
+    </message>
+    <message>
+        <source>Stored in</source>
+        <translation>Где хранится</translation>
+    </message>
+    <message>
+        <source>Registry key</source>
+        <translation>Раздел реестра</translation>
+    </message>
+    <message>
+        <source>State kept in</source>
+        <translation>Где хранится состояние</translation>
+    </message>
+    <message>
+        <source>No value yet: enabled</source>
+        <translation>Параметра пока нет: включено</translation>
+    </message>
+    <message>
+        <source>Delete removes</source>
+        <translation>Удаление уберёт</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Идентификатор</translation>
+    </message>
+    <message>
+        <source>Windows&apos; own entry: it runs a file of Windows itself, from the Windows folder, signed by Microsoft. Avel lists it but never changes it.</source>
+        <translation>Собственный элемент Windows: он запускает файл самой Windows из папки Windows, подписанный Microsoft. Avel показывает его, но никогда не изменяет.</translation>
+    </message>
+    <message>
+        <source>Avel disabled this service. Enable sets it to start automatically again.</source>
+        <translation>Эту службу отключил Avel. «Включить» снова сделает её запуск автоматическим.</translation>
+    </message>
+    <message>
+        <source>The file it runs is missing, so it does nothing at startup. Deleting it is safe.</source>
+        <translation>Файл, который он запускает, отсутствует, поэтому при запуске он ничего не делает. Его можно смело удалить.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) selected; an action applies to each of them it fits. Details of this one:</source>
+        <translation>
+            <numerusform>Выбран %n элемент; действие применяется к каждому, к которому подходит. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n элемента; действие применяется к каждому, к которому подходит. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n элементов; действие применяется к каждому, к которому подходит. Подробности этого:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Нечего изменять: пропущен %n выбранный элемент.</numerusform>
+            <numerusform>Нечего изменять: пропущено %n выбранных элемента.</numerusform>
+            <numerusform>Нечего изменять: пропущено %n выбранных элементов.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to delete: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Нечего удалять: пропущен %n выбранный элемент.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n выбранных элемента.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n выбранных элементов.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This removes:</source>
+        <translation>Будет удалено:</translation>
+    </message>
+    <message>
+        <source>Avel backs it up first: Undo last change (Ctrl+Z) or the Undo Center puts it back within 30 days.</source>
+        <translation>Сначала Avel сохраняет резервную копию: «Отменить последнее изменение» (Ctrl+Z) или Центр отмены вернут всё в течение 30 дней.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected entry(s) will be skipped:</source>
+        <translation>
+            <numerusform>Будет пропущен %n выбранный элемент:</numerusform>
+            <numerusform>Будут пропущены %n выбранных элемента:</numerusform>
+            <numerusform>Будут пропущены %n выбранных элементов:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete startup entries</source>
+        <translation>Удаление элементов автозагрузки</translation>
+    </message>
+    <message>
+        <source>Delete the startup entry %1?</source>
+        <translation>Удалить элемент автозагрузки %1?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)?</source>
+        <translation>
+            <numerusform>Удалить %n элемент автозагрузки?</numerusform>
+            <numerusform>Удалить %n элемента автозагрузки?</numerusform>
+            <numerusform>Удалить %n элементов автозагрузки?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Выполняется: %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Другой процесс Avel сейчас изменяет систему. Ничего не изменено; повторите, когда он закончит.</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel не смог записать резервную копию этого изменения, поэтому ничего не изменено.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled completely.</source>
+        <translation>
+            <numerusform>%n элемент полностью отключён.</numerusform>
+            <numerusform>%n элемента полностью отключены.</numerusform>
+            <numerusform>%n элементов полностью отключено.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled.</source>
+        <translation>
+            <numerusform>%n элемент отключён.</numerusform>
+            <numerusform>%n элемента отключены.</numerusform>
+            <numerusform>%n элементов отключено.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) enabled.</source>
+        <translation>
+            <numerusform>%n элемент включён.</numerusform>
+            <numerusform>%n элемента включены.</numerusform>
+            <numerusform>%n элементов включено.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) deleted.</source>
+        <translation>
+            <numerusform>%n элемент удалён.</numerusform>
+            <numerusform>%n элемента удалены.</numerusform>
+            <numerusform>%n элементов удалено.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n не удалось изменить.</numerusform>
+            <numerusform>%n не удалось изменить.</numerusform>
+            <numerusform>%n не удалось изменить.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n пропущен.</numerusform>
+            <numerusform>%n пропущены.</numerusform>
+            <numerusform>%n пропущено.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Отменить можно по Ctrl+Z или в Центре отмены.</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Отмена: %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1» нельзя отменить здесь: его резервная копия отсутствует или используется другим процессом Avel. Центр отмены показывает, что ещё можно вернуть.</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>В «%1» больше нечего отменять.</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Отменено: %1.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n элемент не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элемента не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элементов не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 is signed out, so their registry isn&apos;t loaded where Registry Editor sees it. In Registry Editor, File &gt; Load Hive opens their NTUSER.DAT.</source>
+        <translation>Пользователь %1 не выполнил вход, поэтому его реестр не загружен там, где его видит редактор реестра. В редакторе реестра его NTUSER.DAT открывает «Файл &gt; Загрузить куст».</translation>
     </message>
 </context>
 <context>

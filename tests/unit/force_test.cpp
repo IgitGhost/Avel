@@ -111,6 +111,22 @@ TEST_F(ForceTest, OwnerPrefersTheEntrySettingsLists) {
     EXPECT_EQ(owner.program->id, L"listed");
 }
 
+TEST_F(ForceTest, OwnerIndexAnswersForManyFiles) {
+    const std::vector<inventory::Program> programs = {
+        program(L"publisher", path(L"Contoso")),
+        program(L"fixture", path(LR"(Contoso\Fixture)")),
+    };
+    const OwnerIndex index(environment_, programs);
+    const auto* fixture = index.program_of(path(LR"(Contoso\Fixture\bin\app.exe)"));
+    ASSERT_NE(fixture, nullptr);
+    EXPECT_EQ(fixture->id, L"fixture");
+    const auto* publisher = index.program_of(path(LR"(Contoso\readme.txt)"));
+    ASSERT_NE(publisher, nullptr);
+    EXPECT_EQ(publisher->id, L"publisher");
+    EXPECT_EQ(index.program_of(path(LR"(Elsewhere\tool\x.exe)")), nullptr);
+    EXPECT_EQ(index.owner_of(path(LR"(Elsewhere\tool\x.exe)")).folder, path(LR"(Elsewhere\tool)"));
+}
+
 TEST_F(ForceTest, WithoutAnOwnerTheFilesFolderIsTheTarget) {
     const auto owner = owner_of(environment_, {}, path(LR"(Elsewhere\tool\x.exe)"));
     EXPECT_EQ(owner.program, nullptr);

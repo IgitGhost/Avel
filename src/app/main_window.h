@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QPointer>
 #include <QStringList>
 #include <QThreadPool>
 
@@ -39,6 +40,7 @@ class LanguageManager;
 class ProgramFilterModel;
 class ProgramTableModel;
 class ProgramTraces;
+class StartupWindow;
 class TraceController;
 class TraceStoreAccess;
 
@@ -86,6 +88,8 @@ private:
     void onHuntFinished(const std::shared_ptr<const Hunt>& hunt);
     void endProcess(std::uint32_t pid, const QString& name);
     void openUndoCenter();
+    // Tools > Startup...: one window, brought to the front when it is open already.
+    void openStartup();
     void onMaintenanceFinished(const QStringList& settled);
     void openInstallLocation();
     void showTableMenu(const QPoint& position);
@@ -126,6 +130,7 @@ private:
     QAction* previewLeftoversAction_ = nullptr;
     QAction* orphansAction_ = nullptr;
     QAction* undoCenterAction_ = nullptr;
+    QAction* startupAction_ = nullptr;
     QAction* findAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* systemLanguageAction_ = nullptr;
@@ -154,7 +159,8 @@ private:
     QAction* stopTraceAction_ = nullptr;
     QAction* tracesAction_ = nullptr;
 
-    ForceFlow* forceFlow_ = nullptr;  // The one running, if any; it deletes itself
+    ForceFlow* forceFlow_ = nullptr;         // The one running, if any; it deletes itself
+    QPointer<StartupWindow> startupWindow_;  // A top-level window of its own; it deletes itself on close
     // A leftover preview, the orphan finder or a Hunter lookup runs on the worker pool.
     bool busy_ = false;
     // Declared last so it's destroyed first: its destructor waits for a running task.

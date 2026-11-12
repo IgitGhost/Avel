@@ -2,6 +2,7 @@
 
 #include "core/changes/executor.h"
 #include "core/platform/elevation.h"
+#include "hive_access.h"
 #include "leftover_text.h"
 #include "program_text.h"
 
@@ -33,6 +34,8 @@ void ChangeStoreAccess::startMaintenance() {
     }
     pool_.start([this, store = store_] {
         QStringList settled;
+        // Settling a set can write users' hives (hive_access.h).
+        const auto hives = exclusiveHiveAccess();
         // Another Avel process at work does this itself when it's done.
         if (const auto guard = store->lock(std::chrono::seconds(5))) {
             for (const auto& id : changes::recover(*store)) {

@@ -185,6 +185,24 @@ bool text_list_from_json(const Json& json, std::vector<std::wstring>& items) {
 
 }  // namespace
 
+Json to_json(const leftovers::ServiceStart& start) {
+    Json json;
+    json["start_type"] = start.start_type;
+    json["delayed"] = start.delayed;
+    return json;
+}
+
+bool from_json(const Json& json, leftovers::ServiceStart& start) {
+    const auto type = json.is_object() ? json.find("start_type") : json.end();
+    const auto delayed = json.is_object() ? json.find("delayed") : json.end();
+    if (type == json.end() || !type->is_number_unsigned() || type->get<std::uint64_t>() > 0xFFFFFFFF ||
+        delayed == json.end() || !delayed->is_boolean()) {
+        return false;
+    }
+    start = {type->get<std::uint32_t>(), delayed->get<bool>()};
+    return true;
+}
+
 Json to_json(const leftovers::Location& location) {
     using namespace leftovers;
     Json json;
@@ -220,6 +238,22 @@ Json to_json(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 json["kind"] = "firewall-rule";
                 put_text(json, "rule_id", item.rule_id);
+            } else if constexpr (std::is_same_v<T, StartupApprovedLocation>) {
+                json["kind"] = "startup-approved";
+                put_address(json, item.key);
+                put_text(json, "value", item.value_name);
+                json["expected"] = edit_value_to_json(item.expected);
+                json["desired"] = edit_value_to_json(item.desired);
+            } else if constexpr (std::is_same_v<T, TaskStateLocation>) {
+                json["kind"] = "task-state";
+                put_text(json, "path", item.path);
+                json["enabled_before"] = item.enabled_before;
+                json["enabled_after"] = item.enabled_after;
+            } else if constexpr (std::is_same_v<T, ServiceStartLocation>) {
+                json["kind"] = "service-start";
+                put_text(json, "name", item.name);
+                json["before"] = to_json(item.before);
+                json["after"] = to_json(item.after);
             } else {
                 static_assert(std::is_same_v<T, ValueEditLocation>);
                 json["kind"] = "value-edit";
@@ -294,6 +328,43 @@ bool from_json(const Json& json, leftovers::Location& location) {
             return false;
         }
         location = std::move(edit);
+        return true;
+    }
+    if (kind == "startup-approved") {
+        StartupApprovedLocation approval;
+        const auto value = text("value");
+        if (!get_address(json, approval.key) || !value || !json.contains("expected") ||
+            !json.contains("desired")) {
+            return false;
+        }
+        approval.value_name = *value;
+        if (!edit_value_from_json(json["expected"], approval.value_name, approval.expected) ||
+            !edit_value_from_json(json["desired"], approval.value_name, approval.desired)) {
+            return false;
+        }
+        location = std::move(approval);
+        return true;
+    }
+    if (kind == "task-state") {
+        const auto path = text("path");
+        const auto before = json.find("enabled_before");
+        const auto after = json.find("enabled_after");
+        if (!path || before == json.end() || !before->is_boolean() || after == json.end() ||
+            !after->is_boolean()) {
+            return false;
+        }
+        location = TaskStateLocation{*path, before->get<bool>(), after->get<bool>()};
+        return true;
+    }
+    if (kind == "service-start") {
+        ServiceStartLocation service;
+        const auto name = text("name");
+        if (!name || !json.contains("before") || !json.contains("after") ||
+            !from_json(json["before"], service.before) || !from_json(json["after"], service.after)) {
+            return false;
+        }
+        service.name = *name;
+        location = std::move(service);
         return true;
     }
     return false;

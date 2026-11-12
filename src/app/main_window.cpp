@@ -39,15 +39,18 @@
 #include "core/platform/processes.h"
 #include "core/uninstall/registration.h"
 #include "details_view.h"
+#include "hive_access.h"
 #include "icon_loader.h"
 #include "inventory_loader.h"
 #include "language_manager.h"
 #include "leftover_dialog.h"
+#include "menu_copy.h"
 #include "program_filter_model.h"
 #include "program_table_model.h"
 #include "program_text.h"
 #include "program_traces.h"
 #include "running_processes_dialog.h"
+#include "startup_window.h"
 #include "trace_controller.h"
 #include "trace_progress_dialog.h"
 #include "trace_review_dialog.h"
@@ -74,17 +77,6 @@ constexpr auto kCategoryKey = "window/category"_L1;
 
 // The orphan finder's items all go under one heading: their own owner ids name each folder.
 constexpr wchar_t kOrphansId[] = L"orphans";
-
-// Popup menus show the window's actions through copies. Qt's accessibility keeps one interface
-// per action, made for the first menu that shows it; if that is a popup, which is gone once it
-// closes, screen readers and UI Automation no longer see the action in the menu bar.
-void addCopy(QMenu& menu, QAction* action) {
-    QAction* copy = menu.addAction(action->icon(), action->text());
-    copy->setEnabled(action->isEnabled());
-    copy->setShortcut(action->shortcut());
-    copy->setToolTip(action->toolTip());
-    QObject::connect(copy, &QAction::triggered, action, &QAction::trigger);
-}
 
 }  // namespace
 
@@ -177,6 +169,10 @@ void MainWindow::createActions() {
     undoCenterAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowBack), QString(), this);
     connect(undoCenterAction_, &QAction::triggered, this, &MainWindow::openUndoCenter);
 
+    startupAction_ = new QAction(this);
+    startupAction_->setObjectName(u"startupManagerAction"_s);
+    connect(startupAction_, &QAction::triggered, this, &MainWindow::openStartup);
+
     findAction_ = new QAction(this);
     findAction_->setShortcut(QKeySequence::Find);
     connect(findAction_, &QAction::triggered, this, [this] {
@@ -239,6 +235,8 @@ void MainWindow::createMenus() {
     }
 
     toolsMenu_ = menuBar()->addMenu(QString());
+    toolsMenu_->addAction(startupAction_);
+    toolsMenu_->addSeparator();
     toolsMenu_->addAction(orphansAction_);
     toolsMenu_->addAction(undoCenterAction_);
 
@@ -353,6 +351,15 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+    // The Startup window is a top-level window of its own: it goes with this one. It refuses while
+    // it changes the system.
+    if (startupWindow_) {
+        if (!startupWindow_->close()) {
+            event->ignore();
+            return;
+        }
+        delete startupWindow_;  // Now, not once the event loop is gone: it waits for its worker
+    }
     saveLayout();
     QMainWindow::closeEvent(event);
 }
@@ -384,6 +391,8 @@ void MainWindow::retranslateUi() {
     hunter_->setAccessibleName(tr("Hunter"));
     undoCenterAction_->setText(tr("&Undo Center…"));
     undoCenterAction_->setToolTip(tr("Put back leftovers Avel removed in the last 30 days"));
+    startupAction_->setText(tr("&Startup…"));
+    startupAction_->setToolTip(tr("See and change what starts with Windows, for the machine and every user"));
     viewMenu_->setTitle(tr("&View"));
     languageMenu_->setTitle(tr("&Language"));
     systemLanguageAction_->setText(tr("System default"));
@@ -475,6 +484,9 @@ void MainWindow::onScanFinished(std::shared_ptr<const inventory::Inventory> inve
     inventory_ = std::move(inventory);
     model_->setInventory(inventory_);
     programTraces_->refresh(inventory_);
+    if (startupWindow_) {
+        startupWindow_->setInventory(inventory_);
+    }
     iconLoader_->load(model_->iconSources());
 
     refreshAction_->setEnabled(true);
@@ -659,6 +671,7 @@ void MainWindow::previewLeftovers() {
     auto traces = traces_->store();
     workers_.start([this, inventory = inventory_, programs, names = std::move(names), traces] {
         auto targets = captureTargets(programs, *inventory, traces.get());
+        const auto hives = sharedHiveAccess();
         const leftovers::LiveEnvironment environment;
         auto scan = std::make_shared<const leftovers::ScanResult>(
             leftovers::scan_leftovers(environment.environment(), targets, inventory->programs));
@@ -683,6 +696,7 @@ void MainWindow::onPreviewFinished(std::shared_ptr<const leftovers::ScanResult> 
     preview->setRescan(
         [inventory = inventory_, targets = std::move(targets)](const leftovers::ScanOptions& options,
                                                                bool useTraces) {
+            const auto hives = sharedHiveAccess();
             const leftovers::LiveEnvironment environment;
             return leftovers::scan_leftovers(environment.environment(),
                                              useTraces ? targets : LeftoverDialog::withoutTraces(targets),
@@ -700,6 +714,7 @@ void MainWindow::findOrphans() {
     updateActions();
     statusBar()->showMessage(tr("Looking for orphaned folders…"));
     workers_.start([this, inventory = inventory_] {
+        const auto hives = sharedHiveAccess();
         const leftovers::LiveEnvironment environment;
         auto result = leftovers::find_orphans(environment.environment(), inventory->programs);
         for (auto& leftover : result.leftovers) {
@@ -762,6 +777,7 @@ void MainWindow::onWindowPicked(const HunterTarget::Window& window, QPoint posit
         const auto services = platform::service_process_ids();
         hunt->service = std::find(services.begin(), services.end(), window.pid) != services.end();
         if (!hunt->image.empty()) {
+            const auto hives = sharedHiveAccess();
             const leftovers::LiveEnvironment live;
             hunt->owner = force::owner_of(live.environment(), inventory->programs, hunt->image);
             if (!hunt->owner.program) {
@@ -877,6 +893,33 @@ void MainWindow::openUndoCenter() {
         }
     });
     center->open();
+}
+
+void MainWindow::openStartup() {
+    if (!startupWindow_) {
+        // No parent: an owned window would always stay above this one, and "Go to program" shows
+        // the program here.
+        startupWindow_ = new StartupWindow(stores_, inventory_);
+        startupWindow_->setAttribute(Qt::WA_DeleteOnClose);
+        connect(startupWindow_, &StartupWindow::programRequested, this, [this](const QString& programId) {
+            if (!selectProgram(programId.toStdWString())) {
+                statusBar()->showMessage(tr("That program is no longer listed; refresh with F5."), 5000);
+            }
+            if (isMinimized()) {
+                showNormal();
+            }
+            raise();
+            activateWindow();
+        });
+        connect(startupWindow_, &StartupWindow::changesRestored, loader_, &InventoryLoader::start);
+    }
+    if (startupWindow_->isMinimized()) {
+        startupWindow_->showNormal();
+    } else {
+        startupWindow_->show();
+    }
+    startupWindow_->raise();
+    startupWindow_->activateWindow();
 }
 
 void MainWindow::onMaintenanceFinished(const QStringList& settled) {

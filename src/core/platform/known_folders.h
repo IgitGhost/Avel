@@ -19,6 +19,7 @@ struct UserFolders {
     std::wstring local_low_app_data;  // AppData\LocalLow
     std::wstring programs;            // Start Menu\Programs
     std::wstring desktop;
+    std::wstring startup;             // Start Menu\Programs\Startup
     std::vector<std::wstring> all;    // every shell folder the user has, plus the profile and AppData roots
 };
 
@@ -33,6 +34,7 @@ struct MachineFolders {
     std::wstring program_data;
     std::wstring common_programs;    // the all-users Start Menu\Programs
     std::wstring common_desktop;     // the Public desktop
+    std::wstring common_startup;     // the all-users Start Menu\Programs\Startup
     std::wstring users;              // C:\Users
     std::vector<std::wstring> all;   // every fixed and common known folder
 };

@@ -15,7 +15,11 @@ namespace avel::changes {
 namespace {
 
 using leftovers::Location;
+using leftovers::ServiceStart;
+using leftovers::ServiceStartLocation;
+using leftovers::StartupApprovedLocation;
 using leftovers::TaskLocation;
+using leftovers::TaskStateLocation;
 using leftovers::ValueEditKind;
 using leftovers::ValueEditLocation;
 using platform::Hive;
@@ -61,6 +65,14 @@ TEST(SerializationTest, EveryLocationKindRoundTrips) {
         TaskLocation{LR"(\Contoso)", true},
         leftovers::PackageLocation{L"Contoso.App_1.0.0.0_x64__abc", L"S-1-5-21-1-2-3-1001"},
         leftovers::FirewallRuleLocation{L"{rule}"},
+        StartupApprovedLocation{
+            {Hive::User, L"S-1-5-21-1-2-3-1001",
+             LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+            L"Contoso",
+            std::nullopt,
+            raw(L"Contoso", REG_BINARY, bytes({3, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}))},
+        TaskStateLocation{LR"(\Contoso\Updater)", true, false},
+        ServiceStartLocation{L"ContosoService", {SERVICE_AUTO_START, true}, {SERVICE_DEMAND_START, true}},
     };
     for (const auto& location : locations) {
         const Location loaded = round_trip(location);
@@ -153,6 +165,116 @@ TEST(SerializationTest, MalformedValueEditsAreRejected) {
         broken[field] = value;
         EXPECT_FALSE(from_json(broken, loaded)) << field;
     }
+}
+
+TEST(SerializationTest, StateChangesRoundTripExactly) {
+    // A user's approval with a name UTF-8 can't carry, disabled from enabled; the machine's, deleted.
+    const StartupApprovedLocation disable{
+        {Hive::User, L"S-1-5-21-1-2-3-1001",
+         LR"(Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+        L"Contoso \xD800 Agent",
+        raw(L"Contoso \xD800 Agent", REG_BINARY, bytes({2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})),
+        raw(L"Contoso \xD800 Agent", REG_BINARY,
+            bytes({3, 0, 0, 0, 0x7f, 0x6e, 0x5d, 0x4c, 0x3b, 0x2a, 0xdb, 1}))};
+    const StartupApprovedLocation clear{
+        {Hive::Machine, L"", LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32)"},
+        L"",
+        raw(L"", REG_BINARY, bytes({1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})),
+        std::nullopt};
+    for (const auto& approval : {disable, clear}) {
+        const Location loaded = round_trip(approval);
+        ASSERT_TRUE(std::holds_alternative<StartupApprovedLocation>(loaded));
+        const auto& back = std::get<StartupApprovedLocation>(loaded);
+        EXPECT_TRUE(platform::same_address(back.key, approval.key));
+        EXPECT_EQ(back.value_name, approval.value_name);
+        expect_same(back.expected, approval.expected);
+        expect_same(back.desired, approval.desired);
+    }
+
+    for (const bool enable : {false, true}) {
+        const Location loaded = round_trip(TaskStateLocation{LR"(\Contoso\Updater)", !enable, enable});
+        const auto& task = std::get<TaskStateLocation>(loaded);
+        EXPECT_EQ(task.path, LR"(\Contoso\Updater)");
+        EXPECT_EQ(task.enabled_before, !enable);
+        EXPECT_EQ(task.enabled_after, enable);
+    }
+
+    const ServiceStartLocation service{
+        L"Contoso\xDC00Svc", {SERVICE_AUTO_START, true}, {SERVICE_DISABLED, false}};
+    const Location loaded = round_trip(service);
+    const auto& back = std::get<ServiceStartLocation>(loaded);
+    EXPECT_EQ(back.name, service.name);
+    EXPECT_EQ(back.before, service.before);
+    EXPECT_EQ(back.after, service.after);
+}
+
+TEST(SerializationTest, AStateChangesIdentityNamesOnlyTheItem) {
+    const auto key = leftovers::StartupApprovedLocation{
+        {Hive::Machine, L"", LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+        L"Contoso",
+        std::nullopt,
+        std::nullopt};
+    auto other = key;
+    other.desired = raw(L"Contoso", REG_BINARY, bytes({2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
+    EXPECT_EQ(leftovers::identity(key), leftovers::identity(other));
+    EXPECT_EQ(
+        leftovers::identity(key),
+        LR"(approved:hklm\software\microsoft\windows\currentversion\explorer\startupapproved\run\\contoso)");
+    EXPECT_EQ(leftovers::identity(TaskStateLocation{LR"(\Contoso\Updater)", true, false}),
+              leftovers::identity(TaskStateLocation{LR"(\CONTOSO\Updater)", false, true}));
+    EXPECT_EQ(leftovers::identity(ServiceStartLocation{L"Contoso", {2, false}, {3, false}}),
+              L"service-start:contoso");
+    // Never the same item as what removes it.
+    EXPECT_NE(leftovers::identity(TaskStateLocation{LR"(\Contoso)"}),
+              leftovers::identity(TaskLocation{LR"(\Contoso)"}));
+    EXPECT_NE(leftovers::identity(ServiceStartLocation{L"Contoso"}),
+              leftovers::identity(leftovers::ServiceLocation{L"Contoso"}));
+    EXPECT_EQ(leftovers::owner_sid(StartupApprovedLocation{{Hive::User, L"S-1-5-21-9", L"Software"}, L"x"}),
+              L"S-1-5-21-9");
+    EXPECT_EQ(leftovers::category_of(TaskStateLocation{}), leftovers::Category::Tasks);
+    EXPECT_EQ(leftovers::category_of(ServiceStartLocation{}), leftovers::Category::Services);
+    EXPECT_EQ(leftovers::category_of(key), leftovers::Category::Registry);
+}
+
+TEST(SerializationTest, MalformedStateChangesAreRejected) {
+    const Json approval = to_json(Location(StartupApprovedLocation{
+        {Hive::Machine, L"", LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"},
+        L"Contoso",
+        std::nullopt,
+        raw(L"Contoso", REG_BINARY, bytes({2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))}));
+    const Json task = to_json(Location(TaskStateLocation{LR"(\Contoso\Updater)", true, false}));
+    const Json service = to_json(Location(ServiceStartLocation{L"Contoso", {2, false}, {3, false}}));
+    Location loaded;
+    for (const auto* good : {&approval, &task, &service}) {
+        ASSERT_TRUE(from_json(*good, loaded)) << good->dump();
+    }
+    const auto expect_rejected = [&](const Json& good, const char* field, std::optional<Json> value) {
+        Json broken = good;
+        if (value) {
+            broken[field] = *value;
+        } else {
+            broken.erase(field);
+        }
+        EXPECT_FALSE(from_json(broken, loaded)) << broken.dump();
+    };
+    for (const char* field : {"hive", "path", "value", "expected", "desired"}) {
+        expect_rejected(approval, field, std::nullopt);
+    }
+    expect_rejected(approval, "expected", Json{{"type", 3}, {"data", "zz"}});
+    expect_rejected(approval, "desired", Json("02000000"));
+    for (const char* field : {"path", "enabled_before", "enabled_after"}) {
+        expect_rejected(task, field, std::nullopt);
+    }
+    expect_rejected(task, "enabled_after", Json(0));
+    expect_rejected(task, "enabled_before", Json("true"));
+    for (const char* field : {"name", "before", "after"}) {
+        expect_rejected(service, field, std::nullopt);
+    }
+    expect_rejected(service, "before", Json{{"start_type", 2}});
+    expect_rejected(service, "after", Json{{"start_type", -1}, {"delayed", false}});
+    expect_rejected(service, "after", Json{{"start_type", 0x100000000ull}, {"delayed", false}});
+    expect_rejected(service, "after", Json{{"start_type", 3}, {"delayed", 1}});
+    expect_rejected(service, "before", Json::array());
 }
 
 TEST(SerializationTest, AValueEditsIdentityHoldsWhatItDoes) {

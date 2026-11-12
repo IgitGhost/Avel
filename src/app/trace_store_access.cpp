@@ -3,6 +3,7 @@
 #include "core/inventory/inventory.h"
 #include "core/platform/elevation.h"
 #include "core/tracker/linking.h"
+#include "hive_access.h"
 #include "leftover_text.h"
 #include "program_text.h"
 
@@ -35,7 +36,7 @@ void TraceStoreAccess::startMaintenance() {
     pool_.start([this, store = store_] {
         inventory::ScanOptions scan;
         scan.appx = false;  // Avel doesn't trace packaged apps
-        const auto inventory = inventory::scan_inventory(scan);
+        const auto inventory = scanInventory(scan);
         // Without an inventory every linked trace would look uninstalled: then only tidy.
         const std::size_t deleted =
             inventory.programs.empty() ? store->purge() : store->purge([&inventory](tracker::TraceInfo& info) {

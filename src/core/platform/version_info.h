@@ -8,6 +8,7 @@ namespace avel::platform {
 struct FileProduct {
     std::wstring product_name;  // ProductName, or FileDescription when there is none
     std::wstring company_name;
+    std::wstring version;  // ProductVersion, or FileVersion when there is none
 };
 
 // Reads the first language of the file's version resource; empty fields when it has none.

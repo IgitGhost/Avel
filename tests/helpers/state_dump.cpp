@@ -128,6 +128,12 @@ std::string dump_service(const std::wstring& name) {
         const auto* value = reinterpret_cast<SERVICE_DESCRIPTIONW*>(description.data())->lpDescription;
         text += "description=" + (value ? to_utf8(value) : std::string()) + "\n";
     }
+    // The SCM's own flag: it reads the key's DelayedAutostart only at boot.
+    SERVICE_DELAYED_AUTO_START_INFO delayed{};
+    if (::QueryServiceConfig2W(service.get(), SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+                               reinterpret_cast<BYTE*>(&delayed), sizeof(delayed), &needed)) {
+        text += std::format("delayed={}\n", delayed.fDelayedAutostart != FALSE);
+    }
     needed = 0;
     ::QueryServiceObjectSecurity(service.get(), DACL_SECURITY_INFORMATION, nullptr, 0, &needed);
     std::vector<std::byte> security(needed);

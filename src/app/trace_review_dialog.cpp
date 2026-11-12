@@ -19,6 +19,7 @@
 #include "core/tracker/linking.h"
 #include "core/tracker/trace_items.h"
 #include "core/tracker/trace_source.h"
+#include "hive_access.h"
 #include "program_text.h"
 #include "right_elide_delegate.h"
 #include "trace_link_dialog.h"
@@ -170,8 +171,7 @@ void TraceReviewDialog::load() {
                 loaded->review = store->read_review(id);
                 inventory::ScanOptions scan;
                 scan.appx = false;  // Avel doesn't trace packaged apps
-                auto inventory =
-                    std::make_shared<const inventory::Inventory>(inventory::scan_inventory(scan));
+                auto inventory = std::make_shared<const inventory::Inventory>(scanInventory(scan));
                 // Tied as removing the program would tie them: to it while it's installed,
                 // otherwise to what the trace's link last recorded of it.
                 const auto resolved = tracker::resolve_trace_program(*loaded->info, *inventory);

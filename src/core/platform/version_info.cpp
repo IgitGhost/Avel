@@ -48,6 +48,10 @@ FileProduct file_product(const std::wstring& path) {
         product.product_name = read(L"FileDescription");
     }
     product.company_name = read(L"CompanyName");
+    product.version = read(L"ProductVersion");
+    if (product.version.empty()) {
+        product.version = read(L"FileVersion");
+    }
     return product;
 }
 

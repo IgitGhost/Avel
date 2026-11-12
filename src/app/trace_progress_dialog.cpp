@@ -18,6 +18,7 @@
 
 #include "core/inventory/inventory.h"
 #include "core/tracker/linking.h"
+#include "hive_access.h"
 #include "program_text.h"
 #include "trace_text.h"
 
@@ -178,18 +179,26 @@ void TraceProgressDialog::start() {
         options.arguments = request.arguments;
         options.description = request.description;
         auto outcome = std::make_shared<Outcome>();
+        // The trace's stop loads users' hives (hive_access.h): held from then until it's done.
+        std::shared_lock<std::shared_mutex> hives;
         outcome->result = tracker::install_and_trace(
-            *store, options, cancellation_, [this](const tracker::InstallTraceStatus& status) {
+            *store, options, cancellation_, [this, &hives](const tracker::InstallTraceStatus& status) {
+                if (status.phase == InstallTracePhase::Finishing && !hives.owns_lock()) {
+                    hives = sharedHiveAccess();
+                }
                 Status copy{
                     status.phase, status.step, status.watch, {status.running.begin(), status.running.end()}};
                 QMetaObject::invokeMethod(
                     this, [this, copy = std::move(copy)] { onStatus(copy); }, Qt::QueuedConnection);
             });
+        if (hives.owns_lock()) {
+            hives.unlock();
+        }
         if (const auto& trace = outcome->result.trace; trace && isFinished(trace->state)) {
             QMetaObject::invokeMethod(this, [this] { onLinking(); }, Qt::QueuedConnection);
             inventory::ScanOptions scan;
             scan.appx = false;  // Avel doesn't trace packaged apps
-            const auto inventory = inventory::scan_inventory(scan);
+            const auto inventory = scanInventory(scan);
             if (auto linked = tracker::link_trace(*store, trace->id, outcome->result.result, inventory,
                                                   outcome->linkError)) {
                 outcome->result.trace = std::move(*linked);

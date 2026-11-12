@@ -51,8 +51,9 @@ cmake --build --preset release --target deploy
 ```
 
 - Scenarios are `tests/sandbox/scenarios/<name>.ps1`: `logon`, `uninstall`, `leftovers`,
-  `removal`, `force`, `trace`, `trace_gui` (`trace`'s last round, the GUI's, alone). Each phase's
-  acceptance is one of them, and they end with
+  `removal`, `force`, `trace`, `trace_gui` (`trace`'s last round, the GUI's, alone), `startup`
+  (the Startup manager, with a signed-out second user). Each phase's acceptance is one of them, and
+  they end with
   `RESULT: PASS` or `RESULT: FAIL (n problem(s))` in `build\sandbox\results\<name>.txt` (also
   `<name>.json`, `<name>.log`).
 - The Sandbox maps `build\release\bin` live. Don't rebuild that preset while a scenario runs.
@@ -103,6 +104,8 @@ Modules under `src/core`, in pipeline order:
   - Registry trees are backed up exactly, with their security.
   - Files go to a 30-day quarantine.
   - Services and tasks are kept with their configuration.
+  - State changes (a `StartupApproved` value, a task's Enabled flag, a service's start type) record
+    before and after; execute and undo apply only while the item is as expected (ADR 0007).
   - Interrupted sets are settled at the next start.
   - The env var `AVEL_TEST_FAULT_AFTER=<n>` makes the CLI crash after n journal records, for
     recovery tests.
@@ -116,9 +119,20 @@ Modules under `src/core`, in pipeline order:
   - Known values (PATH and other environment variables, SharedDLLs) are saved exactly.
   - Noise rules are data (`noise_filter`).
   - Traces are stored one folder per trace under `%ProgramData%\Avel\Traces`.
+- `tools/`: Avel Tools (Phase 6, `docs/tools.md`). `startup` lists what starts with Windows for the
+  machine and every user, and `startup_changes` plans disable, enable and delete as ChangeSets.
+  - Only Windows' own files (a Microsoft product root, not WHQL) are protected; Microsoft's
+    applications are listed like any program.
+  - A signed-out user's hive loads privately only once per process: destroy a listing's
+    environment before running a ChangeSet that writes that hive. In avel.exe, hold
+    `sharedHiveAccess()` while a `LiveEnvironment` lives and `exclusiveHiveAccess()` around
+    every execute, restore and recovery (`src/app/hive_access.h`): on worker threads, before
+    the store lock. Scan the inventory with `scanInventory()`, which takes it shared.
 - `platform/`: Win32 wrappers shared by all of the above:
   - `nt_registry`: native `Nt*` registry calls, used for exact value backup and restore;
   - `record_folders`: the folder-per-record storage behind both ChangeSets and traces;
+  - `signature`: Authenticode, embedded then catalog, never the network;
+  - `shortcuts`, `scheduled_tasks`, `services`: read-only enumeration shared by leftovers and tools;
   - `user_profiles` / `user_hives`, `known_folders`, `paths`, `processes`, `usn_journal`.
 
 ## Conventions

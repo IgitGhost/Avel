@@ -20,6 +20,7 @@
 #include "core/platform/user_profiles.h"
 #include "core/tracker/linking.h"
 #include "core/tracker/trace_export.h"
+#include "hive_access.h"
 #include "program_text.h"
 #include "trace_controller.h"
 #include "trace_link_dialog.h"
@@ -434,7 +435,7 @@ void TracesDialog::importTrace() {
                 if (result.parsed == tracker::ImportError::None) {
                     inventory::ScanOptions scan;
                     scan.appx = false;  // Avel doesn't trace packaged apps
-                    const auto inventory = inventory::scan_inventory(scan);
+                    const auto inventory = scanInventory(scan);
                     result.info = tracker::import_trace(*store, std::move(trace), inventory,
                                                         tracker::live_import_options(), result.error);
                     if (result.info && !inventory.programs.empty()) {

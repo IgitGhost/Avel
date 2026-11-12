@@ -1,12 +1,6 @@
 #include "core/tracker/trace_items.h"
 
 #include <windows.h>
-#include <objbase.h>
-#include <oleauto.h>
-#include <taskschd.h>
-
-#include <wil/com.h>
-#include <wil/resource.h>
 
 #include <algorithm>
 #include <array>
@@ -18,6 +12,7 @@
 #include "core/leftovers/product_name.h"
 #include "core/platform/known_folders.h"
 #include "core/platform/registry.h"
+#include "core/platform/scheduled_tasks.h"
 #include "core/platform/text.h"
 #include "core/platform/user_profiles.h"
 
@@ -476,54 +471,6 @@ void key_strings(const platform::RegistryKey& key, int depth, std::vector<std::w
     }
 }
 
-// A task's Exec actions as command lines, from the Task Scheduler.
-std::vector<std::wstring> task_commands(const std::wstring& path) {
-    std::vector<std::wstring> commands;
-    wil::com_ptr_nothrow<ITaskService> service;
-    const VARIANT empty{};
-    wil::com_ptr_nothrow<ITaskFolder> root;
-    wil::com_ptr_nothrow<IRegisteredTask> task;
-    wil::com_ptr_nothrow<ITaskDefinition> definition;
-    wil::com_ptr_nothrow<IActionCollection> actions;
-    const auto root_path = wil::make_bstr_nothrow(L"\\");
-    const auto task_path = wil::make_bstr_nothrow(path.c_str());
-    if (!root_path || !task_path ||
-        FAILED(::CoCreateInstance(CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER,
-                                  IID_PPV_ARGS(service.put()))) ||
-        FAILED(service->Connect(empty, empty, empty, empty)) ||
-        FAILED(service->GetFolder(root_path.get(), root.put())) ||
-        FAILED(root->GetTask(task_path.get(), task.put())) ||
-        FAILED(task->get_Definition(definition.put())) || FAILED(definition->get_Actions(actions.put()))) {
-        return commands;
-    }
-    LONG count = 0;
-    actions->get_Count(&count);
-    for (LONG i = 1; i <= count; ++i) {
-        wil::com_ptr_nothrow<IAction> action;
-        TASK_ACTION_TYPE type{};
-        if (FAILED(actions->get_Item(i, action.put())) || FAILED(action->get_Type(&type)) ||
-            type != TASK_ACTION_EXEC) {
-            continue;
-        }
-        const auto exec = action.try_query<IExecAction>();
-        wil::unique_bstr program;
-        wil::unique_bstr arguments;
-        if (!exec || FAILED(exec->get_Path(&program)) || !program) {
-            continue;
-        }
-        exec->get_Arguments(&arguments);
-        std::wstring command(platform::trim(program.get()));
-        if (command.find(L' ') != std::wstring::npos && command.front() != L'"') {
-            command = L"\"" + command + L"\"";
-        }
-        if (arguments && *arguments.get()) {
-            command += L" " + std::wstring(arguments.get());
-        }
-        commands.push_back(std::move(command));
-    }
-    return commands;
-}
-
 std::vector<std::wstring> live_strings(const Location& location) {
     std::vector<std::wstring> strings;
     if (const auto* key = std::get_if<RegistryKeyLocation>(&location)) {
@@ -557,7 +504,10 @@ std::vector<std::wstring> live_strings(const Location& location) {
             }
         }
     } else if (const auto* task = std::get_if<leftovers::TaskLocation>(&location)) {
-        strings = task_commands(task->path);
+        // Its Exec actions as command lines, from the Task Scheduler.
+        if (auto live = platform::scheduled_task(task->path)) {
+            strings = std::move(live->actions);
+        }
     } else if (const auto* rule = std::get_if<leftovers::FirewallRuleLocation>(&location)) {
         // "v2.31|Action=Allow|...|App=C:\path\app.exe|Name=...|": its program.
         platform::RegistryKey rules;

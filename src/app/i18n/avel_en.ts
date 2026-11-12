@@ -61,6 +61,37 @@
     </message>
 </context>
 <context>
+    <name>StartupText</name>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s) completely</source>
+        <translation>
+            <numerusform>Disable %n startup entry completely</numerusform>
+            <numerusform>Disable %n startup entries completely</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Disable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Disable %n startup entry</numerusform>
+            <numerusform>Disable %n startup entries</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Enable %n startup entry(s)</source>
+        <translation>
+            <numerusform>Enable %n startup entry</numerusform>
+            <numerusform>Enable %n startup entries</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)</source>
+        <translation>
+            <numerusform>Delete %n startup entry</numerusform>
+            <numerusform>Delete %n startup entries</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>TraceText</name>
     <message numerus="yes">
         <source>%n byte(s) of type %1</source>
@@ -246,6 +277,128 @@
         <translation>
             <numerusform>%n process couldn&apos;t be ended. Files it uses stay in place; the rest can still be removed.</numerusform>
             <numerusform>%n processes couldn&apos;t be ended. Files they use stay in place; the rest can still be removed.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::StartupWindow</name>
+    <message numerus="yes">
+        <source>%n entry(s)</source>
+        <translation>
+            <numerusform>%n entry</numerusform>
+            <numerusform>%n entries</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n entry(s)</source>
+        <translation>
+            <numerusform>Showing %1 of %n entry</numerusform>
+            <numerusform>Showing %1 of %n entries</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>%n disabled</numerusform>
+            <numerusform>%n disabled</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n warning</numerusform>
+            <numerusform>%n warnings</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) selected; an action applies to each of them it fits. Details of this one:</source>
+        <translation>
+            <numerusform>%n entry selected; an action applies to each of them it fits. Details of this one:</numerusform>
+            <numerusform>%n entries selected; an action applies to each of them it fits. Details of this one:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Nothing to change: %n selected entry skipped.</numerusform>
+            <numerusform>Nothing to change: %n selected entries skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to delete: %n selected entry(s) skipped.</source>
+        <translation>
+            <numerusform>Nothing to delete: %n selected entry skipped.</numerusform>
+            <numerusform>Nothing to delete: %n selected entries skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… and %n more</numerusform>
+            <numerusform>… and %n more</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected entry(s) will be skipped:</source>
+        <translation>
+            <numerusform>%n selected entry will be skipped:</numerusform>
+            <numerusform>%n selected entries will be skipped:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n startup entry(s)?</source>
+        <translation>
+            <numerusform>Delete %n startup entry?</numerusform>
+            <numerusform>Delete %n startup entries?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled completely.</source>
+        <translation>
+            <numerusform>%n entry disabled completely.</numerusform>
+            <numerusform>%n entries disabled completely.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) disabled.</source>
+        <translation>
+            <numerusform>%n entry disabled.</numerusform>
+            <numerusform>%n entries disabled.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) enabled.</source>
+        <translation>
+            <numerusform>%n entry enabled.</numerusform>
+            <numerusform>%n entries enabled.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n entry(s) deleted.</source>
+        <translation>
+            <numerusform>%n entry deleted.</numerusform>
+            <numerusform>%n entries deleted.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n couldn&apos;t be changed.</numerusform>
+            <numerusform>%n couldn&apos;t be changed.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n skipped.</numerusform>
+            <numerusform>%n skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n item couldn&apos;t be put back; the Undo Center can try again.</numerusform>
+            <numerusform>%n items couldn&apos;t be put back; the Undo Center can try again.</numerusform>
         </translation>
     </message>
 </context>

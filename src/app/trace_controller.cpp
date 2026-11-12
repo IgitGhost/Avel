@@ -12,6 +12,7 @@
 
 #include "core/inventory/inventory.h"
 #include "core/tracker/linking.h"
+#include "hive_access.h"
 #include "install_trace_dialog.h"
 #include "program_text.h"
 #include "trace_progress_dialog.h"
@@ -438,11 +439,13 @@ void TraceController::beginStop(const QString& id, bool discard) {
             job->error = job->discarded ? TraceError::None : TraceError::WriteFailed;
             job->session.reset();
         } else {
+            auto hives = sharedHiveAccess();  // The stop loads users' hives (hive_access.h)
             const auto result =
                 job->session->stop(tracker::StopReason::Manual, [this](tracker::SessionStep step) {
                     QMetaObject::invokeMethod(
                         this, [this, step] { showStep(TraceText::stepText(step)); }, Qt::QueuedConnection);
                 });
+            hives.unlock();
             job->info = job->session->info();
             job->session.reset();  // Lets go of the trace, so it can be linked
             if (isFinished(job->info->state)) {
@@ -451,7 +454,7 @@ void TraceController::beginStop(const QString& id, bool discard) {
                     Qt::QueuedConnection);
                 inventory::ScanOptions scan;
                 scan.appx = false;  // Avel doesn't trace packaged apps
-                const auto inventory = inventory::scan_inventory(scan);
+                const auto inventory = scanInventory(scan);
                 if (auto linked = tracker::link_trace(*store, id, result, inventory, job->linkError)) {
                     job->info = std::move(*linked);
                 }

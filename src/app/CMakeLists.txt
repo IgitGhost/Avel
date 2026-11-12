@@ -16,6 +16,8 @@ qt_add_executable(avel_app WIN32
     details_view.h
     force_flow.cpp
     force_flow.h
+    hive_access.cpp
+    hive_access.h
     hunter_target.cpp
     hunter_target.h
     icon_loader.cpp
@@ -35,6 +37,7 @@ qt_add_executable(avel_app WIN32
     main.cpp
     main_window.cpp
     main_window.h
+    menu_copy.h
     program_filter_model.cpp
     program_filter_model.h
     program_table_model.cpp
@@ -46,6 +49,12 @@ qt_add_executable(avel_app WIN32
     right_elide_delegate.h
     running_processes_dialog.cpp
     running_processes_dialog.h
+    startup_model.cpp
+    startup_model.h
+    startup_text.cpp
+    startup_text.h
+    startup_window.cpp
+    startup_window.h
     trace_controller.cpp
     trace_controller.h
     trace_link_dialog.cpp

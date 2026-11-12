@@ -7,6 +7,7 @@
 #include "cli/console.h"
 #include "core/changes/change_set.h"
 #include "core/changes/serialization.h"
+#include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/text.h"
 
@@ -63,6 +64,34 @@ std::wstring describe_edit(const leftovers::ValueEditLocation& edit) {
     return text;
 }
 
+// "HKLM\...\StartupApproved\Run : Contoso (disable)"
+std::wstring describe_approval(const leftovers::StartupApprovedLocation& approval) {
+    const std::wstring text = platform::display_path(approval.key) + L" : " +
+                              (approval.value_name.empty() ? L"(default)" : approval.value_name);
+    if (!approval.desired) {
+        return text + L" (delete)";
+    }
+    return text + (leftovers::approval_disabled(*approval.desired) ? L" (disable)" : L" (enable)");
+}
+
+// "automatic (delayed)", "manual", ...
+std::wstring start_text(const leftovers::ServiceStart& start) {
+    switch (start.start_type) {
+        case SERVICE_BOOT_START:
+            return L"boot";
+        case SERVICE_SYSTEM_START:
+            return L"system";
+        case SERVICE_AUTO_START:
+            return start.delayed ? L"automatic (delayed)" : L"automatic";
+        case SERVICE_DEMAND_START:
+            return L"manual";
+        case SERVICE_DISABLED:
+            return L"disabled";
+        default:
+            return std::to_wstring(start.start_type);
+    }
+}
+
 }  // namespace
 
 std::string_view kind_of(const leftovers::Location& location) {
@@ -83,6 +112,12 @@ std::string_view kind_of(const leftovers::Location& location) {
                 return "package";
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return "firewall-rule";
+            } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
+                return "startup-approved";
+            } else if constexpr (std::is_same_v<T, leftovers::TaskStateLocation>) {
+                return "task-state";
+            } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
+                return "service-start";
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 return "value-edit";
@@ -109,6 +144,13 @@ std::wstring describe_location(const leftovers::Location& location) {
                 return item.full_name;
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return item.rule_id;
+            } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
+                return describe_approval(item);
+            } else if constexpr (std::is_same_v<T, leftovers::TaskStateLocation>) {
+                return item.path + (item.enabled_after ? L" (enable)" : L" (disable)");
+            } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
+                return item.name + L" (start: " + start_text(item.before) + L" -> " + start_text(item.after) +
+                       L")";
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 return describe_edit(item);
@@ -139,6 +181,19 @@ Json location_to_json(const leftovers::Location& location) {
                 json["user_sid"] = to_utf8(item.user_sid);
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 json["rule_id"] = to_utf8(item.rule_id);
+            } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
+                json["key"] = to_utf8(platform::display_path(item.key));
+                json["value"] = to_utf8(item.value_name);
+                json["expected"] = edit_value_to_json(item.expected);
+                json["desired"] = edit_value_to_json(item.desired);
+            } else if constexpr (std::is_same_v<T, leftovers::TaskStateLocation>) {
+                json["task"] = to_utf8(item.path);
+                json["enabled_before"] = item.enabled_before;
+                json["enabled_after"] = item.enabled_after;
+            } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
+                json["service"] = to_utf8(item.name);
+                json["before"] = changes::to_json(item.before);
+                json["after"] = changes::to_json(item.after);
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 json["key"] = to_utf8(platform::display_path(item.key));

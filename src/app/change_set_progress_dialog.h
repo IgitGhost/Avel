@@ -55,6 +55,8 @@ private:
     void onRemovalFinished(const changes::ExecuteResult& result);
     void onRestoreFinished(const changes::RestoreResult& result);
     void onBusy();
+    // While the worker waits for a scan elsewhere in Avel to let go of users' hives.
+    void onHiveWait(bool waiting);
     void finishRun();
     void addProblem(std::size_t index, const changes::ItemResult& result);
     std::size_t restorableCount() const;
@@ -72,6 +74,7 @@ private:
     bool changedAnything_ = false;
 
     QLabel* statusLabel_ = nullptr;
+    QString runningText_;  // The status shown again once the wait for the hives is over
     QProgressBar* progress_ = nullptr;
     QLabel* problemsLabel_ = nullptr;
     QTreeWidget* problems_ = nullptr;

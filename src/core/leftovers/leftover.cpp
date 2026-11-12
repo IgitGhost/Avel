@@ -46,6 +46,13 @@ std::wstring identity(const Location& location) {
                 return L"package:" + platform::to_lower(item.user_sid) + L":" + platform::to_lower(item.full_name);
             } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 return L"firewall:" + platform::to_lower(item.rule_id);
+            } else if constexpr (std::is_same_v<T, StartupApprovedLocation>) {
+                return L"approved:" + platform::to_lower(platform::display_path(item.key)) + L"\\\\" +
+                       platform::to_lower(item.value_name);
+            } else if constexpr (std::is_same_v<T, TaskStateLocation>) {
+                return L"task-state:" + platform::to_lower(item.path);
+            } else if constexpr (std::is_same_v<T, ServiceStartLocation>) {
+                return L"service-start:" + platform::to_lower(item.name);
             } else {
                 static_assert(std::is_same_v<T, ValueEditLocation>);
                 std::wstring text = L"edit:" + platform::to_lower(platform::display_path(item.key)) +
@@ -93,6 +100,9 @@ std::wstring owner_sid(const Location& location) {
     if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
         return edit->key.sid;
     }
+    if (const auto* approval = std::get_if<StartupApprovedLocation>(&location)) {
+        return approval->key.sid;
+    }
     return {};
 }
 
@@ -103,9 +113,10 @@ Category category_of(const Location& location) {
             if constexpr (std::is_same_v<T, FileLocation>) {
                 return !item.directory && platform::iends_with(item.path, L".lnk") ? Category::Shortcuts
                                                                                    : Category::Files;
-            } else if constexpr (std::is_same_v<T, ServiceLocation>) {
+            } else if constexpr (std::is_same_v<T, ServiceLocation> ||
+                                 std::is_same_v<T, ServiceStartLocation>) {
                 return Category::Services;
-            } else if constexpr (std::is_same_v<T, TaskLocation>) {
+            } else if constexpr (std::is_same_v<T, TaskLocation> || std::is_same_v<T, TaskStateLocation>) {
                 return Category::Tasks;
             } else if constexpr (std::is_same_v<T, PackageLocation>) {
                 return Category::Packages;

@@ -1,5 +1,6 @@
 // The GUI's leftover tree: grouping, containment, tri-state checks, presets and the plan it
-// hands to the executor; value edits and what install traces saw change, and the text for them.
+// hands to the executor; value edits and what install traces saw change, and the text for them;
+// the text for state changes.
 
 #include <gtest/gtest.h>
 
@@ -11,6 +12,7 @@
 
 #include "core/changes/change_set.h"
 #include "core/leftovers/scan.h"
+#include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "leftover_model.h"
 #include "leftover_text.h"
@@ -691,6 +693,44 @@ TEST_F(LeftoverModelTest, ValueEditOutcomesAreWordedForEdits) {
               QStringLiteral("Skipped: the value has changed since"));
     EXPECT_EQ(LeftoverText::statusText({ItemState::RestoreSkipped, Reason::Changed, 0}, location),
               QStringLiteral("Not restored: the value has changed since"));
+}
+
+TEST_F(LeftoverModelTest, StateChangeOutcomesAreWordedForTheirKind) {
+    using changes::ItemState;
+    using changes::Reason;
+    const platform::RegistryAddress run{
+        platform::Hive::Machine, L"",
+        LR"(SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run)"};
+    const leftovers::Location disable = leftovers::StartupApprovedLocation{
+        run, L"Contoso", std::nullopt, leftovers::disabled_approval(L"Contoso", FILETIME{1, 2})};
+    const leftovers::Location enable = leftovers::StartupApprovedLocation{
+        run, L"Contoso", std::nullopt, leftovers::enabled_approval(L"Contoso")};
+    const leftovers::Location task = leftovers::TaskStateLocation{LR"(\Contoso\Updater)", true, false};
+    const leftovers::Location service = leftovers::ServiceStartLocation{
+        L"ContosoSvc", {SERVICE_AUTO_START, true}, {SERVICE_DEMAND_START, true}};
+    const changes::ItemStatus done{ItemState::Done, Reason::None, 0};
+    EXPECT_EQ(LeftoverText::statusText(done, disable), QStringLiteral("Disabled"));
+    EXPECT_EQ(LeftoverText::statusText(done, enable), QStringLiteral("Enabled"));
+    EXPECT_EQ(LeftoverText::statusText(done, task), QStringLiteral("Disabled"));
+    EXPECT_EQ(LeftoverText::statusText(done, service), QStringLiteral("Start type changed"));
+    EXPECT_EQ(LeftoverText::statusText({ItemState::Skipped, Reason::Changed, 0}, task),
+              QStringLiteral("Skipped: its state has changed since"));
+    EXPECT_EQ(LeftoverText::statusText({ItemState::RestoreSkipped, Reason::Changed, 0}, disable),
+              QStringLiteral("Not restored: its state has changed since"));
+    EXPECT_EQ(LeftoverText::statusText({ItemState::Restored, Reason::None, 0}, service),
+              QStringLiteral("Restored"));
+
+    EXPECT_EQ(LeftoverText::locationText(disable),
+              QStringLiteral(
+                  "Disable Contoso at startup "
+                  "(HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run)"));
+    EXPECT_EQ(LeftoverText::locationText(task),
+              QStringLiteral("Disable the scheduled task \\Contoso\\Updater"));
+    EXPECT_EQ(
+        LeftoverText::locationText(service),
+        QStringLiteral("Change the start type of the service ContosoSvc from Automatic (delayed start) to "
+                       "Manual"));
+    EXPECT_EQ(LeftoverText::kindLabel(service, Category::Services), QStringLiteral("Service start type"));
 }
 
 TEST_F(LeftoverModelTest, EmptyScanHasNoRows) {

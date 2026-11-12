@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/registry_address.h"
 #include "core/platform/text.h"
@@ -105,6 +106,12 @@ QString LeftoverText::kindLabel(const leftovers::Location& location, leftovers::
                 return tr("Package");
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return tr("Firewall rule");
+            } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
+                return tr("Startup entry");
+            } else if constexpr (std::is_same_v<T, leftovers::TaskStateLocation>) {
+                return tr("Scheduled task state");
+            } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
+                return tr("Service start type");
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 using leftovers::ValueEditKind;
@@ -145,6 +152,21 @@ QString LeftoverText::locationText(const leftovers::Location& location) {
                 return toQString(item.full_name);
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return toQString(item.rule_id);
+            } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
+                const QString name = valueNameText(item.value_name);
+                const QString where = registryText(item.key);
+                if (!item.desired) {
+                    return tr("Clear the startup state of %1 (%2)").arg(name, where);
+                }
+                return leftovers::approval_disabled(*item.desired)
+                           ? tr("Disable %1 at startup (%2)").arg(name, where)
+                           : tr("Enable %1 at startup (%2)").arg(name, where);
+            } else if constexpr (std::is_same_v<T, leftovers::TaskStateLocation>) {
+                return item.enabled_after ? tr("Enable the scheduled task %1").arg(toQString(item.path))
+                                          : tr("Disable the scheduled task %1").arg(toQString(item.path));
+            } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
+                return tr("Change the start type of the service %1 from %2 to %3")
+                    .arg(toQString(item.name), serviceStartText(item.before), serviceStartText(item.after));
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 return valueEditText(item);
@@ -603,7 +625,47 @@ QString LeftoverText::statusText(const changes::ItemStatus& status, const leftov
     if (status.state == ItemState::Done && std::holds_alternative<leftovers::ValueEditLocation>(location)) {
         return tr("Edited");
     }
+    const bool state_change = std::holds_alternative<leftovers::StartupApprovedLocation>(location) ||
+                              std::holds_alternative<leftovers::TaskStateLocation>(location) ||
+                              std::holds_alternative<leftovers::ServiceStartLocation>(location);
+    if (!state_change) {
+        return statusText(status);
+    }
+    if (status.state == ItemState::Done) {
+        if (const auto* approval = std::get_if<leftovers::StartupApprovedLocation>(&location)) {
+            if (!approval->desired) {
+                return tr("Cleared");
+            }
+            return leftovers::approval_disabled(*approval->desired) ? tr("Disabled") : tr("Enabled");
+        }
+        if (const auto* task = std::get_if<leftovers::TaskStateLocation>(&location)) {
+            return task->enabled_after ? tr("Enabled") : tr("Disabled");
+        }
+        return tr("Start type changed");
+    }
+    // Compare-and-set: the item isn't in the state the change applies to (or, for undo, the state
+    // it set) any more.
+    if (status.reason == Reason::Changed) {
+        return tr("%1: %2").arg(itemStateText(status.state), tr("its state has changed since"));
+    }
     return statusText(status);
+}
+
+QString LeftoverText::serviceStartText(const leftovers::ServiceStart& start) {
+    switch (start.start_type) {
+        case SERVICE_BOOT_START:
+            return tr("Boot");
+        case SERVICE_SYSTEM_START:
+            return tr("System");
+        case SERVICE_AUTO_START:
+            return start.delayed ? tr("Automatic (delayed start)") : tr("Automatic");
+        case SERVICE_DEMAND_START:
+            return tr("Manual");
+        case SERVICE_DISABLED:
+            return tr("Disabled");
+        default:
+            return QString::number(start.start_type);
+    }
 }
 
 QString LeftoverText::setStateText(changes::SetState state) {

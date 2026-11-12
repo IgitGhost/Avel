@@ -1,13 +1,15 @@
-// The options of `uninstall`, `force` and `scan`, parsed apart from running the commands so the
-// parsing can be tested on its own.
+// The options of `uninstall`, `force`, `scan` and `startup`, parsed apart from running the commands
+// so the parsing can be tested on its own.
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "core/leftovers/confidence.h"
+#include "core/tools/startup_changes.h"
 
 namespace avel::cli {
 
@@ -59,6 +61,22 @@ struct ScanCommandOptions {
     bool trace = true;  // Show what the programs' install traces recorded (--no-trace: don't)
 };
 
+enum class StartupCommand : std::uint8_t { List, Disable, Enable, Delete };
+
+struct StartupCommandOptions {
+    StartupCommand command = StartupCommand::List;
+    std::vector<std::wstring> ids;  // disable, enable, delete: at least one
+    // disable: what a disabled service's start becomes (--service-start manual|disabled)
+    tools::ServiceDisable service_start = tools::ServiceDisable::Manual;
+    bool all_users = false;  // list: every user's entries, not only the machine's and the current user's
+    bool dry_run = false;
+    bool yes = false;
+    bool json = false;
+};
+
+// The action a startup command asks for; nullopt for list.
+std::optional<tools::StartupAction> startup_action(StartupCommand command);
+
 // `arguments` are those after the command's name.
 std::optional<UsageError> parse_uninstall_options(const std::vector<std::wstring_view>& arguments,
                                                   UninstallCommandOptions& options);
@@ -66,5 +84,8 @@ std::optional<UsageError> parse_force_options(const std::vector<std::wstring_vie
                                               ForceCommandOptions& options);
 std::optional<UsageError> parse_scan_options(const std::vector<std::wstring_view>& arguments,
                                              ScanCommandOptions& options);
+// `arguments` start with the subcommand (list, disable, enable, delete).
+std::optional<UsageError> parse_startup_options(const std::vector<std::wstring_view>& arguments,
+                                                StartupCommandOptions& options);
 
 }  // namespace avel::cli

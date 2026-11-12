@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/platform/known_folders.h"
+#include "core/platform/scheduled_tasks.h"
 #include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
 #include "core/platform/volume_folders.h"
@@ -39,11 +40,8 @@ struct ScanDiagnostic {
 
 std::string_view to_string(ScanDiagnosticCode code);
 
-// A scheduled task and the program files its actions run.
-struct ScheduledTask {
-    std::wstring path;                  // e.g. \Contoso\Updater
-    std::vector<std::wstring> actions;  // Command lines of its Exec actions
-};
+// A scheduled task and the program files its actions run (the scan reads its path and actions).
+using ScheduledTask = platform::ScheduledTask;
 
 // Where the scan looks. The live environment points at this machine; tests point the roots at a
 // scratch registry key and a temporary folder tree. Handles are borrowed from whoever built it.

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include "hive_access.h"
 #include "leftover_text.h"
 #include "program_text.h"
 #include "right_elide_delegate.h"
@@ -144,6 +145,10 @@ void ChangeSetProgressDialog::startRemoval() {
     progress_->setValue(0);
     // The worker reads the plan, which stays as it is while it runs; the rest happens here.
     worker_ = std::thread([this, store = store_] {
+        // A removal can write users' hives, which a scan elsewhere in Avel may hold (hive_access.h).
+        const auto hives = exclusiveHiveAccess([this](bool waiting) {
+            QMetaObject::invokeMethod(this, [this, waiting] { onHiveWait(waiting); }, Qt::QueuedConnection);
+        });
         const auto guard = store->lock(kLockTimeout);
         if (!guard) {
             QMetaObject::invokeMethod(this, [this] { onBusy(); }, Qt::QueuedConnection);
@@ -178,6 +183,9 @@ void ChangeSetProgressDialog::startRestore() {
     progress_->setRange(0, std::max(count, 1));
     progress_->setValue(0);
     worker_ = std::thread([this, store = store_, id = setId_, only = only_] {
+        const auto hives = exclusiveHiveAccess([this](bool waiting) {
+            QMetaObject::invokeMethod(this, [this, waiting] { onHiveWait(waiting); }, Qt::QueuedConnection);
+        });
         const auto guard = store->lock(kLockTimeout);
         if (!guard) {
             QMetaObject::invokeMethod(this, [this] { onBusy(); }, Qt::QueuedConnection);
@@ -274,6 +282,15 @@ void ChangeSetProgressDialog::onBusy() {
     statusLabel_->setText(
         tr("Another Avel process is changing the system. Nothing was changed; try again when "
            "it's done."));
+}
+
+void ChangeSetProgressDialog::onHiveWait(bool waiting) {
+    if (waiting) {
+        runningText_ = statusLabel_->text();
+        statusLabel_->setText(hiveWaitText());
+    } else {
+        statusLabel_->setText(runningText_);
+    }
 }
 
 void ChangeSetProgressDialog::finishRun() {

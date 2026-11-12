@@ -29,6 +29,7 @@ add_executable(avel_core_tests
     unit/cli_options_test.cpp
     unit/command_line_test.cpp
     unit/deep_search_test.cpp
+    unit/executor_state_change_test.cpp
     unit/executor_test.cpp
     unit/executor_value_edit_test.cpp
     unit/file_changes_test.cpp
@@ -66,6 +67,11 @@ add_executable(avel_core_tests
     unit/related_entries_test.cpp
     unit/scratch_registry.h
     unit/serialization_test.cpp
+    unit/signature_test.cpp
+    unit/startup_approved_test.cpp
+    unit/startup_changes_test.cpp
+    unit/startup_sources_test.cpp
+    unit/startup_test.cpp
     unit/temp_root.h
     unit/test_spawner.h
     unit/text_test.cpp
@@ -84,6 +90,7 @@ add_executable(avel_core_tests
     unit/usn_live_test.cpp
     unit/usn_parse_test.cpp
     unit/value_edits_test.cpp
+    unit/version_info_test.cpp
     # The CLI's option parsing (avel-cli.exe isn't a library).
     ${PROJECT_SOURCE_DIR}/src/cli/command_options.cpp)
 
@@ -93,17 +100,22 @@ add_dependencies(avel_core_tests avel_test_spawner)
 
 gtest_discover_tests(avel_core_tests DISCOVERY_MODE PRE_TEST)
 
-# The GUI's leftover tree and trace review tree. avel.exe isn't a library, so the test builds the
-# sources it needs from src/app. It runs without a QGuiApplication: nothing it calls needs one.
+# The GUI's leftover tree, trace review tree and Startup table. avel.exe isn't a library, so the test
+# builds the sources it needs from src/app. It runs without a QGuiApplication: nothing it calls needs
+# one.
 if(TARGET avel_app)
     find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui)
     add_executable(avel_app_tests
         app/leftover_model_test.cpp
+        app/startup_model_test.cpp
         app/trace_model_test.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.h
         ${PROJECT_SOURCE_DIR}/src/app/leftover_text.cpp
         ${PROJECT_SOURCE_DIR}/src/app/program_text.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/startup_model.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/startup_model.h
+        ${PROJECT_SOURCE_DIR}/src/app/startup_text.cpp
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.h
         ${PROJECT_SOURCE_DIR}/src/app/trace_text.cpp)

@@ -94,9 +94,12 @@ Json execute_result_to_json(const changes::ChangePlan& plan, const changes::Exec
     return json;
 }
 
-void print_execute_result(const changes::ChangePlan& plan, const changes::ExecuteResult& result) {
+void print_execute_result(const changes::ChangePlan& plan, const changes::ExecuteResult& result,
+                          ResultWording wording) {
+    const bool removal = wording == ResultWording::Removal;
     if (result.set_id.empty()) {
-        print_error("error: couldn't start a change set; nothing was removed\n");
+        print_error(removal ? "error: couldn't start a change set; nothing was removed\n"
+                            : "error: couldn't start a change set; nothing was changed\n");
         return;
     }
     std::size_t removed = 0;
@@ -109,8 +112,13 @@ void print_execute_result(const changes::ChangePlan& plan, const changes::Execut
             print(std::format("      in use by {} (process {})\n", to_utf8(holder.name), holder.pid));
         }
     }
-    print(std::format("\n{} of {} removed, {} bytes in quarantine. Undo with: avel-cli undo {}\n", removed,
-                      plan.items.size(), result.quarantined_bytes, to_utf8(result.set_id)));
+    if (removal) {
+        print(std::format("\n{} of {} removed, {} bytes in quarantine. Undo with: avel-cli undo {}\n",
+                          removed, plan.items.size(), result.quarantined_bytes, to_utf8(result.set_id)));
+    } else {
+        print(std::format("\n{} of {} changed. Undo with: avel-cli undo {}\n", removed, plan.items.size(),
+                          to_utf8(result.set_id)));
+    }
 }
 
 Json summary_to_json(const changes::SetSummary& summary) {

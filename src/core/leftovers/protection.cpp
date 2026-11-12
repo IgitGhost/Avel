@@ -4,15 +4,22 @@
 #include "core/leftovers/protection.h"
 
 #include <windows.h>
+#include <winsvc.h>
+
+#include <wil/resource.h>
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <optional>
 
+#include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/known_folders.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
+#include "core/platform/services.h"
+#include "core/platform/signature.h"
 #include "core/platform/text.h"
 #include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
@@ -252,6 +259,25 @@ std::wstring module_directory() {
 
 }  // namespace
 
+ServiceFacts live_service_facts(const std::wstring& name) {
+    ServiceFacts facts;
+    platform::ServiceInfo info;
+    if (const DWORD error = platform::query_service(name, info); error != ERROR_SUCCESS) {
+        if (error == ERROR_SERVICE_DOES_NOT_EXIST) {
+            facts.status = ServiceFacts::Status::Missing;
+        }
+        return facts;
+    }
+    facts.status = ServiceFacts::Status::Found;
+    facts.driver = platform::is_driver_type(info.type);
+    if (!facts.driver) {
+        // The same rule as the Startup manager's list: Windows' own file (see signature.h), not
+        // Microsoft's other programs nor a hardware vendor's WHQL-signed one.
+        facts.windows = platform::verify_signature(platform::service_file(info)).windows;
+    }
+    return facts;
+}
+
 std::string_view to_string(ProtectionReason reason) {
     switch (reason) {
         case ProtectionReason::None:
@@ -288,6 +314,8 @@ std::string_view to_string(ProtectionReason reason) {
             return "package-registration";
         case ProtectionReason::NotEditable:
             return "not-editable";
+        case ProtectionReason::WindowsService:
+            return "windows-service";
     }
     return "unknown";
 }
@@ -422,6 +450,36 @@ ProtectionReason HardFloor::check(const Location& location) const {
         return may_edit_variable(*spot, edit->value_name, edit->kind) ? ProtectionReason::None
                                                                       : ProtectionReason::NotEditable;
     }
+    if (const auto* approval = std::get_if<StartupApprovedLocation>(&location)) {
+        // The other allow-list: Explorer's three StartupApproved keys, written only as Task Manager
+        // writes them (or the value deleted).
+        if (!approval_list(approval->key)) {
+            return ProtectionReason::NotEditable;
+        }
+        return !approval->desired || is_approval_value(*approval->desired) ? ProtectionReason::None
+                                                                           : ProtectionReason::NotEditable;
+    }
+    if (const auto* task = std::get_if<TaskStateLocation>(&location)) {
+        return platform::istarts_with(task->path, LR"(\Microsoft\)") ? ProtectionReason::WindowsTask
+                                                                     : ProtectionReason::None;
+    }
+    if (const auto* service = std::get_if<ServiceStartLocation>(&location)) {
+        const std::uint32_t type = service->after.start_type;
+        if (type != SERVICE_AUTO_START && type != SERVICE_DEMAND_START && type != SERVICE_DISABLED) {
+            return ProtectionReason::WindowsService;  // Never boot or system start: those are drivers'
+        }
+        const ServiceFacts facts =
+            data_.services ? data_.services(service->name) : live_service_facts(service->name);
+        switch (facts.status) {
+            case ServiceFacts::Status::Missing:
+                return ProtectionReason::None;  // Nothing to protect; the executor reports it missing
+            case ServiceFacts::Status::Unreadable:
+                return ProtectionReason::WindowsService;  // Unknown: refused
+            case ServiceFacts::Status::Found:
+                break;
+        }
+        return facts.driver || facts.windows ? ProtectionReason::WindowsService : ProtectionReason::None;
+    }
     return ProtectionReason::None;
 }
 
@@ -449,6 +507,8 @@ ProtectionReason ProtectedPolicy::check(const Location& location) const {
             return ProtectionReason::BlacklistedName;
         }
     }
+    // Values, services, tasks, packages, firewall rules, value edits and state changes: no known
+    // folder or shared name to guard.
     return ProtectionReason::None;
 }
 

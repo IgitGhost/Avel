@@ -1,5 +1,7 @@
 #include "inventory_loader.h"
 
+#include "hive_access.h"
+
 namespace avel::app {
 
 InventoryLoader::InventoryLoader(QObject* parent) : QObject(parent) { pool_.setMaxThreadCount(1); }
@@ -15,7 +17,7 @@ void InventoryLoader::start() {
     pool_.start([this] {
         // scan_inventory runs every source on its own worker thread with the COM apartment it
         // needs, so this pool thread's apartment doesn't matter.
-        auto inventory = std::make_shared<const inventory::Inventory>(inventory::scan_inventory());
+        auto inventory = std::make_shared<const inventory::Inventory>(scanInventory());
         QMetaObject::invokeMethod(
             this,
             [this, inventory = std::move(inventory)] {

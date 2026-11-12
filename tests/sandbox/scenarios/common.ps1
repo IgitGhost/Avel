@@ -42,9 +42,9 @@ function Where-Text($location) {
     switch ($location.kind) {
         { $_ -in 'folder', 'file' } { return $location.path }
         'registry-key' { return $location.key }
-        { $_ -in 'registry-value', 'value-edit' } { return "$($location.key) : $($location.value)" }
-        { $_ -in 'service', 'driver' } { return $location.service }
-        { $_ -in 'task', 'task-folder' } { return $location.task }
+        { $_ -in 'registry-value', 'value-edit', 'startup-approved' } { return "$($location.key) : $($location.value)" }
+        { $_ -in 'service', 'driver', 'service-start' } { return $location.service }
+        { $_ -in 'task', 'task-folder', 'task-state' } { return $location.task }
         'package' { return $location.package_full_name }
         default { return $location.rule_id }
     }

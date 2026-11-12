@@ -57,7 +57,8 @@ std::wstring host_name(std::wstring_view executable) {
     return name;
 }
 
-// The script or DLL a Windows host runs, as written in the command; empty for other programs.
+}  // namespace
+
 std::wstring hosted_file(const CommandLine& command) {
     const std::wstring host = host_name(command.executable);
     if (host == L"rundll32") {
@@ -91,8 +92,6 @@ std::wstring hosted_file(const CommandLine& command) {
     }
     return {};
 }
-
-}  // namespace
 
 CommandLine split_command_line(std::wstring_view command, const FileExistsFunction& file_exists) {
     command = trim(command);

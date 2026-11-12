@@ -69,13 +69,52 @@ struct ValueEditLocation {
     std::int64_t delta = 0;                      // SharedDLLs: how much the count goes down
 };
 
+// State changes (ADR 0007): an item whose state changes rather than its removal, put back on undo.
+// Each holds the state it applies to and the state it sets; the executor sets it only while the
+// item is still in the first (compare-and-set), and undo puts the first back only while the item is
+// still in what was set.
+
+// Explorer's record of whether a Run value or a Startup folder item starts (Task Manager's Startup
+// apps, Settings > Apps > Startup): a 12-byte REG_BINARY named after the entry, in one of the
+// StartupApproved keys (see startup_approved.h).
+struct StartupApprovedLocation {
+    platform::RegistryAddress key;  // ...\Explorer\StartupApproved\Run, Run32 or StartupFolder
+    std::wstring value_name;        // The Run value's name, or the Startup folder item's file name
+    std::optional<platform::RawValue> expected;  // The value it applies to; nullopt: the value is absent
+    std::optional<platform::RawValue> desired;   // The value written; nullopt: the value is deleted
+};
+
+// A scheduled task turned off or on (IRegisteredTask::put_Enabled).
+struct TaskStateLocation {
+    std::wstring path;  // e.g. \Contoso\Updater
+    bool enabled_before = true;
+    bool enabled_after = false;
+};
+
+// How a service starts, as the Service Control Manager reports it.
+struct ServiceStart {
+    std::uint32_t start_type = 0;  // SERVICE_AUTO_START, SERVICE_DEMAND_START, SERVICE_DISABLED, ...
+    bool delayed = false;          // SERVICE_CONFIG_DELAYED_AUTO_START_INFO (meaningful for automatic)
+
+    bool operator==(const ServiceStart&) const = default;
+};
+
+// A service's start type changed: Automatic to Manual or Disabled, and back.
+struct ServiceStartLocation {
+    std::wstring name;  // The service's key name
+    ServiceStart before;
+    ServiceStart after;
+};
+
 using Location = std::variant<FileLocation, RegistryKeyLocation, RegistryValueLocation, ServiceLocation,
-                              TaskLocation, PackageLocation, FirewallRuleLocation, ValueEditLocation>;
+                              TaskLocation, PackageLocation, FirewallRuleLocation, ValueEditLocation,
+                              StartupApprovedLocation, TaskStateLocation, ServiceStartLocation>;
 
 // A case-insensitive key identifying the item, used to merge what several scanners found:
 // "file:c:\x", "key:hklm\software\x", "value:hku\s-1-5-21-…\software\x\name", ... A value edit's
 // key also holds what it does ("edit:hklm\…\environment\\path|remove-path-entries|c:\x\bin"), so
-// two traces' edits to one value stay two items.
+// two traces' edits to one value stay two items. A state change's key names only the item
+// ("approved:…\\name", "task-state:\x", "service-start:x"), whatever states it goes between.
 std::wstring identity(const Location& location);
 
 // `outer` contains `inner`: a folder and something below it, or a key and a subkey or value of it.
@@ -137,8 +176,9 @@ struct Leftover {
     std::optional<std::size_t> inside;    // Index of the nearest leftover that contains this one
 };
 
-// The group an item falls in by its kind alone: .lnk files are shortcuts, value edits and other
-// keys and values registry, and so on.
+// The group an item falls in by its kind alone: .lnk files are shortcuts, value edits, startup
+// approvals and other keys and values registry, a task's state tasks, a service's start type
+// services, and so on.
 Category category_of(const Location& location);
 
 // Excluded in its program's install trace's review (Evidence::ExcludedInTraceReview).
