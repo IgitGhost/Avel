@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Avel is a Windows-only uninstaller suite (C++20, MSVC, Qt 6.12 Widgets, CMake + Ninja, vcpkg). The
 roadmap, the architecture notes and the current status are in `docs/plan.md` ("Status" section).
 Each module has a design doc in `docs/` (`inventory.md`, `uninstall.md`, `leftovers.md`,
-`changes.md`, `force.md`, `trace.md`), and decisions are recorded in `docs/adr/`.
+`changes.md`, `force.md`, `trace.md`, `tools.md`), and decisions are recorded in `docs/adr/`.
 
 ## Build and test
 

@@ -3,10 +3,11 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-5 done; Avel Tools is next).** Avel lists installed programs, runs
-> their uninstallers silently or in batches, then finds what they left behind and removes it with a
-> backup that can be undone for 30 days. Programs that can't uninstall themselves can be removed by
-> force. Installations can be traced, and programs later removed by their trace. See
+> **Status: pre-alpha (Phases 0-5 done; Avel Tools in progress, its Startup manager done).** Avel
+> lists installed programs, runs their uninstallers silently or in batches, then finds what they
+> left behind and removes it with a backup that can be undone for 30 days. Programs that can't
+> uninstall themselves can be removed by force. Installations can be traced, and programs later
+> removed by their trace. What starts with Windows can be disabled or deleted, also undoably. See
 > [docs/plan.md](docs/plan.md) for the roadmap.
 
 ## What works today
@@ -92,6 +93,27 @@
   ```
 
   See [docs/trace.md](docs/trace.md).
+- **Startup manager (Avel Tools).** Everything that starts with Windows, for the machine and every
+  user (signed-out users included): Run and RunOnce keys, the Startup folders, scheduled tasks
+  with logon or boot triggers, and automatic services. Each entry shows its command, target file,
+  signature, publisher and the program it belongs to.
+  - **Disable** works the way Task Manager does it (`StartupApproved`; a task's Enabled flag; a
+    service's start type), **Enable** turns it back on, and **Delete** removes it. Each is a
+    change set, so the Undo Center can put it back. Windows' own entries are listed but never
+    changed.
+  - **In the GUI:** **Tools > Startup…** opens a window of its own with search, filters, a
+    details pane and several entries changed at once; **Undo last change** (Ctrl+Z) is there too.
+  - **In the CLI:**
+
+  ```powershell
+  avel-cli startup list --all-users                 # every user's entries (run as administrator)
+  avel-cli startup disable <id> <id>                # as Task Manager does it
+  avel-cli startup disable <id> --service-start disabled
+  avel-cli startup enable <id>
+  avel-cli startup delete <id> --dry-run
+  ```
+
+  See [docs/tools.md](docs/tools.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -125,7 +147,7 @@
 | **Avel Uninstall** | Lists every installed program (Win32, MSI, Store/MSIX, every user's per-user installs), runs its uninstaller (also silently or in batches), then finds leftovers and removes them with full backup and undo |
 | **Avel Trace** | Records what an installer changes (NTFS USN journal plus a registry snapshot, no kernel driver) so the program can later be removed exactly, including its edits to PATH and SharedDLLs |
 | **Avel Force** | Removes programs whose uninstaller is broken or missing; a crosshair "hunter" picks a program from any window |
-| **Avel Tools** | Startup manager, Windows apps (bloatware) removal, Windows features, stubborn browser extensions |
+| **Avel Tools** | Startup manager (done), Windows apps (bloatware) removal, Windows features and capabilities, stubborn browser extensions, Steam and Epic games |
 
 Planned design principles:
 - **Safety first.** Every change goes through a single change set: preview, backup, execute, journal. Anything can be undone.
