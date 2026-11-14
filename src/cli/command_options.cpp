@@ -292,4 +292,67 @@ std::optional<UsageError> parse_apps_options(const std::vector<std::wstring_view
     return std::nullopt;
 }
 
+std::optional<UsageError> parse_extensions_options(const std::vector<std::wstring_view>& arguments,
+                                                   ExtensionsCommandOptions& options) {
+    if (arguments.empty()) {
+        return UsageError{};
+    }
+    const auto name = arguments.front();
+    if (name == L"list") {
+        options.command = ExtensionsCommand::List;
+    } else if (name == L"remove") {
+        options.command = ExtensionsCommand::Remove;
+    } else {
+        return UsageError{"extensions: unknown command " + to_utf8(name) + "\n"};
+    }
+    const bool list = options.command == ExtensionsCommand::List;
+    const auto known = [](std::wstring_view option) {
+        return option == L"--all-users" || option == L"--removable" || option == L"--browser" ||
+               option == L"--dry-run" || option == L"--yes" || option == L"-y";
+    };
+    for (std::size_t i = 1; i < arguments.size(); ++i) {
+        const auto argument = arguments[i];
+        if (argument == L"--json") {
+            options.json = true;
+        } else if (argument == L"--all-users" && list) {
+            options.all_users = true;
+        } else if (argument == L"--removable" && list) {
+            options.removable = true;
+        } else if (argument == L"--browser" && list) {
+            tools::BrowserKind browser{};
+            if (i + 1 >= arguments.size() || !tools::parse(to_utf8(arguments[i + 1]), browser)) {
+                return UsageError{
+                    "extensions: --browser is chrome, chrome-beta, chrome-dev, chrome-canary, edge, "
+                    "edge-beta, "
+                    "edge-dev, edge-canary, brave, vivaldi, opera, opera-gx, chromium or firefox\n",
+                    false};
+            }
+            options.browser = browser;
+            ++i;
+        } else if (argument == L"--dry-run" && !list) {
+            options.dry_run = true;
+        } else if ((argument == L"--yes" || argument == L"-y") && !list) {
+            options.yes = true;
+        } else if (known(argument)) {
+            return UsageError{"extensions: " + to_utf8(argument) + " doesn't go with " + to_utf8(name) +
+                              "\n"};
+        } else if (argument.starts_with(L"-")) {
+            return UsageError{"extensions: unknown option " + to_utf8(argument) + "\n"};
+        } else if (list) {
+            return UsageError{"extensions: list takes no ids\n"};
+        } else {
+            options.ids.emplace_back(argument);
+        }
+    }
+    if (!list && options.ids.empty()) {
+        return UsageError{
+            "extensions: remove needs the ids of the extensions (see `avel-cli extensions list`)\n"};
+    }
+    if (options.json && !list && !options.yes && !options.dry_run) {
+        return UsageError{"extensions: --json needs --yes or --dry-run (it can't ask for confirmation)\n",
+                          false};
+    }
+    return std::nullopt;
+}
+
 }  // namespace avel::cli

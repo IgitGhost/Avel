@@ -30,6 +30,8 @@ add_executable(avel_package_probe helpers/package_probe.cpp)
 target_link_libraries(avel_package_probe PRIVATE avel_options nlohmann_json::nlohmann_json advapi32 shlwapi windowsapp)
 
 add_executable(avel_core_tests
+    unit/browser_extensions_changes_test.cpp
+    unit/browser_extensions_test.cpp
     unit/change_store_test.cpp
     unit/cli_options_test.cpp
     unit/command_line_test.cpp
@@ -114,10 +116,14 @@ gtest_discover_tests(avel_core_tests DISCOVERY_MODE PRE_TEST)
 if(TARGET avel_app)
     find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui)
     add_executable(avel_app_tests
+        app/extensions_model_test.cpp
         app/leftover_model_test.cpp
         app/startup_model_test.cpp
         app/trace_model_test.cpp
         app/windows_apps_model_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/extensions_model.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/extensions_model.h
+        ${PROJECT_SOURCE_DIR}/src/app/extensions_text.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.h
         ${PROJECT_SOURCE_DIR}/src/app/leftover_text.cpp
@@ -128,6 +134,7 @@ if(TARGET avel_app)
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.h
         ${PROJECT_SOURCE_DIR}/src/app/trace_text.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/unelevated_launch.cpp
         ${PROJECT_SOURCE_DIR}/src/app/windows_apps_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/windows_apps_model.h
         ${PROJECT_SOURCE_DIR}/src/app/windows_apps_text.cpp)

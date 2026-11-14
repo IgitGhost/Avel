@@ -2,6 +2,16 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en">
 <context>
+    <name>ExtensionsText</name>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)</source>
+        <translation>
+            <numerusform>Remove %n browser extension</numerusform>
+            <numerusform>Remove %n browser extensions</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>LeftoverText</name>
     <message numerus="yes">
         <source>%n item(s) its installer created</source>
@@ -195,6 +205,114 @@
         <translation>
             <numerusform>… and %n more</numerusform>
             <numerusform>… and %n more</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::ExtensionsWindow</name>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… and %n more</numerusform>
+            <numerusform>… and %n more</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s)</source>
+        <translation>
+            <numerusform>%n extension</numerusform>
+            <numerusform>%n extensions</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n extension(s)</source>
+        <translation>
+            <numerusform>Showing %1 of %n extension</numerusform>
+            <numerusform>Showing %1 of %n extensions</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>%n disabled</numerusform>
+            <numerusform>%n disabled</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n removable by Avel</source>
+        <translation>
+            <numerusform>%n removable by Avel</numerusform>
+            <numerusform>%n removable by Avel</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n warning</numerusform>
+            <numerusform>%n warnings</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s) selected; Remove applies to the ones Avel can remove. Details of this one:</source>
+        <translation>
+            <numerusform>%n extension selected; Remove applies to the ones Avel can remove. Details of this one:</numerusform>
+            <numerusform>%n extensions selected; Remove applies to the ones Avel can remove. Details of this one:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n selected extension(s) skipped.</source>
+        <translation>
+            <numerusform>Nothing to remove: %n selected extension skipped.</numerusform>
+            <numerusform>Nothing to remove: %n selected extensions skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected extension(s) will be skipped:</source>
+        <translation>
+            <numerusform>%n selected extension will be skipped:</numerusform>
+            <numerusform>%n selected extensions will be skipped:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)?</source>
+        <translation>
+            <numerusform>Remove %n browser extension?</numerusform>
+            <numerusform>Remove %n browser extensions?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n browser extension(s) removed; the browser drops them at its next start.</source>
+        <translation>
+            <numerusform>%n browser extension removed; the browser drops it at its next start.</numerusform>
+            <numerusform>%n browser extensions removed; the browser drops them at its next start.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Removed in part: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Removed in part: %n change couldn&apos;t be made.</numerusform>
+            <numerusform>Removed in part: %n changes couldn&apos;t be made.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing was removed: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Nothing was removed: %n change couldn&apos;t be made.</numerusform>
+            <numerusform>Nothing was removed: %n changes couldn&apos;t be made.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n skipped.</numerusform>
+            <numerusform>%n skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n item couldn&apos;t be put back; the Undo Center can try again.</numerusform>
+            <numerusform>%n items couldn&apos;t be put back; the Undo Center can try again.</numerusform>
         </translation>
     </message>
 </context>

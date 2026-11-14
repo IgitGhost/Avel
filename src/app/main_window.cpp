@@ -39,6 +39,7 @@
 #include "core/platform/processes.h"
 #include "core/uninstall/registration.h"
 #include "details_view.h"
+#include "extensions_window.h"
 #include "hive_access.h"
 #include "icon_loader.h"
 #include "inventory_loader.h"
@@ -178,6 +179,10 @@ void MainWindow::createActions() {
     windowsAppsAction_->setObjectName(u"windowsAppsAction"_s);
     connect(windowsAppsAction_, &QAction::triggered, this, &MainWindow::openWindowsApps);
 
+    extensionsAction_ = new QAction(this);
+    extensionsAction_->setObjectName(u"extensionsAction"_s);
+    connect(extensionsAction_, &QAction::triggered, this, &MainWindow::openExtensions);
+
     findAction_ = new QAction(this);
     findAction_->setShortcut(QKeySequence::Find);
     connect(findAction_, &QAction::triggered, this, [this] {
@@ -242,6 +247,7 @@ void MainWindow::createMenus() {
     toolsMenu_ = menuBar()->addMenu(QString());
     toolsMenu_->addAction(startupAction_);
     toolsMenu_->addAction(windowsAppsAction_);
+    toolsMenu_->addAction(extensionsAction_);
     toolsMenu_->addSeparator();
     toolsMenu_->addAction(orphansAction_);
     toolsMenu_->addAction(undoCenterAction_);
@@ -357,8 +363,15 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    // The Startup and Windows apps windows are top-level windows of their own: they go with this one.
-    // Each refuses while it changes the system.
+    // The Startup, Windows apps and browser extensions windows are top-level windows of their own:
+    // they go with this one. Each refuses while it changes the system.
+    if (extensionsWindow_) {
+        if (!extensionsWindow_->close()) {
+            event->ignore();
+            return;
+        }
+        delete extensionsWindow_;  // Now, not once the event loop is gone: it waits for its worker
+    }
     if (windowsAppsWindow_) {
         if (!windowsAppsWindow_->close()) {
             event->ignore();
@@ -410,6 +423,10 @@ void MainWindow::retranslateUi() {
     windowsAppsAction_->setToolTip(
         tr("See the Store and Windows' own apps of every user, and remove them for you, for new users or "
            "for everyone"));
+    extensionsAction_->setText(tr("&Browser extensions…"));
+    extensionsAction_->setToolTip(
+        tr("See the extensions of every browser profile of every user, and remove the ones a policy or a "
+           "program installs"));
     viewMenu_->setTitle(tr("&View"));
     languageMenu_->setTitle(tr("&Language"));
     systemLanguageAction_->setText(tr("System default"));
@@ -503,6 +520,9 @@ void MainWindow::onScanFinished(std::shared_ptr<const inventory::Inventory> inve
     programTraces_->refresh(inventory_);
     if (startupWindow_) {
         startupWindow_->setInventory(inventory_);
+    }
+    if (extensionsWindow_) {
+        extensionsWindow_->setInventory(inventory_);
     }
     iconLoader_->load(model_->iconSources());
 
@@ -954,6 +974,22 @@ void MainWindow::openWindowsApps() {
     }
     windowsAppsWindow_->raise();
     windowsAppsWindow_->activateWindow();
+}
+
+void MainWindow::openExtensions() {
+    if (!extensionsWindow_) {
+        // No parent, as the Startup window: an owned window would always stay above this one.
+        extensionsWindow_ = new ExtensionsWindow(stores_, inventory_);
+        extensionsWindow_->setAttribute(Qt::WA_DeleteOnClose);
+        connect(extensionsWindow_, &ExtensionsWindow::changesRestored, loader_, &InventoryLoader::start);
+    }
+    if (extensionsWindow_->isMinimized()) {
+        extensionsWindow_->showNormal();
+    } else {
+        extensionsWindow_->show();
+    }
+    extensionsWindow_->raise();
+    extensionsWindow_->activateWindow();
 }
 
 void MainWindow::onMaintenanceFinished(const QStringList& settled) {

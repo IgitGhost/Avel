@@ -34,6 +34,7 @@ namespace avel::app {
 
 class ChangeStoreAccess;
 class DetailsView;
+class ExtensionsWindow;
 class IconLoader;
 class InventoryLoader;
 class LanguageManager;
@@ -93,6 +94,8 @@ private:
     void openStartup();
     // Tools > Windows apps...: likewise.
     void openWindowsApps();
+    // Tools > Browser extensions...: likewise.
+    void openExtensions();
     void onMaintenanceFinished(const QStringList& settled);
     void openInstallLocation();
     void showTableMenu(const QPoint& position);
@@ -135,6 +138,7 @@ private:
     QAction* undoCenterAction_ = nullptr;
     QAction* startupAction_ = nullptr;
     QAction* windowsAppsAction_ = nullptr;
+    QAction* extensionsAction_ = nullptr;
     QAction* findAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* systemLanguageAction_ = nullptr;
@@ -166,6 +170,7 @@ private:
     ForceFlow* forceFlow_ = nullptr;         // The one running, if any; it deletes itself
     QPointer<StartupWindow> startupWindow_;  // A top-level window of its own; it deletes itself on close
     QPointer<WindowsAppsWindow> windowsAppsWindow_;  // Likewise
+    QPointer<ExtensionsWindow> extensionsWindow_;    // Likewise
     // A leftover preview, the orphan finder or a Hunter lookup runs on the worker pool.
     bool busy_ = false;
     // Declared last so it's destroyed first: its destructor waits for a running task.

@@ -14,6 +14,12 @@ qt_add_executable(avel_app WIN32
     change_store_access.h
     details_view.cpp
     details_view.h
+    extensions_model.cpp
+    extensions_model.h
+    extensions_text.cpp
+    extensions_text.h
+    extensions_window.cpp
+    extensions_window.h
     force_flow.cpp
     force_flow.h
     hive_access.cpp
@@ -46,6 +52,8 @@ qt_add_executable(avel_app WIN32
     program_text.h
     program_traces.cpp
     program_traces.h
+    registry_editor.cpp
+    registry_editor.h
     right_elide_delegate.h
     running_processes_dialog.cpp
     running_processes_dialog.h
@@ -73,6 +81,8 @@ qt_add_executable(avel_app WIN32
     traces_dialog.h
     undo_center_dialog.cpp
     undo_center_dialog.h
+    unelevated_launch.cpp
+    unelevated_launch.h
     uninstall_dialog.cpp
     uninstall_dialog.h
     uninstall_progress_dialog.cpp

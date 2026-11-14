@@ -24,6 +24,7 @@
 #include "core/platform/text.h"
 #include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
+#include "core/tools/browser_extensions.h"
 #include "core/tools/windows_apps_data.h"
 
 namespace avel::leftovers {
@@ -482,7 +483,15 @@ ProtectionReason HardFloor::check(const Location& location) const {
                                                                      : ProtectionReason::None;
     }
     if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
-        // The only allow-list in the floor, and only for edits: the environment and SharedDLLs.
+        // Browsers' extension policies (ADR 0009): an entry of a numbered list or the ExtensionSettings
+        // value, put to another string or deleted, as the browser extensions planner edits them.
+        if (tools::is_extension_policy_value(edit->key, edit->value_name)) {
+            const bool text = !edit->desired || edit->desired->type == REG_SZ ||
+                              edit->desired->type == REG_EXPAND_SZ || edit->desired->type == REG_MULTI_SZ;
+            return edit->kind == ValueEditKind::RestoreValue && text ? ProtectionReason::None
+                                                                    : ProtectionReason::NotEditable;
+        }
+        // Otherwise the floor's allow-list for edits: the environment and SharedDLLs.
         const auto spot = value_spot(edit->key);
         if (!spot) {
             return ProtectionReason::NotEditable;

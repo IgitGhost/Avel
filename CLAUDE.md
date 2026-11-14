@@ -53,7 +53,9 @@ cmake --build --preset release --target deploy
 - Scenarios are `tests/sandbox/scenarios/<name>.ps1`: `logon`, `uninstall`, `leftovers`,
   `removal`, `force`, `trace`, `trace_gui` (`trace`'s last round, the GUI's, alone), `startup`
   (the Startup manager, with a signed-out second user), `apps` (Windows apps, offline, with a
-  second user and two test MSIX packages). Each phase's acceptance is one of them, and
+  second user and two test MSIX packages),
+  `extensions` (browser extensions, offline: synthetic profiles and policies, a signed-out user).
+  Each phase's acceptance is one of them, and
   they end with
   `RESULT: PASS` or `RESULT: FAIL (n problem(s))` in `build\sandbox\results\<name>.txt` (also
   `<name>.json`, `<name>.log`).
@@ -134,6 +136,11 @@ Modules under `src/core`, in pipeline order:
     "don't install for new users" and "remove for everyone" (irreversible) as ChangeSets
     (ADR 0008). Soft removal is for the current user only, and only while another user or the
     provisioning keeps the package on this PC; uninstalling a packaged app uses it then.
+  - `browser_extensions` lists every Chromium-family and Firefox profile's extensions (read-only:
+    profiles' files and `policies.json` are never written) and their stubborn sources (policies,
+    external registrations); `browser_extensions_changes` removes only those sources (ADR 0009):
+    a list policy loses its entry and is renumbered without a gap, a JSON policy loses the id's
+    key, both as compare-and-set `RestoreValue` edits that HardFloor allows only there.
 - `platform/`: Win32 wrappers shared by all of the above:
   - `nt_registry`: native `Nt*` registry calls, used for exact value backup and restore;
   - `packages`: packaged apps through the public `PackageManager` only (no Appx cmdlets), each

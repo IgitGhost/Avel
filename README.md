@@ -3,8 +3,8 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-5 done; Avel Tools in progress: Startup manager and Windows apps
-> done).** Avel lists installed programs, runs their uninstallers silently or in batches, then
+> **Status: pre-alpha (Phases 0-5 done; Avel Tools in progress: Startup manager, Windows apps and
+> browser extensions done).** Avel lists installed programs, runs their uninstallers silently or in batches, then
 > finds what they left behind and removes it with a backup that can be undone for 30 days.
 > Programs that can't uninstall themselves can be removed by force. Installations can be traced,
 > and programs later removed by their trace. What starts with Windows can be disabled or deleted,
@@ -135,6 +135,24 @@
   ```
 
   See [docs/tools.md](docs/tools.md).
+- **Browser extensions (Avel Tools).** Every extension in every Chrome, Edge, Brave, Vivaldi, Opera,
+  Chromium and Firefox profile of every user: how it was installed, whether it comes from the
+  browser's store, whether it is enabled, and the permissions it asks for.
+  - Avel removes only the stubborn ones, which the browser won't let you remove: those that a
+    policy forces or a program registers in the registry. It takes out only that extension's entry
+    and undo puts it back. The browser drops the extension at its next start.
+  - Avel never edits a profile's own files. For everything else, **Open extensions page** opens the
+    browser's own page (not as administrator).
+  - **In the GUI:** **Tools > Browser extensions…**.
+  - **In the CLI:**
+
+  ```powershell
+  avel-cli extensions list --all-users --removable  # the stubborn ones (run as administrator)
+  avel-cli extensions remove <id> --dry-run         # what removing it would change
+  avel-cli extensions remove <id>                   # undoable
+  ```
+
+  See [docs/tools.md](docs/tools.md).
 - **CLI (`avel-cli.exe`):**
 
   ```powershell
@@ -168,7 +186,7 @@
 | **Avel Uninstall** | Lists every installed program (Win32, MSI, Store/MSIX, every user's per-user installs), runs its uninstaller (also silently or in batches), then finds leftovers and removes them with full backup and undo |
 | **Avel Trace** | Records what an installer changes (NTFS USN journal plus a registry snapshot, no kernel driver) so the program can later be removed exactly, including its edits to PATH and SharedDLLs |
 | **Avel Force** | Removes programs whose uninstaller is broken or missing; a crosshair "hunter" picks a program from any window |
-| **Avel Tools** | Startup manager (done), Windows apps (bloatware) removal, Windows features and capabilities, stubborn browser extensions, Steam and Epic games |
+| **Avel Tools** | Startup manager, Windows apps (bloatware) removal and stubborn browser extensions (done); Windows features and capabilities, Steam and Epic games |
 
 Planned design principles:
 - **Safety first.** Every change goes through a single change set: preview, backup, execute, journal. Anything can be undone.

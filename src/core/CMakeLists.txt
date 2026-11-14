@@ -131,6 +131,10 @@ add_library(avel_core STATIC
     platform/volume_folders.h
     platform/version_info.h
     platform/winrt_apartment.h
+    tools/browser_extensions.cpp
+    tools/browser_extensions.h
+    tools/browser_extensions_changes.cpp
+    tools/browser_extensions_changes.h
     tools/startup.cpp
     tools/startup.h
     tools/startup_changes.cpp
@@ -196,5 +200,5 @@ target_include_directories(avel_core PUBLIC
 # C++/WinRT headers come from the Windows SDK; windowsapp.lib provides the WinRT runtime.
 target_link_libraries(avel_core
     PUBLIC avel_options WIL::WIL
-    PRIVATE nlohmann_json::nlohmann_json advapi32 crypt32 msi ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd user32
+    PRIVATE nlohmann_json::nlohmann_json advapi32 crypt32 msi netapi32 ole32 oleaut32 rstrtmgr shell32 shlwapi taskschd user32
             version windowsapp wintrust xmllite)

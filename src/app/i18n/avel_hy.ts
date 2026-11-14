@@ -2,6 +2,428 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="hy">
 <context>
+    <name>ExtensionsText</name>
+    <message>
+        <source>Google Chrome</source>
+        <translation>Google Chrome</translation>
+    </message>
+    <message>
+        <source>Google Chrome Beta</source>
+        <translation>Google Chrome Beta</translation>
+    </message>
+    <message>
+        <source>Google Chrome Dev</source>
+        <translation>Google Chrome Dev</translation>
+    </message>
+    <message>
+        <source>Google Chrome Canary</source>
+        <translation>Google Chrome Canary</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge</source>
+        <translation>Microsoft Edge</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Beta</source>
+        <translation>Microsoft Edge Beta</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Dev</source>
+        <translation>Microsoft Edge Dev</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Canary</source>
+        <translation>Microsoft Edge Canary</translation>
+    </message>
+    <message>
+        <source>Brave</source>
+        <translation>Brave</translation>
+    </message>
+    <message>
+        <source>Vivaldi</source>
+        <translation>Vivaldi</translation>
+    </message>
+    <message>
+        <source>Opera</source>
+        <translation>Opera</translation>
+    </message>
+    <message>
+        <source>Opera GX</source>
+        <translation>Opera GX</translation>
+    </message>
+    <message>
+        <source>Chromium</source>
+        <translation>Chromium</translation>
+    </message>
+    <message>
+        <source>Firefox</source>
+        <translation>Firefox</translation>
+    </message>
+    <message>
+        <source>Machine (all users)</source>
+        <translation>Համակարգիչ (բոլոր օգտատերերը)</translation>
+    </message>
+    <message>
+        <source>%1 (you)</source>
+        <translation>%1 (դուք)</translation>
+    </message>
+    <message>
+        <source>Not in a profile</source>
+        <translation>Պրոֆիլում չէ</translation>
+    </message>
+    <message>
+        <source>Not installed</source>
+        <translation>Տեղադրված չէ</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Միացված է</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Անջատված է</translation>
+    </message>
+    <message>
+        <source>No profile has it: the browser installs it at its next start, or the browser it is meant for isn&apos;t used here.</source>
+        <translation>Ոչ մի պրոֆիլ այն չունի․ դիտարկիչը կտեղադրի այն հաջորդ մեկնարկի ժամանակ, կամ այն դիտարկիչը, որի համար այն նախատեսված է, այստեղ չի օգտագործվում։</translation>
+    </message>
+    <message>
+        <source>Disabled: %1</source>
+        <translation>Անջատված է՝ %1</translation>
+    </message>
+    <message>
+        <source>by the user</source>
+        <translation>օգտատիրոջ կողմից</translation>
+    </message>
+    <message>
+        <source>it asks for new permissions</source>
+        <translation>այն նոր թույլտվություններ է պահանջում</translation>
+    </message>
+    <message>
+        <source>being reloaded</source>
+        <translation>վերաբեռնվում է</translation>
+    </message>
+    <message>
+        <source>a requirement isn&apos;t met</source>
+        <translation>պահանջներից մեկը բավարարված չէ</translation>
+    </message>
+    <message>
+        <source>installed by another program, turned off by the browser</source>
+        <translation>տեղադրվել է այլ ծրագրի կողմից, անջատվել է դիտարկիչի կողմից</translation>
+    </message>
+    <message>
+        <source>not verified by the store</source>
+        <translation>ստուգված չէ խանութի կողմից</translation>
+    </message>
+    <message>
+        <source>flagged by Safe Browsing</source>
+        <translation>նշվել է Safe Browsing-ի կողմից</translation>
+    </message>
+    <message>
+        <source>its files are corrupted</source>
+        <translation>դրա ֆայլերը վնասված են</translation>
+    </message>
+    <message>
+        <source>installed remotely, waiting for approval</source>
+        <translation>տեղադրվել է հեռակա կարգով, սպասում է հաստատման</translation>
+    </message>
+    <message>
+        <source>installed by another program, waiting for the user&apos;s approval</source>
+        <translation>տեղադրվել է այլ ծրագրի կողմից, սպասում է օգտատիրոջ հաստատմանը</translation>
+    </message>
+    <message>
+        <source>a policy requires an update</source>
+        <translation>քաղաքականությունը պահանջում է թարմացում</translation>
+    </message>
+    <message>
+        <source>waiting for a parent&apos;s approval</source>
+        <translation>սպասում է ծնողի հաստատմանը</translation>
+    </message>
+    <message>
+        <source>blocked by a policy</source>
+        <translation>արգելափակված է քաղաքականությամբ</translation>
+    </message>
+    <message>
+        <source>being reinstalled</source>
+        <translation>վերատեղադրվում է</translation>
+    </message>
+    <message>
+        <source>not allowed by Enhanced Safe Browsing</source>
+        <translation>թույլատրված չէ Enhanced Safe Browsing-ի կողմից</translation>
+    </message>
+    <message>
+        <source>a policy allows only extensions from the store</source>
+        <translation>քաղաքականությունը թույլատրում է միայն խանութի ընդլայնումները</translation>
+    </message>
+    <message>
+        <source>its manifest version is no longer supported</source>
+        <translation>դրա մանիֆեստի տարբերակն այլևս չի աջակցվում</translation>
+    </message>
+    <message>
+        <source>developer extensions are turned off</source>
+        <translation>մշակողի ընդլայնումներն անջատված են</translation>
+    </message>
+    <message>
+        <source>other reasons (code %1)</source>
+        <translation>այլ պատճառներ (կոդ %1)</translation>
+    </message>
+    <message>
+        <source>From the store</source>
+        <translation>Խանութից</translation>
+    </message>
+    <message>
+        <source>By the user</source>
+        <translation>Օգտատիրոջ կողմից</translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation>Մշակող</translation>
+    </message>
+    <message>
+        <source>External file</source>
+        <translation>Արտաքին ֆայլ</translation>
+    </message>
+    <message>
+        <source>Registry</source>
+        <translation>Ռեեստր</translation>
+    </message>
+    <message>
+        <source>Policy</source>
+        <translation>Քաղաքականություն</translation>
+    </message>
+    <message>
+        <source>Another program</source>
+        <translation>Այլ ծրագիր</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Անհայտ</translation>
+    </message>
+    <message>
+        <source>Installed by the user from the browser&apos;s store.</source>
+        <translation>Տեղադրվել է օգտատիրոջ կողմից՝ դիտարկիչի խանութից։</translation>
+    </message>
+    <message>
+        <source>Installed by the user, not from the store (a file or another site).</source>
+        <translation>Տեղադրվել է օգտատիրոջ կողմից, ոչ խանութից (ֆայլից կամ այլ կայքից)։</translation>
+    </message>
+    <message>
+        <source>Loaded by a developer: unpacked, from the command line, or a temporary add-on.</source>
+        <translation>Բեռնվել է մշակողի կողմից՝ չփաթեթավորված, հրամանի տողից կամ որպես ժամանակավոր հավելում։</translation>
+    </message>
+    <message>
+        <source>Installed by a program, through a file next to the browser or the program.</source>
+        <translation>Տեղադրվել է ծրագրի կողմից՝ դիտարկիչի կամ ծրագրի կողքին գտնվող ֆայլի միջոցով։</translation>
+    </message>
+    <message>
+        <source>Installed by a program, through a registration in the registry.</source>
+        <translation>Տեղադրվել է ծրագրի կողմից՝ ռեեստրում գրանցման միջոցով։</translation>
+    </message>
+    <message>
+        <source>Installed by a policy.</source>
+        <translation>Տեղադրվել է քաղաքականությամբ։</translation>
+    </message>
+    <message>
+        <source>Put in a Firefox extensions folder by another program.</source>
+        <translation>Այլ ծրագիր այն տեղադրել է Firefox-ի ընդլայնումների թղթապանակում։</translation>
+    </message>
+    <message>
+        <source>The profile doesn&apos;t say how it was installed.</source>
+        <translation>Պրոֆիլում նշված չէ, թե ինչպես է այն տեղադրվել։</translation>
+    </message>
+    <message>
+        <source>Chrome Web Store</source>
+        <translation>Chrome Web Store</translation>
+    </message>
+    <message>
+        <source>Edge Add-ons</source>
+        <translation>Edge Add-ons</translation>
+    </message>
+    <message>
+        <source>Opera add-ons</source>
+        <translation>Opera add-ons</translation>
+    </message>
+    <message>
+        <source>Firefox Add-ons</source>
+        <translation>Firefox Add-ons</translation>
+    </message>
+    <message>
+        <source>Removable</source>
+        <translation>Հնարավոր է հեռացնել</translation>
+    </message>
+    <message>
+        <source>In the browser</source>
+        <translation>Դիտարկիչում</translation>
+    </message>
+    <message>
+        <source>policies.json</source>
+        <translation>policies.json</translation>
+    </message>
+    <message>
+        <source>Not supported</source>
+        <translation>Չի աջակցվում</translation>
+    </message>
+    <message>
+        <source>Something outside the browser installs it: Avel removes the policy entries and registrations below, and the browser removes the extension at its next start.</source>
+        <translation>Այն տեղադրում է ինչ-որ բան դիտարկիչից դուրս․ Avel-ը հեռացնում է ստորև նշված քաղաքականության գրառումներն ու գրանցումները, իսկ դիտարկիչը կհեռացնի ընդլայնումը հաջորդ մեկնարկի ժամանակ։</translation>
+    </message>
+    <message>
+        <source>Nothing outside the browser installs it, so the browser removes it itself: open its extensions page and remove it there.</source>
+        <translation>Դիտարկիչից դուրս ոչինչ այն չի տեղադրում, ուստի դիտարկիչն ինքն է այն հեռացնում․ բացեք դրա ընդլայնումների էջը և հեռացրեք այն այնտեղ։</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json installs it. That file belongs to whoever set Firefox up, and Avel doesn&apos;t edit it.</source>
+        <translation>Այն տեղադրում է Firefox-ի policies.json-ը։ Այդ ֆայլը պատկանում է նրան, ով կարգավորել է Firefox-ը, և Avel-ը այն չի խմբագրում։</translation>
+    </message>
+    <message>
+        <source>A policy names it together with other extensions in one registry key. Avel can&apos;t take out one of them without renaming the key.</source>
+        <translation>Քաղաքականությունն այն նշում է այլ ընդլայնումների հետ միասին ռեեստրի մեկ բանալիում։ Avel-ը չի կարող հանել դրանցից մեկը՝ առանց բանալին վերանվանելու։</translation>
+    </message>
+    <message>
+        <source>Forced install policy (ExtensionInstallForcelist)</source>
+        <translation>Ստիպողական տեղադրման քաղաքականություն (ExtensionInstallForcelist)</translation>
+    </message>
+    <message>
+        <source>Extension settings policy (ExtensionSettings)</source>
+        <translation>Ընդլայնումների կարգավորումների քաղաքականություն (ExtensionSettings)</translation>
+    </message>
+    <message>
+        <source>External registration</source>
+        <translation>Արտաքին գրանցում</translation>
+    </message>
+    <message>
+        <source>Firefox registration</source>
+        <translation>Firefox-ի գրանցում</translation>
+    </message>
+    <message>
+        <source>Firefox install policy (Extensions\Install)</source>
+        <translation>Firefox-ի տեղադրման քաղաքականություն (Extensions\Install)</translation>
+    </message>
+    <message>
+        <source>Firefox locked policy (Extensions\Locked)</source>
+        <translation>Firefox-ի կողպման քաղաքականություն (Extensions\Locked)</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json</source>
+        <translation>Firefox-ի policies.json</translation>
+    </message>
+    <message>
+        <source>The browser installs it and the user can&apos;t remove or turn it off.</source>
+        <translation>Դիտարկիչը տեղադրում է այն, և օգտատերը չի կարող այն հեռացնել կամ անջատել։</translation>
+    </message>
+    <message>
+        <source>The policy installs it, forced or as a default the user can turn off.</source>
+        <translation>Քաղաքականությունը տեղադրում է այն՝ ստիպողաբար կամ որպես լռելյայն, որը օգտատերը կարող է անջատել։</translation>
+    </message>
+    <message>
+        <source>A program asks the browser to install it.</source>
+        <translation>Ծրագիրը խնդրում է դիտարկիչին տեղադրել այն։</translation>
+    </message>
+    <message>
+        <source>A program points Firefox at its add-on file.</source>
+        <translation>Ծրագիրը Firefox-ին ցույց է տալիս իր հավելման ֆայլը։</translation>
+    </message>
+    <message>
+        <source>Firefox installs the add-on from this address or file.</source>
+        <translation>Firefox-ը տեղադրում է հավելումը այս հասցեից կամ ֆայլից։</translation>
+    </message>
+    <message>
+        <source>The user can&apos;t turn the add-on off or remove it.</source>
+        <translation>Օգտատերը չի կարող անջատել կամ հեռացնել հավելումը։</translation>
+    </message>
+    <message>
+        <source>Avel doesn&apos;t edit this file.</source>
+        <translation>Avel-ը այս ֆայլը չի խմբագրում։</translation>
+    </message>
+    <message>
+        <source>Your own copy from the store stays; remove it on the browser&apos;s extensions page.</source>
+        <translation>Խանութից ձեր սեփական պատճենը մնում է․ հեռացրեք այն դիտարկիչի ընդլայնումների էջում։</translation>
+    </message>
+    <message>
+        <source>Not read by the browser: removing it changes nothing in the browser, only cleans up.</source>
+        <translation>Դիտարկիչը սա չի կարդում․ դրա հեռացումը դիտարկիչում ոչինչ չի փոխում, միայն կարգի է բերում։</translation>
+    </message>
+    <message>
+        <source>The browser removes what these sources installed at its next start; while it runs, it keeps the extension.</source>
+        <translation>Դիտարկիչը հաջորդ մեկնարկի ժամանակ կհեռացնի այն, ինչ տեղադրել են այս աղբյուրները․ քանի դեռ այն աշխատում է, ընդլայնումը մնում է։</translation>
+    </message>
+    <message>
+        <source>This PC is joined to a domain or managed by an organization: removed policy entries may be written again.</source>
+        <translation>Այս համակարգիչը միացված է տիրույթի կամ կառավարվում է կազմակերպության կողմից․ հեռացված քաղաքականության գրառումները կարող են կրկին գրվել։</translation>
+    </message>
+    <message>
+        <source>Delete the registry key %1</source>
+        <translation>Ջնջել ռեեստրի %1 բանալին</translation>
+    </message>
+    <message>
+        <source>Delete the registry value %1</source>
+        <translation>Ջնջել ռեեստրի %1 արժեքը</translation>
+    </message>
+    <message>
+        <source>Delete the registry value %1 (“%2”)</source>
+        <translation>Ջնջել ռեեստրի %1 արժեքը («%2»)</translation>
+    </message>
+    <message>
+        <source>Change the registry value %1 from “%2” to “%3”</source>
+        <translation>Փոխել ռեեստրի %1 արժեքը «%2»-ից «%3»-ի</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Այլևս ցանկում չէ․ թարմացրեք F5-ով</translation>
+    </message>
+    <message>
+        <source>Nothing outside the browser installs it: remove it on the browser&apos;s extensions page</source>
+        <translation>Դիտարկիչից դուրս ոչինչ այն չի տեղադրում․ հեռացրեք այն դիտարկիչի ընդլայնումների էջում</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json installs it; Avel doesn&apos;t edit that file</source>
+        <translation>Այն տեղադրում է Firefox-ի policies.json-ը․ Avel-ը այդ ֆայլը չի խմբագրում</translation>
+    </message>
+    <message>
+        <source>A policy names it together with other extensions in one key</source>
+        <translation>Քաղաքականությունն այն նշում է այլ ընդլայնումների հետ միասին մեկ բանալիում</translation>
+    </message>
+    <message>
+        <source>A protected registry location holds what installs it</source>
+        <translation>Այն, ինչ տեղադրում է այն, գտնվում է ռեեստրի պաշտպանված վայրում</translation>
+    </message>
+    <message>
+        <source>A browser profile&apos;s preferences couldn&apos;t be read: %1</source>
+        <translation>Չհաջողվեց կարդալ դիտարկիչի պրոֆիլի կարգավորումները՝ %1</translation>
+    </message>
+    <message>
+        <source>A browser&apos;s list of profiles couldn&apos;t be read, so its profiles were found by folder: %1</source>
+        <translation>Չհաջողվեց կարդալ դիտարկիչի պրոֆիլների ցանկը, ուստի դրա պրոֆիլները գտնվել են ըստ թղթապանակների՝ %1</translation>
+    </message>
+    <message>
+        <source>A Firefox profile&apos;s list of add-ons couldn&apos;t be read: %1</source>
+        <translation>Չհաջողվեց կարդալ Firefox-ի պրոֆիլի հավելումների ցանկը՝ %1</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s list of profiles couldn&apos;t be read: %1</source>
+        <translation>Չհաջողվեց կարդալ Firefox-ի պրոֆիլների ցանկը՝ %1</translation>
+    </message>
+    <message>
+        <source>An ExtensionSettings policy isn&apos;t valid JSON, so the browser ignores it too: %1</source>
+        <translation>ExtensionSettings քաղաքականությունը վավեր JSON չէ, ուստի դիտարկիչը նույնպես անտեսում է այն՝ %1</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json couldn&apos;t be read: %1</source>
+        <translation>Չհաջողվեց կարդալ Firefox-ի policies.json-ը՝ %1</translation>
+    </message>
+    <message>
+        <source>Remove browser extension %1</source>
+        <translation>Հեռացնել դիտարկիչի %1 ընդլայնումը</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)</source>
+        <translation>
+            <numerusform>Հեռացնել դիտարկիչի %n ընդլայնում</numerusform>
+            <numerusform>Հեռացնել դիտարկիչի %n ընդլայնում</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>LeftoverText</name>
     <message>
         <source>Files and folders</source>
@@ -2060,6 +2482,495 @@
     </message>
 </context>
 <context>
+    <name>avel::app::ExtensionsTableModel</name>
+    <message>
+        <source>Yes</source>
+        <translation>Այո</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>Ոչ</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Անվանում</translation>
+    </message>
+    <message>
+        <source>Browser</source>
+        <translation>Դիտարկիչ</translation>
+    </message>
+    <message>
+        <source>Profile</source>
+        <translation>Պրոֆիլ</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Օգտատեր</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Վիճակ</translation>
+    </message>
+    <message>
+        <source>Installed by</source>
+        <translation>Տեղադրման եղանակ</translation>
+    </message>
+    <message>
+        <source>From store</source>
+        <translation>Խանութից</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Տարբերակ</translation>
+    </message>
+    <message>
+        <source>Removal</source>
+        <translation>Հեռացում</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::ExtensionsWindow</name>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… և ևս %n</numerusform>
+            <numerusform>… և ևս %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel is changing browser extensions. Close the window once that is done.</source>
+        <translation>Avel-ը փոփոխում է դիտարկիչների ընդլայնումները։ Փակեք պատուհանը, երբ փոփոխությունն ավարտվի։</translation>
+    </message>
+    <message>
+        <source>Browser extensions</source>
+        <translation>Դիտարկիչների ընդլայնումներ</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Թարմացնել</translation>
+    </message>
+    <message>
+        <source>List the extensions again (F5)</source>
+        <translation>Կրկին ստանալ ընդլայնումների ցանկը (F5)</translation>
+    </message>
+    <message>
+        <source>Re&amp;move…</source>
+        <translation>Հ&amp;եռացնել…</translation>
+    </message>
+    <message>
+        <source>Open &amp;extensions page</source>
+        <translation>Բացել &amp;ընդլայնումների էջը</translation>
+    </message>
+    <message>
+        <source>Open &amp;policies.json</source>
+        <translation>Բացել &amp;policies.json-ը</translation>
+    </message>
+    <message>
+        <source>Show the Firefox policies.json that installs the selected extension in Explorer. Avel doesn&apos;t edit it.</source>
+        <translation>Explorer-ում ցույց տալ Firefox-ի policies.json-ը, որը տեղադրում է ընտրված ընդլայնումը։ Avel-ը այն չի խմբագրում։</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>&amp;Հետարկել վերջին փոփոխությունը</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>Հետարկման &amp;կենտրոն…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Այն ամենը, ինչ Avel-ը փոխել է վերջին 30 օրում՝ վերադարձնելու համար</translation>
+    </message>
+    <message>
+        <source>&amp;Copy extension id</source>
+        <translation>&amp;Պատճենել ընդլայնման նույնացուցիչը</translation>
+    </message>
+    <message>
+        <source>Open in &amp;Registry Editor</source>
+        <translation>Բացել &amp;Ռեեստրի խմբագրիչում</translation>
+    </message>
+    <message>
+        <source>Open the key of the first policy or registration that installs it</source>
+        <translation>Բացել առաջին քաղաքականության կամ գրանցման բանալին, որը տեղադրում է այն</translation>
+    </message>
+    <message>
+        <source>Open &amp;profile folder</source>
+        <translation>Բացել պրոֆիլի &amp;թղթապանակը</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Գտնել</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Գործիքագոտի</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Զտիչներ</translation>
+    </message>
+    <message>
+        <source>Search by name, extension id, description or profile (Ctrl+F)</source>
+        <translation>Որոնում ըստ անվանման, ընդլայնման նույնացուցիչի, նկարագրության կամ պրոֆիլի (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Որոնում</translation>
+    </message>
+    <message>
+        <source>Browser</source>
+        <translation>Դիտարկիչ</translation>
+    </message>
+    <message>
+        <source>All browsers</source>
+        <translation>Բոլոր դիտարկիչները</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Օգտատեր</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Բոլոր օգտատերերը</translation>
+    </message>
+    <message>
+        <source>Only removable</source>
+        <translation>Միայն հեռացվողները</translation>
+    </message>
+    <message>
+        <source>Only the extensions that a policy or a program&apos;s registration installs, which Avel can remove</source>
+        <translation>Միայն այն ընդլայնումները, որոնք տեղադրում է քաղաքականությունը կամ ծրագրի գրանցումը, և որոնք Avel-ը կարող է հեռացնել</translation>
+    </message>
+    <message>
+        <source>Listing browser extensions…</source>
+        <translation>Ստացվում է դիտարկիչների ընդլայնումների ցանկը…</translation>
+    </message>
+    <message>
+        <source>%1 wasn&apos;t found on this PC, so its extensions page can&apos;t be opened from here.</source>
+        <translation>%1-ը այս համակարգչում չի գտնվել, ուստի դրա ընդլայնումների էջը հնարավոր չէ բացել այստեղից։</translation>
+    </message>
+    <message>
+        <source>Windows&apos; desktop (Explorer) isn&apos;t running, so Avel can&apos;t start the browser without administrator rights.</source>
+        <translation>Windows-ի աշխատասեղանը (Explorer) գործարկված չէ, ուստի Avel-ը չի կարող գործարկել դիտարկիչը առանց ադմինիստրատորի իրավունքների։</translation>
+    </message>
+    <message>
+        <source>This profile belongs to %1: only the profiles of the user signed in to this desktop open from here.</source>
+        <translation>Այս պրոֆիլը պատկանում է %1 օգտատիրոջը․ այստեղից բացվում են միայն այս աշխատասեղանին մուտք գործած օգտատիրոջ պրոֆիլները։</translation>
+    </message>
+    <message>
+        <source>Remove the policy entries and registrations that install the selected extensions (Del). Avel asks first; the browser removes the extensions at its next start.</source>
+        <translation>Հեռացնել քաղաքականության գրառումներն ու գրանցումները, որոնք տեղադրում են ընտրված ընդլայնումները (Del)։ Avel-ը նախ կհարցնի․ դիտարկիչը կհեռացնի ընդլայնումները հաջորդ մեկնարկի ժամանակ։</translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Հետարկել այս պատուհանում արված վերջին փոփոխությունը (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Հետարկել «%1»-ը (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Open the selected profile&apos;s extensions page in its browser, as you, without administrator rights</source>
+        <translation>Բացել ընտրված պրոֆիլի ընդլայնումների էջը դրա դիտարկիչում՝ ձեր անունից, առանց ադմինիստրատորի իրավունքների</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s)</source>
+        <translation>
+            <numerusform>%n ընդլայնում</numerusform>
+            <numerusform>%n ընդլայնում</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n extension(s)</source>
+        <translation>
+            <numerusform>Ցուցադրված է %1-ը՝ %n ընդլայնումից</numerusform>
+            <numerusform>Ցուցադրված է %1-ը՝ %n ընդլայնումից</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>անջատված՝ %n</numerusform>
+            <numerusform>անջատված՝ %n</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n removable by Avel</source>
+        <translation>
+            <numerusform>Avel-ը կարող է հեռացնել՝ %n</numerusform>
+            <numerusform>Avel-ը կարող է հեռացնել՝ %n</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n զգուշացում</numerusform>
+            <numerusform>%n զգուշացում</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an extension to see its details.</source>
+        <translation>Ընտրեք ընդլայնում՝ մանրամասները տեսնելու համար։</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Նկարագրություն</translation>
+    </message>
+    <message>
+        <source>Extension id</source>
+        <translation>Ընդլայնման նույնացուցիչ</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Տարբերակ</translation>
+    </message>
+    <message>
+        <source>Profile</source>
+        <translation>Պրոֆիլ</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Վիճակ</translation>
+    </message>
+    <message>
+        <source>Installed with the browser or by the PC&apos;s maker</source>
+        <translation>Տեղադրվել է դիտարկիչի հետ կամ համակարգչի արտադրողի կողմից</translation>
+    </message>
+    <message>
+        <source>Installed by</source>
+        <translation>Տեղադրման եղանակ</translation>
+    </message>
+    <message>
+        <source>Data: %1</source>
+        <translation>Տվյալներ՝ %1</translation>
+    </message>
+    <message>
+        <source>Applies to: %1</source>
+        <translation>Ում համար՝ %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>extension name: why it was skipped</comment>
+        <translation>%1․ %2</translation>
+    </message>
+    <message>
+        <source>Store</source>
+        <translation>Խանութ</translation>
+    </message>
+    <message>
+        <source>Not from a store</source>
+        <translation>Խանութից չէ</translation>
+    </message>
+    <message>
+        <source>Update URL</source>
+        <translation>Թարմացման URL</translation>
+    </message>
+    <message>
+        <source>Installed on</source>
+        <translation>Տեղադրման ամսաթիվ</translation>
+    </message>
+    <message>
+        <source>Files</source>
+        <translation>Ֆայլեր</translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation>Թույլտվություններ</translation>
+    </message>
+    <message>
+        <source>Site access</source>
+        <translation>Կայքերի հասանելիություն</translation>
+    </message>
+    <message>
+        <source>Optional permissions</source>
+        <translation>Ընտրովի թույլտվություններ</translation>
+    </message>
+    <message>
+        <source>Removal</source>
+        <translation>Հեռացում</translation>
+    </message>
+    <message>
+        <source>Open the extensions page</source>
+        <translation>Բացել ընդլայնումների էջը</translation>
+    </message>
+    <message>
+        <source>Extensions page</source>
+        <translation>Ընդլայնումների էջ</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Նույնացուցիչ</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation>Ցույց տալ Explorer-ում</translation>
+    </message>
+    <message>
+        <source>Open in Registry Editor</source>
+        <translation>Բացել Ռեեստրի խմբագրիչում</translation>
+    </message>
+    <message>
+        <source>In the registry&apos;s 32-bit view</source>
+        <translation>Ռեեստրի 32-բիթանոց տեսքում</translation>
+    </message>
+    <message>
+        <source>Mode: %1</source>
+        <translation>Ռեժիմ՝ %1</translation>
+    </message>
+    <message>
+        <source>Program: %1</source>
+        <translation>Ծրագիր՝ %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s) selected; Remove applies to the ones Avel can remove. Details of this one:</source>
+        <translation>
+            <numerusform>Ընտրված է %n ընդլայնում․ «Հեռացնել»-ը կիրառվում է նրանց, որոնք Avel-ը կարող է հեռացնել։ Այս մեկի մանրամասները՝</numerusform>
+            <numerusform>Ընտրված է %n ընդլայնում․ «Հեռացնել»-ը կիրառվում է նրանց, որոնք Avel-ը կարող է հեռացնել։ Այս մեկի մանրամասները՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>What installs it from outside the browser</source>
+        <translation>Ինչն է այն տեղադրում դիտարկիչից դուրս</translation>
+    </message>
+    <message>
+        <source>%1 (%2, %3, %4)</source>
+        <translation>%1 (%2, %3, %4)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n selected extension(s) skipped.</source>
+        <translation>
+            <numerusform>Հեռացնելու բան չկա․ ընտրված %n ընդլայնում բաց է թողնվել։</numerusform>
+            <numerusform>Հեռացնելու բան չկա․ ընտրված %n ընդլայնում բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel takes out what installs it from outside the browser:</source>
+        <translation>Avel-ը կհանի այն, ինչ այն տեղադրում է դիտարկիչից դուրս՝</translation>
+    </message>
+    <message>
+        <source>The same policies or registrations install it here too, so it goes from these as well:</source>
+        <translation>Նույն քաղաքականություններն ու գրանցումներն այն տեղադրում են նաև այստեղ, ուստի այն կհեռացվի նաև այստեղից՝</translation>
+    </message>
+    <message>
+        <source>These lose one of their sources too, but something else still installs them:</source>
+        <translation>Սրանք նույնպես կկորցնեն իրենց աղբյուրներից մեկը, բայց դրանք դեռ տեղադրում է այլ բան՝</translation>
+    </message>
+    <message>
+        <source>Avel backs it up first: Undo last change (Ctrl+Z) or the Undo Center puts it back within 30 days.</source>
+        <translation>Avel-ը նախ պահուստային պատճեն է ստեղծում․ «Հետարկել վերջին փոփոխությունը» (Ctrl+Z) կամ Հետարկման կենտրոնը կվերադարձնի ամեն ինչ 30 օրվա ընթացքում։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected extension(s) will be skipped:</source>
+        <translation>
+            <numerusform>Ընտրված %n ընդլայնում բաց կթողնվի՝</numerusform>
+            <numerusform>Ընտրված %n ընդլայնում բաց կթողնվի՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove browser extensions</source>
+        <translation>Դիտարկիչների ընդլայնումների հեռացում</translation>
+    </message>
+    <message>
+        <source>Remove the browser extension %1?</source>
+        <translation>Հեռացնե՞լ դիտարկիչի %1 ընդլայնումը։</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)?</source>
+        <translation>
+            <numerusform>Հեռացնե՞լ դիտարկիչի %n ընդլայնում։</numerusform>
+            <numerusform>Հեռացնե՞լ դիտարկիչի %n ընդլայնում։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Հեռացնել</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Կատարվում է՝ %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Avel-ի մեկ այլ գործընթաց այժմ փոփոխում է համակարգը։ Ոչինչ չի փոխվել․ կրկին փորձեք, երբ այն ավարտի։</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel-ը չկարողացավ գրել այս փոփոխության պահուստային պատճենը, ուստի ոչինչ չի փոխվել։</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>change: its status</comment>
+        <translation>%1․ %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n browser extension(s) removed; the browser drops them at its next start.</source>
+        <translation>
+            <numerusform>Դիտարկիչի %n ընդլայնում հեռացվեց․ դիտարկիչը դրանք կհանի հաջորդ մեկնարկի ժամանակ։</numerusform>
+            <numerusform>Դիտարկիչի %n ընդլայնում հեռացվեց․ դիտարկիչը դրանք կհանի հաջորդ մեկնարկի ժամանակ։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Removed in part: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Մասամբ հեռացված է․ %n փոփոխություն չհաջողվեց կատարել։</numerusform>
+            <numerusform>Մասամբ հեռացված է․ %n փոփոխություն չհաջողվեց կատարել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing was removed: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Ոչինչ չի հեռացվել․ %n փոփոխություն չհաջողվեց կատարել։</numerusform>
+            <numerusform>Ոչինչ չի հեռացվել․ %n փոփոխություն չհաջողվեց կատարել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Հետարկել կարելի է Ctrl+Z-ով կամ Հետարկման կենտրոնում։</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Հետարկում՝ %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1»-ը հնարավոր չէ հետարկել այստեղ․ դրա պահուստային պատճենը բացակայում է կամ օգտագործվում է Avel-ի մեկ այլ գործընթացի կողմից։ Հետարկման կենտրոնը ցույց է տալիս, թե ինչ դեռ կարելի է վերադարձնել։</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>«%1»-ում հետարկելու այլևս ոչինչ չկա։</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Հետարկված է՝ %1։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1&apos;s extensions page couldn&apos;t be opened: Windows&apos; desktop didn&apos;t take the request. %2</source>
+        <translation>Չհաջողվեց բացել %1-ի ընդլայնումների էջը․ Windows-ի աշխատասեղանը չընդունեց հարցումը։ %2</translation>
+    </message>
+    <message>
+        <source>Opening %1&apos;s extensions page…</source>
+        <translation>Բացվում է %1-ի ընդլայնումների էջը…</translation>
+    </message>
+    <message>
+        <source>%1 is signed out, so their registry isn&apos;t loaded where Registry Editor sees it. In Registry Editor, File &gt; Load Hive opens their NTUSER.DAT.</source>
+        <translation>%1 օգտատերը մուտք գործած չէ, ուստի նրա ռեեստրը բեռնված չէ այնտեղ, որտեղ այն տեսնում է Ռեեստրի խմբագրիչը։ Ռեեստրի խմբագրիչում նրա NTUSER.DAT-ը բացում է «Ֆայլ &gt; Բեռնել փունջը» հրամանը։</translation>
+    </message>
+</context>
+<context>
     <name>avel::app::ForceFlow</name>
     <message>
         <source>Looking for everything that belongs to the program…</source>
@@ -2535,6 +3446,14 @@ Left by %2</source>
     <message>
         <source>See the Store and Windows&apos; own apps of every user, and remove them for you, for new users or for everyone</source>
         <translation>Դիտել բոլոր օգտատերերի Store հավելվածները և Windows-ի սեփական հավելվածները և հեռացնել դրանք ձեզ համար, նոր օգտատերերի համար կամ բոլորի համար</translation>
+    </message>
+    <message>
+        <source>&amp;Browser extensions…</source>
+        <translation>&amp;Դիտարկիչների ընդլայնումներ…</translation>
+    </message>
+    <message>
+        <source>See the extensions of every browser profile of every user, and remove the ones a policy or a program installs</source>
+        <translation>Դիտել բոլոր օգտատերերի դիտարկիչների բոլոր պրոֆիլների ընդլայնումները և հեռացնել նրանք, որոնք տեղադրել է քաղաքականությունը կամ ծրագիրը</translation>
     </message>
     <message>
         <source>&amp;View</source>

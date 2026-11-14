@@ -1,5 +1,5 @@
-// The options of `uninstall`, `force`, `scan`, `startup` and `apps`, parsed apart from running the
-// commands so the parsing can be tested on its own.
+// The options of `uninstall`, `force`, `scan`, `startup`, `apps` and `extensions`, parsed apart from
+// running the commands so the parsing can be tested on its own.
 #pragma once
 
 #include <cstdint>
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/leftovers/confidence.h"
+#include "core/tools/browser_extensions.h"
 #include "core/tools/startup_changes.h"
 
 namespace avel::cli {
@@ -86,6 +87,19 @@ struct AppsCommandOptions {
     bool json = false;
 };
 
+enum class ExtensionsCommand : std::uint8_t { List, Remove };
+
+struct ExtensionsCommandOptions {
+    ExtensionsCommand command = ExtensionsCommand::List;
+    std::vector<std::wstring> ids;              // remove: entry ids or extension ids
+    bool all_users = false;                     // list: every user's profiles, not only the current user's
+    bool removable = false;                     // list: only the extensions Avel can remove
+    std::optional<tools::BrowserKind> browser;  // list: one browser's (--browser chrome|edge|...)
+    bool dry_run = false;
+    bool yes = false;
+    bool json = false;
+};
+
 // The action a startup command asks for; nullopt for list.
 std::optional<tools::StartupAction> startup_action(StartupCommand command);
 
@@ -102,5 +116,8 @@ std::optional<UsageError> parse_startup_options(const std::vector<std::wstring_v
 // `arguments` start with the subcommand (list, remove, deprovision, remove-everywhere).
 std::optional<UsageError> parse_apps_options(const std::vector<std::wstring_view>& arguments,
                                              AppsCommandOptions& options);
+// `arguments` start with the subcommand (list, remove).
+std::optional<UsageError> parse_extensions_options(const std::vector<std::wstring_view>& arguments,
+                                                   ExtensionsCommandOptions& options);
 
 }  // namespace avel::cli

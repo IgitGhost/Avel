@@ -21,6 +21,8 @@ void write(FILE* stream, DWORD std_handle_id, std::string_view text) {
         return;
     }
     std::fwrite(text.data(), 1, text.size(), stream);
+    // A [y/N] question must reach a pipe before the answer is read.
+    std::fflush(stream);
 }
 
 }  // namespace

@@ -77,7 +77,12 @@ as report-only; the user chose removal with undo on 2026-10-19.
 they take the installer's entries out of `Path`, lower a SharedDLLs count by its increment, delete
 a variable it created, or restore one it changed. Each edit carries the value it expects and the
 value it writes, both raw, and HardFloor allows them only in the machine's and each user's
-`Environment` and the two SharedDLLs keys.
+`Environment` and the two SharedDLLs keys, and, for the browser extensions tool
+([tools.md](tools.md), "Browser extensions"), as `restore-value` edits that write a string or
+delete the value, in browsers' extension policies: a numbered value of
+`Software\Policies\<vendor>\ExtensionInstallForcelist` or of Firefox's `Extensions\Install` and
+`Locked`, and the `ExtensionSettings` value of a vendor's policy key
+(`tools::is_extension_policy_value`; HKLM in either view, or a user's hive).
 - **Compare-and-set.** The value is read right before the edit; if it isn't byte for byte what the
   plan expected (the user added an entry since, another program raised the count), the edit is
   skipped as `changed` and nothing is written.

@@ -9,6 +9,7 @@
 
 #include "cli/apps_command.h"
 #include "cli/console.h"
+#include "cli/extensions_command.h"
 #include "cli/force_command.h"
 #include "cli/list_command.h"
 #include "cli/orphans_command.h"
@@ -81,6 +82,12 @@ constexpr std::string_view kUsage =
     "             them again), or remove them for every user, which can't be undone.\n"
     "             list runs without administrator rights (your apps only); the other\n"
     "             commands need them.\n"
+    "  extensions list [--all-users] [--removable] [--browser <name>] [--json]\n"
+    "  extensions remove <id>... [--dry-run] [--yes] [--json]\n"
+    "             List the extensions of every Chromium-family and Firefox profile, or\n"
+    "             remove the policy entries and registrations that install extensions,\n"
+    "             backed up so undo can put them back. list runs without administrator\n"
+    "             rights; remove needs them.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n";
 
@@ -130,6 +137,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"apps") {
         return avel::cli::run_apps_command(arguments);
+    }
+    if (command == L"extensions") {
+        return avel::cli::run_extensions_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

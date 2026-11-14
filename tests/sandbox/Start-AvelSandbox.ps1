@@ -17,6 +17,7 @@
                  (run Get-SampleInstallers.ps1 first)
       spike_6b   the Phase 6b spike (docs/adr/0008): packaged apps and DISM, offline
       apps       Phase 6b acceptance: Windows apps (avel-cli apps, the GUI), offline
+      extensions Phase 6c acceptance: browser extensions (avel-cli extensions, the GUI), offline
       (tests\sandbox\README.md lists them all)
 
     Windows Sandbox must be enabled once, from an elevated PowerShell (needs a reboot):
@@ -41,7 +42,8 @@
     With -WaitForReport: close the sandbox once the report has arrived.
 
 .PARAMETER NoNetwork
-    Start the sandbox without networking. Scenarios that must run offline (spike_6b, apps) always do.
+    Start the sandbox without networking. Scenarios that must run offline (spike_6b, apps, extensions)
+    always do.
 #>
 param(
     [string]$Preset = 'release',
@@ -62,8 +64,9 @@ $outDir = Join-Path $repoRoot 'build\sandbox'
 $resultsDir = Join-Path $outDir 'results'
 $reportPath = Join-Path $resultsDir "$Scenario.txt"
 $wsb = Get-Command wsb -ErrorAction SilentlyContinue  # The sandbox CLI, on newer Windows builds
-# Scenarios whose findings must not depend on the network (the Store, Windows Update, winget).
-$offlineScenarios = @('spike_6b', 'apps')
+# Scenarios whose findings must not depend on the network (the Store, Windows Update, winget, a
+# browser's extension stores).
+$offlineScenarios = @('spike_6b', 'apps', 'extensions')
 $networking = if ($NoNetwork -or $Scenario -in $offlineScenarios) { 'Disable' } else { 'Enable' }
 
 if (-not (Test-Path "$env:windir\System32\WindowsSandbox.exe") -and -not $wsb) {

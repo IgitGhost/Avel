@@ -13,6 +13,8 @@ add_executable(avel_cli
     command_options.h
     console.cpp
     console.h
+    extensions_command.cpp
+    extensions_command.h
     force_command.cpp
     force_command.h
     leftover_output.cpp

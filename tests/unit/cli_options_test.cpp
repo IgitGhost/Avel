@@ -306,5 +306,47 @@ TEST(CliOptionsTest, AppsUsageErrors) {
     EXPECT_FALSE(error->usage);
 }
 
+TEST(CliOptionsTest, ExtensionsListAndItsFilters) {
+    ExtensionsCommandOptions options;
+    EXPECT_FALSE(parse_extensions_options({L"list"}, options));
+    EXPECT_EQ(options.command, ExtensionsCommand::List);
+    EXPECT_FALSE(options.all_users);
+    EXPECT_FALSE(options.removable);
+    EXPECT_FALSE(options.browser);
+
+    ExtensionsCommandOptions filtered;
+    EXPECT_FALSE(parse_extensions_options(
+        {L"list", L"--all-users", L"--removable", L"--browser", L"opera-gx", L"--json"}, filtered));
+    EXPECT_TRUE(filtered.all_users);
+    EXPECT_TRUE(filtered.removable);
+    EXPECT_EQ(filtered.browser, tools::BrowserKind::OperaGx);
+    EXPECT_TRUE(filtered.json);
+}
+
+TEST(CliOptionsTest, ExtensionsRemoveTakesIds) {
+    ExtensionsCommandOptions remove;
+    EXPECT_FALSE(parse_extensions_options(
+        {L"remove", L"0123456789", L"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", L"--dry-run", L"--json"}, remove));
+    EXPECT_EQ(remove.command, ExtensionsCommand::Remove);
+    EXPECT_EQ(remove.ids, (std::vector<std::wstring>{L"0123456789", L"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}));
+    EXPECT_TRUE(remove.dry_run);
+    EXPECT_TRUE(remove.json);
+
+    const auto error = [](std::vector<std::wstring_view> arguments) {
+        ExtensionsCommandOptions options;
+        return parse_extensions_options(arguments, options).has_value();
+    };
+    EXPECT_TRUE(error({}));
+    EXPECT_TRUE(error({L"delete", L"x"}));
+    EXPECT_TRUE(error({L"remove"}));                        // No ids
+    EXPECT_TRUE(error({L"remove", L"x", L"--json"}));       // Can't ask
+    EXPECT_TRUE(error({L"remove", L"x", L"--removable"}));  // A list filter
+    EXPECT_TRUE(error({L"list", L"x"}));
+    EXPECT_TRUE(error({L"list", L"--browser"}));
+    EXPECT_TRUE(error({L"list", L"--browser", L"netscape"}));
+    EXPECT_TRUE(error({L"list", L"--dry-run"}));
+    EXPECT_FALSE(error({L"remove", L"x", L"--yes", L"--json"}));
+}
+
 }  // namespace
 }  // namespace avel::cli

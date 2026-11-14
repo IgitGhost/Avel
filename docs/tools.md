@@ -466,3 +466,322 @@ the same across listings, runs and versions of the app, so the CLI can take it a
 
 On the development machine (unelevated) `avel-cli apps list --all` lists 132 apps in about 0.4 s:
 81 offered (22 often removed, 28 semi-critical), 44 protected as System-signed and 7 as critical.
+
+## Browser extensions (`tools/browser_extensions`)
+
+`list_browser_extensions` lists every extension of every Chromium-family and Firefox profile of
+every user, and the **stubborn sources** that install extensions from outside the profile
+([ADR 0009](adr/0009-browser-extensions.md)). It only reads: profiles' files are never written. Only
+the stubborn sources can be removed, with undo; everything else is removed in the browser's own
+extensions page, which the list says how to open.
+
+### Profiles
+
+| Browser (`BrowserKind`) | Folder of each user | Profiles |
+|---|---|---|
+| `chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary` | `%LOCALAPPDATA%\Google\Chrome[ Beta\| Dev\| SxS]\User Data` | `Local State`'s `profile.info_cache` (folder and display name); without it, the folders that hold a `Preferences` file (not `System Profile` or `Guest Profile`) |
+| `edge`, `edge-beta`, `edge-dev`, `edge-canary` | `%LOCALAPPDATA%\Microsoft\Edge[ Beta\| Dev\| SxS]\User Data` | the same |
+| `brave` | `%LOCALAPPDATA%\BraveSoftware\Brave-Browser\User Data` | the same |
+| `vivaldi` | `%LOCALAPPDATA%\Vivaldi\User Data` | the same |
+| `chromium` | `%LOCALAPPDATA%\Chromium\User Data` | the same |
+| `opera`, `opera-gx` | `%APPDATA%\Opera Software\Opera Stable` (`Opera GX Stable`) | the folder itself is the one profile (Opera's side profiles aren't read) |
+| `firefox` | `%APPDATA%\Mozilla\Firefox\profiles.ini` | each `[ProfileN]`: `Name`, `Path`, `IsRelative` |
+
+Every user's folders are read (`ScanEnvironment::users`, signed-out users included: their folders
+are readable with administrator rights, their registry through `LiveEnvironment` as for the
+Startup manager). Each profile (`BrowserProfile`) has its browser, user, folder name, display name,
+path and its extensions page (below).
+
+### Extensions
+
+- **Chromium:** `extensions.settings` of both `Preferences` and `Secure Preferences` (most machines
+  keep it in the second), merged per extension with `Secure Preferences` winning per field. The
+  manifest is `Extensions\<id>\<version>\manifest.json` from the entry's `path` (an unpacked
+  extension's `path` is absolute), else the copy older Chromium kept in the preferences. `name` and
+  `description` of the form `__MSG_x__` are resolved from `_locales\<default_locale>\messages.json`
+  (keys ignore case; an unknown message stays as written). Component extensions (`location` 5 and
+  10), themes and entries with neither files nor a manifest aren't listed. Enabled: `state` 1 where
+  there is a `state`, else no `disable_reasons` (an integer mask, or newer Chromium's list).
+- **Firefox:** `extensions.json`'s `addons` of type `extension`, except the built-in and system ones
+  (`app-builtin`, `app-builtin-addons`, `app-system-defaults`, `app-system-addons`, `hidden`).
+  Name and description from `defaultLocale`; enabled is `active`.
+- Each `BrowserExtension` has: its id, browser, user, profile (folder, name, path), extension id,
+  name, description, version, folder, enabled and Chromium's `disable_reasons`, how it was
+  installed (`install`), the raw `location`, `installed_by_default`, its store and `from_store`,
+  `update_url`, `install_time` (Unix milliseconds), `permissions`, `host_permissions` (MV3
+  `host_permissions`, MV2 match patterns among `permissions`, Firefox's granted origins),
+  `optional_permissions`, its sources, `removal` and its extensions page.
+
+| `install` | Chromium `location` | Firefox |
+|---|---|---|
+| `store` | 1 (internal), from the store | `app-profile` installed from addons.mozilla.org |
+| `user` | 1, not from the store | `app-profile` otherwise |
+| `developer` | 4 (unpacked), 8 (`--load-extension`) | `app-temporary` |
+| `external-pref` | 2, 6 (an external_extensions JSON file) | |
+| `external-registry` | 3 | `winreg-app-global`, `winreg-app-user` |
+| `policy` | 7, 9 | `app-profile` with `installTelemetryInfo.source` `enterprise-policy` |
+| `sideload` | | `foreignInstall`, `app-global`, `app-system-share`, `app-system-local`, `app-system-user` |
+
+**The store** (`ExtensionStore`) comes from the update URL:
+`https://clients2.google.com/service/update2/crx` (`chrome-web-store`),
+`https://edge.microsoft.com/extensionwebstorebase/v1/crx` (`edge-add-ons`),
+`https://extension-updates.opera.com/api/omaha/update/` (`opera-add-ons`); else, with
+`from_webstore`, the browser's own store. Firefox: `signedState` 2, signed by addons.mozilla.org
+(`mozilla`; unlisted add-ons are AMO-signed too).
+
+### Stubborn sources
+
+Read in HKLM (both views) and every user's hive (`HKU\<SID>`, a signed-out user's `NTUSER.DAT`
+privately). Each `ExtensionSource` has its kind, the browsers that read it, its user (empty for the
+machine's), `wow64`, the key, the value and its raw data, the extension id, what it says (`data`:
+the list entry, the URL, the path), `update_url`, `path`, `version`, `installation_mode`, the
+settings key, a list's every numbered value (for renumbering), `ignored_by_browser` (below), and for
+a registration with a path the program whose folder holds it (`force::OwnerIndex`).
+
+| Kind | Where | Browsers |
+|---|---|---|
+| `force-list` | `Software\Policies\<vendor>\ExtensionInstallForcelist`, numbered values `"id"` or `"id;update_url"` | vendor `Google\Chrome`: Chrome's channels; `Microsoft\Edge`: Edge's; `BraveSoftware\Brave`: Brave; `Chromium`; `Vivaldi` |
+| `settings` | the vendor's `ExtensionSettings`: a `REG_SZ` (or `REG_MULTI_SZ`) JSON value of the policy key, or the subkey form `ExtensionSettings\<key>` with `installation_mode` and `update_url` values. Only `force_installed` and `normal_installed` count; a Chromium key may list ids, `"id1,id2"`; `*` never counts | as above, and `Mozilla\Firefox` (`install_url`) |
+| `external-registry` | `Software\<vendor>\Extensions\<id>` with `update_url`, or `path` and `version` | `Google\Chrome`: Chrome's channels and Chromium (Chromium hard-codes this path); `Microsoft\Edge`: Edge's; `BraveSoftware\Brave-Browser`, `Chromium`, `Vivaldi` |
+| `firefox-registry` | `Software\Mozilla\Firefox\Extensions`, a value named after the add-on holding its path | Firefox |
+| `firefox-install` | `Software\Policies\Mozilla\Firefox\Extensions\Install`, numbered URLs or paths | Firefox |
+| `firefox-locked` | `...\Extensions\Locked`, numbered add-on ids | Firefox |
+| `policies-json` | `distribution\policies.json` of Firefox's install folders (`ExtensionSettings`, `Extensions.Install`, `Extensions.Locked`) | Firefox; never removable |
+
+- **Matching.** A source belongs to every profile entry of a browser that reads it, of its user (a
+  machine source: every user), with its extension id. A Firefox `Install` entry names a URL or a
+  path, not an id: it is matched to the add-on whose `sourceURI` it is (a path as a `file:///` URL,
+  `%XX` decoded, ignoring case). An entry whose profile says it came from the registry, and that no
+  registration of its own browser matches, takes another vendor's registration of that id (a fork
+  that kept `Google\Chrome`'s key). A list's values past the first gap are listed too (Chromium
+  stops reading at the gap).
+- **Sources with no profile entry** become entries of their own (`in_profile` false), one per
+  browser (the first that reads the source), user and extension id: a policy whose extension the
+  browser installs at its next start, a registration for a browser that isn't installed, a Firefox
+  `Install` URL no add-on came from (its URL as the name).
+- **Uncertain vendors.** Chromium's paths are from its source (`external_registry_loader_win.cc`
+  reads `Software\Google\Chrome\Extensions` in HKLM's 32-bit view and HKCU) and the vendors'
+  policy documentation. HKLM's 64-bit view is read and listed too, though Chromium doesn't read it.
+  Brave's policy key is `BraveSoftware\Brave` (its documentation and users' reports); its, Vivaldi's
+  and Chromium's registration keys are guesses, matched only by id. Vivaldi's policy key is from its
+  forum (HKLM, by one report), not its documentation. Opera documents no policies and no
+  registration key: none is read for it. Whether Firefox ignores `policies.json` while registry
+  policies exist isn't settled; both are listed.
+- **Sources the browser doesn't read** (`ignored_by_browser`, the maintainer's decision of
+  2026-11-14): a Chromium registration in HKLM's 64-bit view (`SOFTWARE\<vendor>\Extensions`, not
+  `WOW6432Node`; Chromium's loader reads HKLM with `KEY_WOW64_32KEY` only, and Edge, Brave and the
+  others share that loader), and a `force-list` value past the list's first gap. They are listed,
+  matched and removable like the others, and flagged; the front ends say "not read by the
+  browser". Firefox's lists aren't flagged: whether Firefox stops at a gap isn't known.
+- **The user's own copy** (`keeps_user_copy`, the maintainer's decision of 2026-11-14): an entry
+  with sources whose profile says the user installed it (`install` `store`, `user` or
+  `developer`), as when a program registers an extension the user had already installed from the
+  store. It stays removable, but removing its sources leaves that copy: the front ends say so
+  ("the copy installed from the store or by the user stays; remove it on the browser's extensions
+  page"), and the planner notes it (`keeps-user-copy`).
+- `policies_managed`: the machine is joined to a domain (`NetGetJoinInformation`) or enrolled in an
+  MDM server (an active `SOFTWARE\Microsoft\Enrollments` entry of type 6 or 13, or Intune's
+  `MS DM Server`; Windows' own Local, Deploy and Cloud Authority enrollments don't count): a
+  removed policy entry may be written again by Group Policy or the server.
+- Diagnostics (codes): `profile-unreadable`, `local-state-unreadable`, `addons-unreadable`,
+  `profiles-ini-unreadable`, `policy-unreadable` (an `ExtensionSettings` value that isn't JSON),
+  `policies-json-unreadable`, each with the file or value.
+
+### Removal (`ExtensionRemoval`)
+
+| `removal` | When |
+|---|---|
+| `removable` | it has stubborn sources, all of them in the registry |
+| `not-removable` | no stubborn source: the user or the store installed it (the browser's page removes it) |
+| `managed-by-policies-json` | Firefox's `policies.json` installs it: Avel never edits that file; the front ends offer to open it |
+| `not-supported` | a policy subkey names it with other ids (`"id1,id2"`), which can't be split without renaming the key |
+
+### The planner (`tools/browser_extensions_changes`)
+
+`plan_remove_extensions(list, ids, protection)` takes entry ids or extension ids (all entries of
+that extension; only the removable ones, refused when none is), compared ignoring case, each
+planned once, and returns the plan, the ids planned, `affected` (every entry losing a source: a
+machine policy installs the extension in every profile of its browser, for every user) and per-id
+issues. It takes **all** stubborn sources of each entry together:
+
+- **A numbered list** (`force-list`, `firefox-install`, `firefox-locked`): the entry goes and the
+  values after it in the run `"1".."k"` move down one, so the list keeps no gap (Chromium reads list
+  policies up to the first missing number). Each value that changes is a `ValueEditLocation`
+  (`restore-value`: `expected` the value as listed, `desired` the value moved into it, or nothing
+  for the values freed at the end). Removed values past a gap are just deleted. Several extensions
+  from one list make one pass over it. Removing `B` from `1=A, 2=B, 3=C` plans `2: B -> C` and
+  `3: C -> (deleted)`.
+- **A JSON `ExtensionSettings` value**: the extension's key goes (from a `"id1,id2"` key, only its
+  id), everything else is kept and the JSON is written compactly, with the value's type (comments
+  and spacing aren't kept). When nothing is left the value is **deleted** rather than left as `{}`:
+  an empty policy is no policy, and undo writes the old value back. One `ValueEditLocation`.
+- **The subkey form**: the id's subkey goes whole (`RegistryKeyLocation`, backed up exactly).
+- **A registration**: the `Extensions\<id>` key (`RegistryKeyLocation`), or Firefox's value
+  (`RegistryValueLocation`). A key or value several entries share is planned once.
+- Edits are compare-and-set: a value that changed since the listing is `skipped (changed)` and
+  nothing is overwritten; undo puts each value back only while it is what Avel wrote. A partial run
+  can leave a list with a value twice or a gap until it is undone. An emptied list key stays.
+- Issues (codes): `unknown-id`, `not-removable`, `managed-by-policies-json`, `not-supported`,
+  `protected` (the `protection` callback, HardFloor in the CLI, refused a source). An id with an
+  issue plans nothing; the CLI changes nothing while any id has one.
+- Notes (codes, not errors): `keeps-user-copy` for each entry of `affected` whose user's copy stays
+  (`ExtensionsPlan::notes`).
+- **Protection.** HardFloor's `Policies` core key keeps the policy keys themselves; an id's subkey
+  below them and `Software\<vendor>\Extensions\<id>` are ordinary keys. Value edits outside the
+  environment and SharedDLLs were refused, so HardFloor has a narrow rule for these
+  (`tools::is_extension_policy_value`): a `restore-value` edit that writes a string or deletes the
+  value, only on a numbered value of a known vendor's `ExtensionInstallForcelist` (or Firefox's
+  `Extensions\Install` and `Locked`) or on the `ExtensionSettings` value of a known vendor's policy
+  key, in HKLM (either view) or a user's hive ([changes.md](changes.md)).
+- Planned items carry the extension's name as their program and no confidence.
+
+### CLI (`avel-cli extensions`)
+
+```
+avel-cli extensions list [--all-users] [--removable] [--browser <name>] [--json]
+avel-cli extensions remove <id>... [--dry-run] [--yes] [--json]
+```
+
+- `list` runs without administrator rights: it lists the current user's profiles (`--all-users`:
+  every user's) and the machine's and their sources. Text: one line per entry (id, browser, user,
+  profile, state, `install`, name, version, then the extension id, `[store: ...]`, `[not in a
+  profile]`, `[installed by default]`, `[your own copy stays]` and the removal code), each source
+  below it (kind, key and value or file, what it says, `[installation_mode]`, `[program: ...]`,
+  `[not read by the browser]`), a summary, and notes on
+  stderr (not elevated, hives that couldn't be read, diagnostics, a managed machine).
+- `remove` needs administrator rights, except with `--dry-run`. It opens the change store (settling
+  and purging as every changing command does), lists **every** user's profiles, plans with
+  HardFloor as the protection, prints the entries, issues, a note for each entry whose user's copy
+  stays, the items and the other entries the same sources install, changes nothing (exit 1) while any id has an issue, asks (`--yes` doesn't), and
+  runs one ChangeSet under the store's lock. Undo with `avel-cli undo <set>`.
+- `--json` (with `remove`, it needs `--yes` or `--dry-run`):
+  - `list`: `avel_version`, `elevated`, `all_users`, `policies_managed`, `elapsed_ms`, `profiles[]`
+    (`browser`, `user_sid`, `user_name`, `directory`, `name`, `path`, `page`), `extensions[]` and
+    `diagnostics[]` (`{source, code, subject, error}`, `source` `environment` or `extensions`).
+  - An extension: `id`, `browser`, `user_sid`, `user_name`, `profile_directory`, `profile_name`,
+    `profile_path`, `in_profile`, `extension_id`, `name`, `description`, `version`, `folder`,
+    `enabled`, `disable_reasons`, `install`, `location`, `installed_by_default`, `store`,
+    `from_store`, `update_url`, `install_time` (or null), `permissions`, `host_permissions`,
+    `optional_permissions`, `removal`, `removable`, `keeps_user_copy`, `sources[]` and `page`.
+  - A source: `kind`, `browsers[]`, `user_sid`, `user_name`, `wow64`, `key` (display path; null for
+    `policies-json`), `value_name`, `value` (`{type, data}` in hex, or null), `extension_id`, `data`,
+    `update_url`, `path`, `version`, `installation_mode`, `settings_key`, `settings_subkey`, `file`,
+    `program_id`, `program_name`, `ignored_by_browser`.
+  - A page: `executable` (empty when not found), `arguments[]`, `url`, `command_line`.
+  - `remove`: `avel_version`, `elevated`, `dry_run`, `action`, `policies_managed`, `extensions[]`
+    (the ones asked for), `issues[]` (`{id, code}`), `planned[]`, `affected[]` (each `{id, browser,
+    user_sid, user_name, profile_directory, profile_name, in_profile, extension_id, name,
+    keeps_user_copy}`, for the GUI's confirmation), `notes[]` (`{id, code}`: `keeps-user-copy`),
+    `description`, `plan[]` (locations; empty when refused), `change` (as `force` writes it, or
+    null) and `diagnostics[]`.
+- Exit codes: 0 done (and a dry run with no issue); 1 refused, cancelled, not elevated, or an item
+  didn't change; 2 usage; 99 when `AVEL_TEST_FAULT_AFTER` stops the run.
+- The ChangeSet's description is "Remove browser extension Contoso Helper" or "Remove 3 browser
+  extensions".
+
+### GUI (Tools > Browser extensions…)
+
+`ExtensionsWindow` (`src/app/extensions_window.cpp`) is a non-modal top-level window like the
+Startup manager's: not owned by the main window, opened once and brought back to the front when
+it is open already, closed with the main window, and it refuses to close while a change runs.
+
+- **The list** is made on the window's worker thread: `list_browser_extensions` for **every**
+  user, through a `LiveEnvironment` that lives only inside that task, under
+  `sharedHiveAccess()`. The owner programs' names come from the main window's inventory (or a
+  scan of its own). The task also builds `HardFloor::live()` once, which the removal's planning
+  asks on the GUI thread, and reads which user the desktop's shell runs as (below). F5 lists
+  again.
+- **One flat sortable table** (`ExtensionsTableModel` + `ExtensionsFilterModel`), uniform rows:
+  Name (the manifest's, else the extension id; its tooltip the description), Browser, Profile
+  ("Not in a profile" for a source-only entry; its tooltip the folder), User ("Machine (all
+  users)" for a machine source's entry, the current user marked "(you)"), State (Enabled,
+  Disabled, or Not installed for a source-only entry; the tooltip gives Chromium's disable
+  reasons in words), Installed (From the store, By the user, Developer, External file, Registry,
+  Policy, Another program), From store (Yes/No; the tooltip names the store), Version (sorted by
+  number) and Removal (Removable, In the browser, policies.json, Not supported; the tooltip says
+  why). Rows Avel can't remove look like the others: they are the user's own extensions. Above it
+  a search box (name, extension id, description, profile, user), a browser filter (the browsers
+  found), a user filter (every user, the machine, or one user) and "Only removable".
+- **The details pane** below shows the selected entry: description, extension id, version,
+  browser, profile and its folder, user and SID, state and disable reasons, how it was installed
+  (and "installed with the browser or by the PC's maker"), store, update URL, install time, its
+  files, permissions, site access (host permissions) and optional permissions, removal, the
+  extensions page's command line with an "Open the extensions page" link (or why it can't be
+  opened), and the id. A note says why a non-removable entry can't be removed here, that the
+  user's own copy stays (`keeps_user_copy`), and that a managed PC may write policies again.
+  Then **"What installs it from outside the browser"**: each source's kind and what it is for,
+  its key and value with an "Open in Registry Editor" link, the 32-bit view, what it says, the
+  installation mode, whose it is, the owner program, and "Not read by the browser"
+  (`ignored_by_browser`). A `policies.json` source shows the file with "Show in Explorer" and
+  that Avel doesn't edit it.
+- **Remove…** (Del) works on the selected rows: `plan_remove_extensions` with all their ids and
+  `HardFloor::live()` as the protection; rows with an issue (not removable, `policies.json`, not
+  supported, protected) are skipped, never refused as the CLI does, and named in the
+  confirmation and the result's tooltip. The confirmation, opened with `open()`, lists the
+  registry changes in words ("Delete the registry key …", "Change the registry value … from “a”
+  to “b”", "Delete the registry value … (“c”)"), then every other entry in `affected` (name,
+  browser, profile, user) split into those the same sources remove too (all their sources are
+  planned) and those that lose a source but stay installed by another, the entries whose own
+  copy stays (`keeps-user-copy` notes), that the browser drops the extension at its next start,
+  the managed-PC warning when `policies_managed`, and that Undo puts it back. Confirmed, it runs
+  as **one ChangeSet** under `exclusiveHiveAccess()` and the store's lock; the status bar says how
+  many extensions were removed (or which changes couldn't be made, in its tooltip), then the list
+  is made again. The ChangeSet's description is translated text ("Remove browser extension
+  Contoso Helper", "Remove 3 browser extensions").
+- **Undo**: "Undo last change" (Ctrl+Z) restores the newest set this window made; the Undo
+  Center opens from the window too.
+- **Open extensions page** starts the entry's `page` (program, profile argument, URL)
+  **unelevated**: avel.exe runs elevated, and a browser must never start elevated, so the desktop's
+  Explorer is asked to start it (`src/app/unelevated_launch`: `IShellWindows::FindWindowSW` for
+  the desktop, its `IShellBrowser`, the active `IShellView`'s background automation object,
+  `IShellFolderViewDual::get_Application`, then `IShellDispatch2::ShellExecute`), so the browser
+  runs with Explorer's token and environment. It is enabled only for entries of the user the
+  desktop's shell runs as (the token user of `GetShellWindow`'s process; usually the current
+  user, but not when Avel was elevated with another administrator's credentials) and for the
+  machine's source-only entries; for other users' profiles, when the browser's program wasn't
+  found, or when no Explorer runs, it is disabled and its tooltip says why. Never started any
+  other way.
+- **Open policies.json** (Firefox, when `policies.json` installs the entry) shows the file in
+  Explorer, selected; it is never opened for editing.
+- **Context menu**: Remove…, Open extensions page, Open policies.json (when it applies), Copy
+  extension id (every selected row), Open in Registry Editor (the first registry source's key,
+  through the Startup manager's helper, `src/app/registry_editor`; every source has its own link
+  in the details) and Open profile folder.
+- One worker runs the listing, a change and an undo one at a time, so the listing's
+  `LiveEnvironment` is always gone before a ChangeSet opens a user's hive. Diagnostics (users'
+  hives that couldn't be read, unreadable profiles and policies, a managed PC) are counted in the
+  status bar's warning, with the text in its tooltip.
+- UI Automation finds the parts by object name: `extensionsWindow`, `extensionsTable`,
+  `extensionsSearch`, `extensionsBrowserFilter`, `extensionsUserFilter`,
+  `extensionsRemovableFilter`, `extensionsDetails`, `extensionsResult`, `extensionsProgress`,
+  `extensionsCount`, `extensionsWarnings`; the actions `removeExtensionAction`,
+  `openExtensionsPageAction`, `openPoliciesJsonAction`, `extensionsRefreshAction`,
+  `extensionsUndoAction`, `extensionsUndoCenterAction`, `extensionsCopyIdAction`,
+  `extensionsOpenRegistryAction`, `extensionsOpenProfileAction`, and their toolbar buttons with
+  `Button` for `Action` (`removeExtensionButton`, `openExtensionsPageButton`,
+  `openPoliciesJsonButton`, `extensionsRefreshButton`, `extensionsUndoButton`,
+  `extensionsUndoCenterButton`). The confirmation is `removeExtensionsConfirmation`, with
+  `removeExtensionsConfirmButton` and `removeExtensionsCancelButton`. The main window's menu item
+  is `extensionsAction`.
+
+### Extensions pages
+
+`ExtensionsPage` is the program, the arguments and the URL. Chromium browsers:
+`<browser>.exe --profile-directory=<folder> <scheme>://extensions` (`chrome`, `edge`, `brave`,
+`vivaldi`, `opera`; Opera has no profile argument); Firefox: `firefox.exe -profile <path>
+about:addons`. The program is looked for in the user's `%LOCALAPPDATA%`, then both Program Files,
+then App Paths (the user's, then the machine's) for the stable channels; Firefox's in its install
+folders. A source-only entry gets its browser's page without a profile. The GUI starts it,
+unelevated, through the desktop's Explorer (above).
+
+### Ids
+
+An entry's id is 10 hex digits of the FNV-1a hash of `browser|user SID|profile path|extension id`,
+lowercase (`browser_extension_id`); a source-only entry hashes `registration|browser|user
+SID|extension id` (or the URL). Both stay the same across listings and runs.
+
+On the development machine (unelevated) `avel-cli extensions list` finds 2 profiles (Chrome and
+Edge) with 13 extensions, 3 of them removable (registrations in the user's
+`Software\Google\Chrome\Extensions`: one for an extension in no profile, one for an extension the
+user installed from the store, flagged `keeps_user_copy`), in about 0.15 s (0.35 s with the
+inventory).

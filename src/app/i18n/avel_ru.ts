@@ -2,6 +2,429 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru">
 <context>
+    <name>ExtensionsText</name>
+    <message>
+        <source>Google Chrome</source>
+        <translation>Google Chrome</translation>
+    </message>
+    <message>
+        <source>Google Chrome Beta</source>
+        <translation>Google Chrome Beta</translation>
+    </message>
+    <message>
+        <source>Google Chrome Dev</source>
+        <translation>Google Chrome Dev</translation>
+    </message>
+    <message>
+        <source>Google Chrome Canary</source>
+        <translation>Google Chrome Canary</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge</source>
+        <translation>Microsoft Edge</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Beta</source>
+        <translation>Microsoft Edge Beta</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Dev</source>
+        <translation>Microsoft Edge Dev</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge Canary</source>
+        <translation>Microsoft Edge Canary</translation>
+    </message>
+    <message>
+        <source>Brave</source>
+        <translation>Brave</translation>
+    </message>
+    <message>
+        <source>Vivaldi</source>
+        <translation>Vivaldi</translation>
+    </message>
+    <message>
+        <source>Opera</source>
+        <translation>Opera</translation>
+    </message>
+    <message>
+        <source>Opera GX</source>
+        <translation>Opera GX</translation>
+    </message>
+    <message>
+        <source>Chromium</source>
+        <translation>Chromium</translation>
+    </message>
+    <message>
+        <source>Firefox</source>
+        <translation>Firefox</translation>
+    </message>
+    <message>
+        <source>Machine (all users)</source>
+        <translation>Компьютер (все пользователи)</translation>
+    </message>
+    <message>
+        <source>%1 (you)</source>
+        <translation>%1 (вы)</translation>
+    </message>
+    <message>
+        <source>Not in a profile</source>
+        <translation>Вне профиля</translation>
+    </message>
+    <message>
+        <source>Not installed</source>
+        <translation>Не установлено</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Включено</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Отключено</translation>
+    </message>
+    <message>
+        <source>No profile has it: the browser installs it at its next start, or the browser it is meant for isn&apos;t used here.</source>
+        <translation>Ни в одном профиле его нет: браузер установит его при следующем запуске, либо браузер, для которого оно предназначено, здесь не используется.</translation>
+    </message>
+    <message>
+        <source>Disabled: %1</source>
+        <translation>Отключено: %1</translation>
+    </message>
+    <message>
+        <source>by the user</source>
+        <translation>пользователем</translation>
+    </message>
+    <message>
+        <source>it asks for new permissions</source>
+        <translation>запрашивает новые разрешения</translation>
+    </message>
+    <message>
+        <source>being reloaded</source>
+        <translation>перезагружается</translation>
+    </message>
+    <message>
+        <source>a requirement isn&apos;t met</source>
+        <translation>не выполнено одно из требований</translation>
+    </message>
+    <message>
+        <source>installed by another program, turned off by the browser</source>
+        <translation>установлено другой программой, отключено браузером</translation>
+    </message>
+    <message>
+        <source>not verified by the store</source>
+        <translation>не проверено магазином</translation>
+    </message>
+    <message>
+        <source>flagged by Safe Browsing</source>
+        <translation>помечено Безопасным просмотром</translation>
+    </message>
+    <message>
+        <source>its files are corrupted</source>
+        <translation>его файлы повреждены</translation>
+    </message>
+    <message>
+        <source>installed remotely, waiting for approval</source>
+        <translation>установлено удалённо, ожидает подтверждения</translation>
+    </message>
+    <message>
+        <source>installed by another program, waiting for the user&apos;s approval</source>
+        <translation>установлено другой программой, ожидает подтверждения пользователя</translation>
+    </message>
+    <message>
+        <source>a policy requires an update</source>
+        <translation>политика требует обновления</translation>
+    </message>
+    <message>
+        <source>waiting for a parent&apos;s approval</source>
+        <translation>ожидает разрешения родителя</translation>
+    </message>
+    <message>
+        <source>blocked by a policy</source>
+        <translation>заблокировано политикой</translation>
+    </message>
+    <message>
+        <source>being reinstalled</source>
+        <translation>переустанавливается</translation>
+    </message>
+    <message>
+        <source>not allowed by Enhanced Safe Browsing</source>
+        <translation>не разрешено Улучшенной защитой Безопасного просмотра</translation>
+    </message>
+    <message>
+        <source>a policy allows only extensions from the store</source>
+        <translation>политика разрешает только расширения из магазина</translation>
+    </message>
+    <message>
+        <source>its manifest version is no longer supported</source>
+        <translation>версия его манифеста больше не поддерживается</translation>
+    </message>
+    <message>
+        <source>developer extensions are turned off</source>
+        <translation>расширения разработчика отключены</translation>
+    </message>
+    <message>
+        <source>other reasons (code %1)</source>
+        <translation>другие причины (код %1)</translation>
+    </message>
+    <message>
+        <source>From the store</source>
+        <translation>Из магазина</translation>
+    </message>
+    <message>
+        <source>By the user</source>
+        <translation>Пользователем</translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation>Разработчик</translation>
+    </message>
+    <message>
+        <source>External file</source>
+        <translation>Внешний файл</translation>
+    </message>
+    <message>
+        <source>Registry</source>
+        <translation>Реестр</translation>
+    </message>
+    <message>
+        <source>Policy</source>
+        <translation>Политика</translation>
+    </message>
+    <message>
+        <source>Another program</source>
+        <translation>Другая программа</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Неизвестно</translation>
+    </message>
+    <message>
+        <source>Installed by the user from the browser&apos;s store.</source>
+        <translation>Установлено пользователем из магазина браузера.</translation>
+    </message>
+    <message>
+        <source>Installed by the user, not from the store (a file or another site).</source>
+        <translation>Установлено пользователем не из магазина (из файла или с другого сайта).</translation>
+    </message>
+    <message>
+        <source>Loaded by a developer: unpacked, from the command line, or a temporary add-on.</source>
+        <translation>Загружено разработчиком: распакованное, из командной строки или как временное дополнение.</translation>
+    </message>
+    <message>
+        <source>Installed by a program, through a file next to the browser or the program.</source>
+        <translation>Установлено программой через файл рядом с браузером или программой.</translation>
+    </message>
+    <message>
+        <source>Installed by a program, through a registration in the registry.</source>
+        <translation>Установлено программой через регистрацию в реестре.</translation>
+    </message>
+    <message>
+        <source>Installed by a policy.</source>
+        <translation>Установлено политикой.</translation>
+    </message>
+    <message>
+        <source>Put in a Firefox extensions folder by another program.</source>
+        <translation>Помещено в папку расширений Firefox другой программой.</translation>
+    </message>
+    <message>
+        <source>The profile doesn&apos;t say how it was installed.</source>
+        <translation>В профиле не указано, как оно было установлено.</translation>
+    </message>
+    <message>
+        <source>Chrome Web Store</source>
+        <translation>Chrome Web Store</translation>
+    </message>
+    <message>
+        <source>Edge Add-ons</source>
+        <translation>Edge Add-ons</translation>
+    </message>
+    <message>
+        <source>Opera add-ons</source>
+        <translation>Opera add-ons</translation>
+    </message>
+    <message>
+        <source>Firefox Add-ons</source>
+        <translation>Firefox Add-ons</translation>
+    </message>
+    <message>
+        <source>Removable</source>
+        <translation>Можно удалить</translation>
+    </message>
+    <message>
+        <source>In the browser</source>
+        <translation>В браузере</translation>
+    </message>
+    <message>
+        <source>policies.json</source>
+        <translation>policies.json</translation>
+    </message>
+    <message>
+        <source>Not supported</source>
+        <translation>Не поддерживается</translation>
+    </message>
+    <message>
+        <source>Something outside the browser installs it: Avel removes the policy entries and registrations below, and the browser removes the extension at its next start.</source>
+        <translation>Его устанавливает что-то вне браузера: Avel удаляет записи политик и регистрации ниже, а браузер удалит расширение при следующем запуске.</translation>
+    </message>
+    <message>
+        <source>Nothing outside the browser installs it, so the browser removes it itself: open its extensions page and remove it there.</source>
+        <translation>Вне браузера его ничто не устанавливает, поэтому браузер удаляет его сам: откройте его страницу расширений и удалите его там.</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json installs it. That file belongs to whoever set Firefox up, and Avel doesn&apos;t edit it.</source>
+        <translation>Его устанавливает файл policies.json Firefox. Этот файл принадлежит тому, кто настраивал Firefox, и Avel его не редактирует.</translation>
+    </message>
+    <message>
+        <source>A policy names it together with other extensions in one registry key. Avel can&apos;t take out one of them without renaming the key.</source>
+        <translation>Политика указывает его вместе с другими расширениями в одном разделе реестра. Avel не может убрать одно из них, не переименовав раздел.</translation>
+    </message>
+    <message>
+        <source>Forced install policy (ExtensionInstallForcelist)</source>
+        <translation>Политика принудительной установки (ExtensionInstallForcelist)</translation>
+    </message>
+    <message>
+        <source>Extension settings policy (ExtensionSettings)</source>
+        <translation>Политика настроек расширений (ExtensionSettings)</translation>
+    </message>
+    <message>
+        <source>External registration</source>
+        <translation>Внешняя регистрация</translation>
+    </message>
+    <message>
+        <source>Firefox registration</source>
+        <translation>Регистрация Firefox</translation>
+    </message>
+    <message>
+        <source>Firefox install policy (Extensions\Install)</source>
+        <translation>Политика установки Firefox (Extensions\Install)</translation>
+    </message>
+    <message>
+        <source>Firefox locked policy (Extensions\Locked)</source>
+        <translation>Политика блокировки Firefox (Extensions\Locked)</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json</source>
+        <translation>Файл policies.json Firefox</translation>
+    </message>
+    <message>
+        <source>The browser installs it and the user can&apos;t remove or turn it off.</source>
+        <translation>Браузер устанавливает его, и пользователь не может его удалить или отключить.</translation>
+    </message>
+    <message>
+        <source>The policy installs it, forced or as a default the user can turn off.</source>
+        <translation>Политика устанавливает его принудительно или по умолчанию, с возможностью отключения пользователем.</translation>
+    </message>
+    <message>
+        <source>A program asks the browser to install it.</source>
+        <translation>Программа просит браузер установить его.</translation>
+    </message>
+    <message>
+        <source>A program points Firefox at its add-on file.</source>
+        <translation>Программа указывает Firefox на файл своего дополнения.</translation>
+    </message>
+    <message>
+        <source>Firefox installs the add-on from this address or file.</source>
+        <translation>Firefox устанавливает дополнение с этого адреса или из этого файла.</translation>
+    </message>
+    <message>
+        <source>The user can&apos;t turn the add-on off or remove it.</source>
+        <translation>Пользователь не может отключить или удалить дополнение.</translation>
+    </message>
+    <message>
+        <source>Avel doesn&apos;t edit this file.</source>
+        <translation>Avel не редактирует этот файл.</translation>
+    </message>
+    <message>
+        <source>Your own copy from the store stays; remove it on the browser&apos;s extensions page.</source>
+        <translation>Ваша собственная копия из магазина остаётся; удалите её на странице расширений браузера.</translation>
+    </message>
+    <message>
+        <source>Not read by the browser: removing it changes nothing in the browser, only cleans up.</source>
+        <translation>Браузер это не читает: удаление ничего не меняет в браузере, а только наводит порядок.</translation>
+    </message>
+    <message>
+        <source>The browser removes what these sources installed at its next start; while it runs, it keeps the extension.</source>
+        <translation>Браузер удалит то, что установили эти источники, при следующем запуске; пока он работает, расширение остаётся.</translation>
+    </message>
+    <message>
+        <source>This PC is joined to a domain or managed by an organization: removed policy entries may be written again.</source>
+        <translation>Этот компьютер входит в домен или управляется организацией: удалённые записи политик могут быть записаны снова.</translation>
+    </message>
+    <message>
+        <source>Delete the registry key %1</source>
+        <translation>Удалить раздел реестра %1</translation>
+    </message>
+    <message>
+        <source>Delete the registry value %1</source>
+        <translation>Удалить параметр реестра %1</translation>
+    </message>
+    <message>
+        <source>Delete the registry value %1 (“%2”)</source>
+        <translation>Удалить параметр реестра %1 («%2»)</translation>
+    </message>
+    <message>
+        <source>Change the registry value %1 from “%2” to “%3”</source>
+        <translation>Изменить параметр реестра %1 с «%2» на «%3»</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Больше нет в списке; обновите по F5</translation>
+    </message>
+    <message>
+        <source>Nothing outside the browser installs it: remove it on the browser&apos;s extensions page</source>
+        <translation>Вне браузера его ничто не устанавливает: удалите его на странице расширений браузера</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json installs it; Avel doesn&apos;t edit that file</source>
+        <translation>Его устанавливает файл policies.json Firefox; Avel не редактирует этот файл</translation>
+    </message>
+    <message>
+        <source>A policy names it together with other extensions in one key</source>
+        <translation>Политика указывает его вместе с другими расширениями в одном разделе</translation>
+    </message>
+    <message>
+        <source>A protected registry location holds what installs it</source>
+        <translation>То, что его устанавливает, находится в защищённом месте реестра</translation>
+    </message>
+    <message>
+        <source>A browser profile&apos;s preferences couldn&apos;t be read: %1</source>
+        <translation>Не удалось прочитать настройки профиля браузера: %1</translation>
+    </message>
+    <message>
+        <source>A browser&apos;s list of profiles couldn&apos;t be read, so its profiles were found by folder: %1</source>
+        <translation>Не удалось прочитать список профилей браузера, поэтому его профили найдены по папкам: %1</translation>
+    </message>
+    <message>
+        <source>A Firefox profile&apos;s list of add-ons couldn&apos;t be read: %1</source>
+        <translation>Не удалось прочитать список дополнений профиля Firefox: %1</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s list of profiles couldn&apos;t be read: %1</source>
+        <translation>Не удалось прочитать список профилей Firefox: %1</translation>
+    </message>
+    <message>
+        <source>An ExtensionSettings policy isn&apos;t valid JSON, so the browser ignores it too: %1</source>
+        <translation>Политика ExtensionSettings не является допустимым JSON, поэтому браузер тоже её игнорирует: %1</translation>
+    </message>
+    <message>
+        <source>Firefox&apos;s policies.json couldn&apos;t be read: %1</source>
+        <translation>Не удалось прочитать файл policies.json Firefox: %1</translation>
+    </message>
+    <message>
+        <source>Remove browser extension %1</source>
+        <translation>Удалить расширение браузера %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)</source>
+        <translation>
+            <numerusform>Удалить %n расширение браузера</numerusform>
+            <numerusform>Удалить %n расширения браузера</numerusform>
+            <numerusform>Удалить %n расширений браузера</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>LeftoverText</name>
     <message>
         <source>Files and folders</source>
@@ -2086,6 +2509,510 @@
     </message>
 </context>
 <context>
+    <name>avel::app::ExtensionsTableModel</name>
+    <message>
+        <source>Yes</source>
+        <translation>Да</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>Нет</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Название</translation>
+    </message>
+    <message>
+        <source>Browser</source>
+        <translation>Браузер</translation>
+    </message>
+    <message>
+        <source>Profile</source>
+        <translation>Профиль</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Состояние</translation>
+    </message>
+    <message>
+        <source>Installed by</source>
+        <translation>Способ установки</translation>
+    </message>
+    <message>
+        <source>From store</source>
+        <translation>Из магазина</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Версия</translation>
+    </message>
+    <message>
+        <source>Removal</source>
+        <translation>Удаление</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::ExtensionsWindow</name>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel is changing browser extensions. Close the window once that is done.</source>
+        <translation>Avel изменяет расширения браузеров. Закройте окно, когда изменение завершится.</translation>
+    </message>
+    <message>
+        <source>Browser extensions</source>
+        <translation>Расширения браузеров</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Обновить</translation>
+    </message>
+    <message>
+        <source>List the extensions again (F5)</source>
+        <translation>Заново получить список расширений (F5)</translation>
+    </message>
+    <message>
+        <source>Re&amp;move…</source>
+        <translation>&amp;Удалить…</translation>
+    </message>
+    <message>
+        <source>Open &amp;extensions page</source>
+        <translation>Открыть &amp;страницу расширений</translation>
+    </message>
+    <message>
+        <source>Open &amp;policies.json</source>
+        <translation>Открыть &amp;policies.json</translation>
+    </message>
+    <message>
+        <source>Show the Firefox policies.json that installs the selected extension in Explorer. Avel doesn&apos;t edit it.</source>
+        <translation>Показать в проводнике файл policies.json Firefox, который устанавливает выбранное расширение. Avel его не редактирует.</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>Отменить последнее &amp;изменение</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>&amp;Центр отмены…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Всё, что Avel изменил за последние 30 дней, — чтобы вернуть</translation>
+    </message>
+    <message>
+        <source>&amp;Copy extension id</source>
+        <translation>&amp;Копировать идентификатор расширения</translation>
+    </message>
+    <message>
+        <source>Open in &amp;Registry Editor</source>
+        <translation>Открыть в редакторе р&amp;еестра</translation>
+    </message>
+    <message>
+        <source>Open the key of the first policy or registration that installs it</source>
+        <translation>Открыть раздел первой политики или регистрации, которая его устанавливает</translation>
+    </message>
+    <message>
+        <source>Open &amp;profile folder</source>
+        <translation>Открыть папку &amp;профиля</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Найти</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Панель инструментов</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Фильтры</translation>
+    </message>
+    <message>
+        <source>Search by name, extension id, description or profile (Ctrl+F)</source>
+        <translation>Поиск по названию, идентификатору расширения, описанию или профилю (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Поиск</translation>
+    </message>
+    <message>
+        <source>Browser</source>
+        <translation>Браузер</translation>
+    </message>
+    <message>
+        <source>All browsers</source>
+        <translation>Все браузеры</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Все пользователи</translation>
+    </message>
+    <message>
+        <source>Only removable</source>
+        <translation>Только удаляемые</translation>
+    </message>
+    <message>
+        <source>Only the extensions that a policy or a program&apos;s registration installs, which Avel can remove</source>
+        <translation>Только расширения, которые устанавливает политика или регистрация программы и которые Avel может удалить</translation>
+    </message>
+    <message>
+        <source>Listing browser extensions…</source>
+        <translation>Получение списка расширений браузеров…</translation>
+    </message>
+    <message>
+        <source>%1 wasn&apos;t found on this PC, so its extensions page can&apos;t be opened from here.</source>
+        <translation>%1 не найден на этом компьютере, поэтому его страницу расширений нельзя открыть отсюда.</translation>
+    </message>
+    <message>
+        <source>Windows&apos; desktop (Explorer) isn&apos;t running, so Avel can&apos;t start the browser without administrator rights.</source>
+        <translation>Рабочий стол Windows (проводник) не запущен, поэтому Avel не может запустить браузер без прав администратора.</translation>
+    </message>
+    <message>
+        <source>This profile belongs to %1: only the profiles of the user signed in to this desktop open from here.</source>
+        <translation>Этот профиль принадлежит пользователю %1: отсюда открываются только профили пользователя, вошедшего в систему на этом рабочем столе.</translation>
+    </message>
+    <message>
+        <source>Remove the policy entries and registrations that install the selected extensions (Del). Avel asks first; the browser removes the extensions at its next start.</source>
+        <translation>Удалить записи политик и регистрации, которые устанавливают выбранные расширения (Del). Avel сначала спросит; браузер удалит расширения при следующем запуске.</translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Отменить последнее изменение, сделанное в этом окне (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Отменить «%1» (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Open the selected profile&apos;s extensions page in its browser, as you, without administrator rights</source>
+        <translation>Открыть страницу расширений выбранного профиля в его браузере от вашего имени, без прав администратора</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s)</source>
+        <translation>
+            <numerusform>%n расширение</numerusform>
+            <numerusform>%n расширения</numerusform>
+            <numerusform>%n расширений</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n extension(s)</source>
+        <translation>
+            <numerusform>Показано %1 из %n расширения</numerusform>
+            <numerusform>Показано %1 из %n расширений</numerusform>
+            <numerusform>Показано %1 из %n расширений</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n disabled</source>
+        <translation>
+            <numerusform>%n отключено</numerusform>
+            <numerusform>%n отключены</numerusform>
+            <numerusform>%n отключено</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n removable by Avel</source>
+        <translation>
+            <numerusform>Avel может удалить: %n</numerusform>
+            <numerusform>Avel может удалить: %n</numerusform>
+            <numerusform>Avel может удалить: %n</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n предупреждение</numerusform>
+            <numerusform>%n предупреждения</numerusform>
+            <numerusform>%n предупреждений</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an extension to see its details.</source>
+        <translation>Выберите расширение, чтобы увидеть подробности.</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>Extension id</source>
+        <translation>Идентификатор расширения</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Версия</translation>
+    </message>
+    <message>
+        <source>Profile</source>
+        <translation>Профиль</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Состояние</translation>
+    </message>
+    <message>
+        <source>Installed with the browser or by the PC&apos;s maker</source>
+        <translation>Установлено вместе с браузером или производителем компьютера</translation>
+    </message>
+    <message>
+        <source>Installed by</source>
+        <translation>Способ установки</translation>
+    </message>
+    <message>
+        <source>Data: %1</source>
+        <translation>Данные: %1</translation>
+    </message>
+    <message>
+        <source>Applies to: %1</source>
+        <translation>Действует для: %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>extension name: why it was skipped</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Store</source>
+        <translation>Магазин</translation>
+    </message>
+    <message>
+        <source>Not from a store</source>
+        <translation>Не из магазина</translation>
+    </message>
+    <message>
+        <source>Update URL</source>
+        <translation>URL обновления</translation>
+    </message>
+    <message>
+        <source>Installed on</source>
+        <translation>Дата установки</translation>
+    </message>
+    <message>
+        <source>Files</source>
+        <translation>Файлы</translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation>Разрешения</translation>
+    </message>
+    <message>
+        <source>Site access</source>
+        <translation>Доступ к сайтам</translation>
+    </message>
+    <message>
+        <source>Optional permissions</source>
+        <translation>Необязательные разрешения</translation>
+    </message>
+    <message>
+        <source>Removal</source>
+        <translation>Удаление</translation>
+    </message>
+    <message>
+        <source>Open the extensions page</source>
+        <translation>Открыть страницу расширений</translation>
+    </message>
+    <message>
+        <source>Extensions page</source>
+        <translation>Страница расширений</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Идентификатор</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation>Показать в проводнике</translation>
+    </message>
+    <message>
+        <source>Open in Registry Editor</source>
+        <translation>Открыть в редакторе реестра</translation>
+    </message>
+    <message>
+        <source>In the registry&apos;s 32-bit view</source>
+        <translation>В 32-разрядном представлении реестра</translation>
+    </message>
+    <message>
+        <source>Mode: %1</source>
+        <translation>Режим: %1</translation>
+    </message>
+    <message>
+        <source>Program: %1</source>
+        <translation>Программа: %1</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension(s) selected; Remove applies to the ones Avel can remove. Details of this one:</source>
+        <translation>
+            <numerusform>Выбрано %n расширение; «Удалить» применяется к тем, которые Avel может удалить. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n расширения; «Удалить» применяется к тем, которые Avel может удалить. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n расширений; «Удалить» применяется к тем, которые Avel может удалить. Подробности этого:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>What installs it from outside the browser</source>
+        <translation>Что устанавливает его вне браузера</translation>
+    </message>
+    <message>
+        <source>%1 (%2, %3, %4)</source>
+        <translation>%1 (%2, %3, %4)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n selected extension(s) skipped.</source>
+        <translation>
+            <numerusform>Нечего удалять: пропущено %n выбранное расширение.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n выбранных расширения.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n выбранных расширений.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel takes out what installs it from outside the browser:</source>
+        <translation>Avel уберёт то, что устанавливает его вне браузера:</translation>
+    </message>
+    <message>
+        <source>The same policies or registrations install it here too, so it goes from these as well:</source>
+        <translation>Те же политики или регистрации устанавливают его и здесь, поэтому отсюда оно тоже будет удалено:</translation>
+    </message>
+    <message>
+        <source>These lose one of their sources too, but something else still installs them:</source>
+        <translation>Эти расширения тоже потеряют один из своих источников, но их по-прежнему устанавливает что-то другое:</translation>
+    </message>
+    <message>
+        <source>Avel backs it up first: Undo last change (Ctrl+Z) or the Undo Center puts it back within 30 days.</source>
+        <translation>Сначала Avel сохраняет резервную копию: «Отменить последнее изменение» (Ctrl+Z) или Центр отмены вернут всё в течение 30 дней.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected extension(s) will be skipped:</source>
+        <translation>
+            <numerusform>Будет пропущено %n выбранное расширение:</numerusform>
+            <numerusform>Будут пропущены %n выбранных расширения:</numerusform>
+            <numerusform>Будут пропущены %n выбранных расширений:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove browser extensions</source>
+        <translation>Удаление расширений браузеров</translation>
+    </message>
+    <message>
+        <source>Remove the browser extension %1?</source>
+        <translation>Удалить расширение браузера %1?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n browser extension(s)?</source>
+        <translation>
+            <numerusform>Удалить %n расширение браузера?</numerusform>
+            <numerusform>Удалить %n расширения браузера?</numerusform>
+            <numerusform>Удалить %n расширений браузера?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Выполняется: %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Другой процесс Avel сейчас изменяет систему. Ничего не изменено; повторите, когда он закончит.</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel не смог записать резервную копию этого изменения, поэтому ничего не изменено.</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>change: its status</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n browser extension(s) removed; the browser drops them at its next start.</source>
+        <translation>
+            <numerusform>%n расширение браузера удалено; браузер уберёт его при следующем запуске.</numerusform>
+            <numerusform>%n расширения браузера удалены; браузер уберёт их при следующем запуске.</numerusform>
+            <numerusform>%n расширений браузера удалено; браузер уберёт их при следующем запуске.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Removed in part: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Удалено частично: %n изменение выполнить не удалось.</numerusform>
+            <numerusform>Удалено частично: %n изменения выполнить не удалось.</numerusform>
+            <numerusform>Удалено частично: %n изменений выполнить не удалось.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing was removed: %n change(s) couldn&apos;t be made.</source>
+        <translation>
+            <numerusform>Ничего не удалено: %n изменение выполнить не удалось.</numerusform>
+            <numerusform>Ничего не удалено: %n изменения выполнить не удалось.</numerusform>
+            <numerusform>Ничего не удалено: %n изменений выполнить не удалось.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n пропущено.</numerusform>
+            <numerusform>%n пропущены.</numerusform>
+            <numerusform>%n пропущено.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Отменить можно по Ctrl+Z или в Центре отмены.</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Отмена: %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1» нельзя отменить здесь: его резервная копия отсутствует или используется другим процессом Avel. Центр отмены показывает, что ещё можно вернуть.</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>В «%1» больше нечего отменять.</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Отменено: %1.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n элемент не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элемента не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элементов не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1&apos;s extensions page couldn&apos;t be opened: Windows&apos; desktop didn&apos;t take the request. %2</source>
+        <translation>Не удалось открыть страницу расширений %1: рабочий стол Windows не принял запрос. %2</translation>
+    </message>
+    <message>
+        <source>Opening %1&apos;s extensions page…</source>
+        <translation>Открывается страница расширений %1…</translation>
+    </message>
+    <message>
+        <source>%1 is signed out, so their registry isn&apos;t loaded where Registry Editor sees it. In Registry Editor, File &gt; Load Hive opens their NTUSER.DAT.</source>
+        <translation>Пользователь %1 не выполнил вход, поэтому его реестр не загружен там, где его видит редактор реестра. В редакторе реестра его NTUSER.DAT открывает «Файл &gt; Загрузить куст».</translation>
+    </message>
+</context>
+<context>
     <name>avel::app::ForceFlow</name>
     <message>
         <source>Looking for everything that belongs to the program…</source>
@@ -2567,6 +3494,14 @@ Left by %2</source>
     <message>
         <source>See the Store and Windows&apos; own apps of every user, and remove them for you, for new users or for everyone</source>
         <translation>Посмотреть приложения Store и собственные приложения Windows всех пользователей и удалить их для себя, для новых пользователей или для всех</translation>
+    </message>
+    <message>
+        <source>&amp;Browser extensions…</source>
+        <translation>&amp;Расширения браузеров…</translation>
+    </message>
+    <message>
+        <source>See the extensions of every browser profile of every user, and remove the ones a policy or a program installs</source>
+        <translation>Посмотреть расширения всех профилей браузеров всех пользователей и удалить те, что установлены политикой или программой</translation>
     </message>
     <message>
         <source>&amp;View</source>
