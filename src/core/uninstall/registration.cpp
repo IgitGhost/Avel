@@ -9,7 +9,8 @@
 
 #include <filesystem>
 #include <system_error>
-#include <thread>
+
+#include "core/platform/winrt_apartment.h"
 
 namespace avel::uninstall {
 
@@ -19,20 +20,6 @@ namespace wmd = winrt::Windows::Management::Deployment;
 
 constexpr wchar_t kUninstallPath[] = LR"(Software\Microsoft\Windows\CurrentVersion\Uninstall\)";
 constexpr wchar_t kUninstallPath32[] = LR"(Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\)";
-
-// Runs `work` on a fresh multithreaded-apartment thread, as WinRT wants; the caller's COM state
-// (the GUI thread is a single-threaded apartment) is left alone.
-template <typename Work>
-auto run_in_mta(Work&& work) {
-    decltype(work()) result{};
-    std::thread worker([&] {
-        winrt::init_apartment(winrt::apartment_type::multi_threaded);
-        result = work();
-        winrt::uninit_apartment();
-    });
-    worker.join();
-    return result;
-}
 
 bool key_exists(const UninstallKeyAddress& address) {
     HKEY key = nullptr;
@@ -102,7 +89,7 @@ bool install_location_exists(const inventory::Program& program) {
 }
 
 std::int32_t remove_package(const std::wstring& package_full_name) {
-    return run_in_mta([&]() -> std::int32_t {
+    return platform::run_in_mta([&]() -> std::int32_t {
         try {
             wmd::PackageManager manager;
             const auto result = manager.RemovePackageAsync(package_full_name).get();
@@ -114,7 +101,7 @@ std::int32_t remove_package(const std::wstring& package_full_name) {
 }
 
 bool is_package_installed(const std::wstring& package_full_name) {
-    return run_in_mta([&]() -> bool {
+    return platform::run_in_mta([&]() -> bool {
         try {
             wmd::PackageManager manager;
             return manager.FindPackageForUser(L"", package_full_name) != nullptr;

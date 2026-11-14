@@ -144,6 +144,8 @@ QString ProgramText::planErrorText(uninstall::PlanError error) {
             return tr("Can't uninstall: no uninstaller is registered");
         case PlanError::RemovalBlocked:
             return tr("Can't uninstall: its installer doesn't allow it");
+        case PlanError::ProtectedPackage:
+            return tr("Can't uninstall: Windows or a desktop program needs this app");
         case PlanError::OtherUser:
             return tr("Can't uninstall: installed for another user, who has to uninstall it");
         case PlanError::ElevationRequired:

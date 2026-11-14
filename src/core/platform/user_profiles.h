@@ -17,6 +17,9 @@ struct UserProfile {
 // Entra ID users (S-1-12-1-*). Service accounts are skipped.
 std::vector<UserProfile> enumerate_user_profiles();
 
+// "DOMAIN\user" of a string SID; empty when it can't be resolved.
+std::wstring lookup_account_name(const std::wstring& sid);
+
 // String SID of the user the current process runs as; empty on failure.
 std::wstring current_user_sid();
 

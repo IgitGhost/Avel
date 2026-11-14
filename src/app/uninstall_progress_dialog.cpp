@@ -43,6 +43,22 @@ UninstallProgressDialog::UninstallProgressDialog(std::shared_ptr<const inventory
     if (scanLeftovers_ && useTraces && traces_ != nullptr) {
         traceStore_ = traces_->store();
     }
+    // A packaged app that stays on this PC for another user or for new users is removed for the
+    // current user through a ChangeSet, which the Undo Center can take back (docs/uninstall.md,
+    // "Packaged apps"). Without a change store, packaged apps are removed as before. Called on the
+    // worker: exclusive hive access first, then the store's lock (hive_access.h).
+    if (!options_.dry_run && stores_ != nullptr && stores_->store()) {
+        options_.run_change_set = [store = stores_->store()](changes::ChangePlan plan,
+                                                             const inventory::Program& program) {
+            //: A ChangeSet's description in the Undo Center, an action: "Uninstall <program>"
+            plan.description = tr("Uninstall %1").arg(toQString(program.display_name)).toStdWString();
+            const auto hives = exclusiveHiveAccess();
+            if (const auto guard = store->lock()) {
+                return changes::execute(*store, plan);
+            }
+            return changes::ExecuteResult{};  // Another Avel process holds the store: nothing changed
+        };
+    }
     setWindowTitle(options_.dry_run ? tr("Simulating uninstall") : tr("Uninstalling"));
     results_.resize(items_.size());
 
@@ -217,7 +233,9 @@ void UninstallProgressDialog::onItemStarted(std::size_t index) {
 void UninstallProgressDialog::onItemFinished(std::size_t index, const uninstall::UninstallResult& result) {
     results_[index] = result;
     const auto row = static_cast<int>(index);
-    setStatus(row, ProgramText::outcomeText(result));
+    // A packaged app removed for the current user through a ChangeSet can be put back.
+    setStatus(row, result.change_set.empty() ? ProgramText::outcomeText(result)
+                                             : tr("Removed for you; can be undone in the Undo Center"));
     QColor color;
     switch (result.outcome) {
         case Outcome::Removed:

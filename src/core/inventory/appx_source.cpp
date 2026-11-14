@@ -22,6 +22,7 @@
 
 #include "core/platform/text.h"
 #include "core/platform/time.h"
+#include "core/platform/winrt_apartment.h"
 
 namespace avel::inventory {
 
@@ -288,16 +289,13 @@ void scan_in_mta(AppxScanResult& result) {
 }  // namespace
 
 AppxScanResult scan_appx_packages() {
-    AppxScanResult result;
     // A dedicated thread gives WinRT the MTA it wants without touching the caller's COM state
     // (the Qt GUI thread is a single-threaded apartment).
-    std::thread worker([&result] {
-        winrt::init_apartment(winrt::apartment_type::multi_threaded);
+    return platform::run_in_mta([] {
+        AppxScanResult result;
         scan_in_mta(result);
-        winrt::uninit_apartment();
+        return result;
     });
-    worker.join();
-    return result;
 }
 
 }  // namespace avel::inventory

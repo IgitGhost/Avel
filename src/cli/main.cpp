@@ -7,6 +7,7 @@
 #include <string_view>
 #include <vector>
 
+#include "cli/apps_command.h"
 #include "cli/console.h"
 #include "cli/force_command.h"
 #include "cli/list_command.h"
@@ -72,6 +73,14 @@ constexpr std::string_view kUsage =
     "             automatic services), or disable, enable or delete entries, backed up so\n"
     "             undo can put them back. list runs without administrator rights; the\n"
     "             other commands need them.\n"
+    "  apps list [--all] [--json]\n"
+    "  apps remove <id>... | deprovision <id>... | remove-everywhere <id>... --allow-irreversible\n"
+    "       [--dry-run] [--yes] [--json]\n"
+    "             List the packaged apps on this PC, or remove them for you (undo installs\n"
+    "             them for you again), stop installing them for new users (undo provisions\n"
+    "             them again), or remove them for every user, which can't be undone.\n"
+    "             list runs without administrator rights (your apps only); the other\n"
+    "             commands need them.\n"
     "  version    Show version and environment information\n"
     "  help       Show this help\n";
 
@@ -118,6 +127,9 @@ int wmain(int argc, wchar_t* argv[]) {
     }
     if (command == L"startup") {
         return avel::cli::run_startup_command(arguments);
+    }
+    if (command == L"apps") {
+        return avel::cli::run_apps_command(arguments);
     }
     if (command == L"version" || command == L"--version" || command == L"-v") {
         print_version();

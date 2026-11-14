@@ -21,6 +21,8 @@ bool is_user_sid(std::wstring_view sid) {
     return istarts_with(sid, L"S-1-5-21-") || istarts_with(sid, L"S-1-12-1-");
 }
 
+}  // namespace
+
 // Users with a profile on this machine are normally answered from the local account database or
 // LSA's logon cache, without contacting a domain controller.
 std::wstring lookup_account_name(const std::wstring& sid_string) {
@@ -44,6 +46,8 @@ std::wstring lookup_account_name(const std::wstring& sid_string) {
     result.append(name.data(), name_length);
     return result;
 }
+
+namespace {
 
 // Replaces every case-insensitive occurrence of `token` (e.g. "%APPDATA%") with `replacement`.
 void replace_token(std::wstring& text, std::wstring_view token, std::wstring_view replacement) {

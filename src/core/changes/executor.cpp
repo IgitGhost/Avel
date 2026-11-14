@@ -23,6 +23,8 @@ using leftovers::FileLocation;
 using leftovers::FirewallRuleLocation;
 using leftovers::Location;
 using leftovers::PackageLocation;
+using leftovers::PackageProvisioningLocation;
+using leftovers::PackageUserLocation;
 using leftovers::RegistryKeyLocation;
 using leftovers::RegistryValueLocation;
 using leftovers::ServiceLocation;
@@ -91,7 +93,9 @@ std::function<leftovers::ProtectionReason(const Location&)> protection_for(const
 }
 
 // Services and tasks first, so the files they run are free; then the task folders they leave
-// empty; state changes after registry values; files last.
+// empty; packages: a user's registration goes while the package is still provisioned (which keeps
+// it on this PC, so the removal stays undoable), and comes back after it is provisioned again;
+// state changes after registry values; files last.
 int phase(const Location& location) {
     return std::visit(
         [](const auto& item) {
@@ -99,16 +103,18 @@ int phase(const Location& location) {
             if constexpr (std::is_same_v<T, ServiceLocation>) return 0;
             else if constexpr (std::is_same_v<T, TaskLocation>) return item.folder ? 2 : 1;
             else if constexpr (std::is_same_v<T, PackageLocation>) return 3;
-            else if constexpr (std::is_same_v<T, RegistryValueLocation>) return 4;
-            else if constexpr (std::is_same_v<T, ValueEditLocation>) return 4;
-            else if constexpr (std::is_same_v<T, StartupApprovedLocation>) return 5;
-            else if constexpr (std::is_same_v<T, TaskStateLocation>) return 5;
-            else if constexpr (std::is_same_v<T, ServiceStartLocation>) return 5;
-            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 6;
-            else if constexpr (std::is_same_v<T, FileLocation>) return 7;
+            else if constexpr (std::is_same_v<T, PackageUserLocation>) return 4;
+            else if constexpr (std::is_same_v<T, PackageProvisioningLocation>) return 5;
+            else if constexpr (std::is_same_v<T, RegistryValueLocation>) return 6;
+            else if constexpr (std::is_same_v<T, ValueEditLocation>) return 6;
+            else if constexpr (std::is_same_v<T, StartupApprovedLocation>) return 7;
+            else if constexpr (std::is_same_v<T, TaskStateLocation>) return 7;
+            else if constexpr (std::is_same_v<T, ServiceStartLocation>) return 7;
+            else if constexpr (std::is_same_v<T, RegistryKeyLocation>) return 8;
+            else if constexpr (std::is_same_v<T, FileLocation>) return 9;
             else {
                 static_assert(std::is_same_v<T, FirewallRuleLocation>, "every kind needs its phase");
-                return 8;  // Reported only
+                return 10;  // Reported only
             }
         },
         location);
@@ -406,6 +412,53 @@ bool state_backup_from(const Json& json, ServiceStart& before, ServiceStart& wri
            from_json(json["before"], before) && from_json(json["written"], written);
 }
 
+// state.json of a package's registration or provisioning (ADR 0008): registered (provisioned)
+// before and written, the package the change acted on, and after undo the one registered
+// (provisioned) again, which may be a newer version of the family. A registration also records
+// what kept the package on this PC once the user's registration went: the other users that had it
+// and whether it was provisioned. The app's data isn't part of it: Windows deletes it with the
+// registration.
+struct PackageStateBackup {
+    bool before = false;
+    bool written = false;
+    std::wstring full_name;
+    std::wstring restored_full_name;
+    std::vector<std::wstring> other_users;
+    bool provisioned = false;
+};
+
+Json sids_json(const std::vector<std::wstring>& sids) {
+    Json list = Json::array();
+    for (const auto& sid : sids) {
+        list.push_back(platform::to_utf8(sid));
+    }
+    return list;
+}
+
+Json package_backup_json(const PackageStateBackup& backup, bool registration) {
+    Json json;
+    json["before"] = backup.before;
+    json["written"] = backup.written;
+    put_text(json, "full_name", backup.full_name);
+    if (!backup.restored_full_name.empty()) {
+        put_text(json, "restored_full_name", backup.restored_full_name);
+    }
+    if (registration) {
+        json["other_users"] = sids_json(backup.other_users);
+        json["provisioned"] = backup.provisioned;
+    }
+    return json;
+}
+
+bool package_backup_from(const Json& json, PackageStateBackup& backup) {
+    if (!state_backup_from(json, backup.before, backup.written)) {
+        return false;
+    }
+    backup.full_name = get_text(json, "full_name").value_or(L"");
+    backup.restored_full_name = get_text(json, "restored_full_name").value_or(L"");
+    return true;
+}
+
 // A state change's outcome, as undo reports it.
 ItemStatus as_restore(ItemStatus status) {
     status.state = status.state == ItemState::Done      ? ItemState::Restored
@@ -456,7 +509,11 @@ bool is_partial(const std::wstring& folder) {
 class Run {
 public:
     Run(ChangeSet& set, const ExecuteOptions& options)
-        : set_(set), options_(options), roots_(options), protection_(protection_for(options)) {}
+        : set_(set),
+          options_(options),
+          roots_(options),
+          protection_(protection_for(options)),
+          packages_(options.packages ? options.packages : std::make_shared<PackageSystem>()) {}
 
     bool stopped() const { return stopped_; }
     std::uint64_t bytes() const { return bytes_; }
@@ -682,6 +739,9 @@ private:
 
     template <typename Finish>
     ItemResult remove_item(std::size_t index, const PackageLocation& location, ItemResult& result, Finish& finish) {
+        if (location.all_users) {
+            return remove_everywhere(index, location, result, finish);
+        }
         Json json;
         put_text(json, "full_name", location.full_name);
         put_text(json, "user_sid", location.user_sid);
@@ -692,6 +752,132 @@ private:
             return result;
         }
         return finish(remove_package_item(location.full_name, location.user_sid));
+    }
+
+    // Deep removal (ADR 0008), one item: deprovisioned first when it is provisioned, then removed for
+    // every user, which deletes it from this PC. Neither half can be undone once the package is
+    // gone, and the user asked for both as one thing, so they are one irreversible item; if only
+    // the deprovisioning got done, the item is partial. package.json says who had it.
+    template <typename Finish>
+    ItemResult remove_everywhere(std::size_t index, const PackageLocation& location, ItemResult& result,
+                                 Finish& finish) {
+        const std::wstring family = leftovers::package_family_name(location.full_name);
+        if (family.empty() || !packages_->family_staged(family)) {
+            return finish({ItemState::Skipped, Reason::Missing, 0});
+        }
+        const auto provisioned = packages_->provisioned_package(family);
+        Json json;
+        put_text(json, "full_name", location.full_name);
+        json["all_users"] = true;
+        json["users"] = sids_json(packages_->family_users(family));
+        json["provisioned_full_name"] = nullptr;
+        if (provisioned) {
+            json.erase("provisioned_full_name");
+            put_text(json, "provisioned_full_name", *provisioned);
+        }
+        if (!write_json(set_.item_folder(index) + L"\\package.json", json)) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        if (provisioned) {
+            if (const ItemStatus status = package_status(packages_->deprovision(family));
+                status.state != ItemState::Done) {
+                return finish(status);
+            }
+        }
+        ItemStatus status = package_status(packages_->remove_for_all_users(location.full_name));
+        if (status.state == ItemState::Failed && provisioned) {
+            status.state = ItemState::Partial;  // Not provisioned any more, but still installed
+        }
+        return finish(status);
+    }
+
+    // Compare-and-set (ADR 0007's pattern), only for the account Avel runs as (ADR 0008: Windows
+    // has no public way to remove or register a package for another user). A removal that would
+    // take the package off this PC (nobody else has it and it isn't provisioned) isn't undoable,
+    // so it is refused here: that is a removal for every user, a choice of its own.
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const PackageUserLocation& location, ItemResult& result,
+                           Finish& finish) {
+        if (!platform::iequals(location.user_sid, packages_->current_user_sid())) {
+            return finish({ItemState::Skipped, Reason::OtherUser, 0});
+        }
+        PackageStateBackup backup;
+        for (auto& user : packages_->family_users(location.family_name)) {
+            if (platform::iequals(user, location.user_sid)) {
+                backup.before = true;
+            } else {
+                backup.other_users.push_back(std::move(user));
+            }
+        }
+        if (backup.before != location.before) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        backup.provisioned = packages_->provisioned_package(location.family_name).has_value();
+        if (backup.before && !location.after && backup.other_users.empty() && !backup.provisioned) {
+            return finish({ItemState::Skipped, Reason::NotUndoable, 0});
+        }
+        if (!backup.before && location.after && !packages_->family_staged(location.family_name)) {
+            return finish({ItemState::Skipped, Reason::Missing, 0});  // Nothing to register
+        }
+        backup.written = location.after;
+        backup.full_name = backup.before ? location.full_name : std::wstring();
+        const std::wstring path = set_.item_folder(index) + L"\\state.json";
+        if (!write_json(path, package_backup_json(backup, true))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        if (backup.before == backup.written) {
+            return finish({ItemState::Done, Reason::None, 0});
+        }
+        const auto operation = location.after ? packages_->register_for_current_user(location.family_name)
+                                              : packages_->remove_for_current_user(location.full_name);
+        const ItemStatus status = package_status(operation);
+        if (status.state == ItemState::Done && !operation.full_name.empty() &&
+            operation.full_name != backup.full_name) {
+            backup.full_name = operation.full_name;  // The package it acted on, as Windows says
+            write_file_durably(path, package_backup_json(backup, true).dump(1, '\t'), true);
+        }
+        return finish(status);
+    }
+
+    template <typename Finish>
+    ItemResult remove_item(std::size_t index, const PackageProvisioningLocation& location, ItemResult& result,
+                           Finish& finish) {
+        const auto provisioned = packages_->provisioned_package(location.family_name);
+        PackageStateBackup backup;
+        backup.before = provisioned.has_value();
+        if (backup.before != location.before) {
+            return finish({ItemState::Skipped, Reason::Changed, 0});
+        }
+        if (!backup.before && location.after && !packages_->family_staged(location.family_name)) {
+            return finish({ItemState::Skipped, Reason::Missing, 0});  // Nothing to provision
+        }
+        backup.written = location.after;
+        backup.full_name = provisioned.value_or(L"");
+        const std::wstring path = set_.item_folder(index) + L"\\state.json";
+        if (!write_json(path, package_backup_json(backup, false))) {
+            return finish({ItemState::Failed, Reason::Error, ::GetLastError()});
+        }
+        if (!record(index, {ItemState::BackedUp, Reason::None, 0})) {
+            return result;
+        }
+        if (backup.before == backup.written) {
+            return finish({ItemState::Done, Reason::None, 0});
+        }
+        const auto operation = location.after ? packages_->provision(location.family_name)
+                                              : packages_->deprovision(location.family_name);
+        const ItemStatus status = package_status(operation);
+        if (status.state == ItemState::Done && !operation.full_name.empty() &&
+            operation.full_name != backup.full_name) {
+            backup.full_name = operation.full_name;
+            write_file_durably(path, package_backup_json(backup, false).dump(1, '\t'), true);
+        }
+        return finish(status);
     }
 
     template <typename Finish>
@@ -925,6 +1111,78 @@ private:
         return {ItemState::RestoreSkipped, Reason::ReportOnly, 0};
     }
 
+    // A package's registration or provisioning goes back only while it is in the state written and,
+    // to register or provision it again, while some version of the family is still on this PC
+    // (otherwise `missing`: only reinstalling brings it back). Whatever version is there then is
+    // registered, and state.json records it.
+    ItemStatus restore_item(const std::wstring& folder, const PackageUserLocation& location, ItemResult&) {
+        auto json = read_json(folder + L"\\state.json");
+        PackageStateBackup backup;
+        if (!json || !package_backup_from(*json, backup)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        if (!platform::iequals(location.user_sid, packages_->current_user_sid())) {
+            return {ItemState::RestoreSkipped, Reason::OtherUser, 0};
+        }
+        const auto users = packages_->family_users(location.family_name);
+        const bool live = std::any_of(users.begin(), users.end(), [&](const std::wstring& user) {
+            return platform::iequals(user, location.user_sid);
+        });
+        if (live != backup.written) {
+            return {ItemState::RestoreSkipped, Reason::Changed, 0};
+        }
+        if (live == backup.before) {
+            return {ItemState::Restored, Reason::None, 0};
+        }
+        platform::PackageOperation operation;
+        if (backup.before) {
+            if (!packages_->family_staged(location.family_name)) {
+                return {ItemState::RestoreSkipped, Reason::Missing, 0};
+            }
+            operation = packages_->register_for_current_user(location.family_name);
+        } else {
+            // Undoing a registration: never by deleting the package from this PC.
+            if (users.size() <= 1 && !packages_->provisioned_package(location.family_name)) {
+                return {ItemState::RestoreSkipped, Reason::NotUndoable, 0};
+            }
+            operation = packages_->remove_for_current_user(backup.full_name.empty() ? location.full_name
+                                                                                    : backup.full_name);
+        }
+        const ItemStatus status = as_restore(package_status(operation));
+        if (status.state == ItemState::Restored && !operation.full_name.empty()) {
+            put_text(*json, "restored_full_name", operation.full_name);
+            write_file_durably(folder + L"\\state.json", json->dump(1, '\t'), true);
+        }
+        return status;
+    }
+
+    ItemStatus restore_item(const std::wstring& folder, const PackageProvisioningLocation& location,
+                            ItemResult&) {
+        auto json = read_json(folder + L"\\state.json");
+        PackageStateBackup backup;
+        if (!json || !package_backup_from(*json, backup)) {
+            return {ItemState::RestoreFailed, Reason::BackupMissing, 0};
+        }
+        const bool live = packages_->provisioned_package(location.family_name).has_value();
+        if (live != backup.written) {
+            return {ItemState::RestoreSkipped, Reason::Changed, 0};
+        }
+        if (live == backup.before) {
+            return {ItemState::Restored, Reason::None, 0};
+        }
+        if (backup.before && !packages_->family_staged(location.family_name)) {
+            return {ItemState::RestoreSkipped, Reason::Missing, 0};
+        }
+        const auto operation = backup.before ? packages_->provision(location.family_name)
+                                             : packages_->deprovision(location.family_name);
+        const ItemStatus status = as_restore(package_status(operation));
+        if (status.state == ItemState::Restored && !operation.full_name.empty()) {
+            put_text(*json, "restored_full_name", operation.full_name);
+            write_file_durably(folder + L"\\state.json", json->dump(1, '\t'), true);
+        }
+        return status;
+    }
+
     // Exactly back while the value is what the edit wrote; otherwise the inverse operation, if the
     // kind has one; otherwise left as it is.
     ItemStatus restore_item(const std::wstring& folder, const ValueEditLocation& location, ItemResult&) {
@@ -1094,9 +1352,43 @@ private:
                        : ItemStatus{ItemState::Done, Reason::None, 0};
     }
 
-    ItemStatus settle_item(const std::wstring&, const PackageLocation& location) {
-        return package_exists(location.full_name) ? ItemStatus{ItemState::Failed, Reason::Interrupted, 0}
-                                                  : ItemStatus{ItemState::Done, Reason::None, 0};
+    ItemStatus settle_item(const std::wstring& folder, const PackageLocation& location) {
+        if (!location.all_users) {
+            return package_exists(location.full_name) ? ItemStatus{ItemState::Failed, Reason::Interrupted, 0}
+                                                      : ItemStatus{ItemState::Done, Reason::None, 0};
+        }
+        // Deep removal: gone from this PC, or still there, deprovisioned or not.
+        const std::wstring family = leftovers::package_family_name(location.full_name);
+        if (!packages_->family_staged(family)) {
+            return {ItemState::Done, Reason::None, 0};
+        }
+        const auto json = read_json(folder + L"\\package.json");
+        const bool was_provisioned = json && json->is_object() && get_text(*json, "provisioned_full_name");
+        return was_provisioned && !packages_->provisioned_package(family)
+                   ? ItemStatus{ItemState::Partial, Reason::Interrupted, 0}
+                   : ItemStatus{ItemState::Failed, Reason::Interrupted, 0};
+    }
+
+    // A package's registration or provisioning: done if it is in the state written, as for every
+    // state change.
+    ItemStatus settle_item(const std::wstring& folder, const PackageUserLocation& location) {
+        const auto json = read_json(folder + L"\\state.json");
+        PackageStateBackup backup;
+        if (!json || !package_backup_from(*json, backup) ||
+            packages_->registered(location.family_name, location.user_sid) != backup.written) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        return {ItemState::Done, Reason::None, 0};
+    }
+
+    ItemStatus settle_item(const std::wstring& folder, const PackageProvisioningLocation& location) {
+        const auto json = read_json(folder + L"\\state.json");
+        PackageStateBackup backup;
+        if (!json || !package_backup_from(*json, backup) ||
+            packages_->provisioned_package(location.family_name).has_value() != backup.written) {
+            return {ItemState::Failed, Reason::Interrupted, 0};
+        }
+        return {ItemState::Done, Reason::None, 0};
     }
 
     ItemStatus settle_item(const std::wstring&, const FirewallRuleLocation&) {
@@ -1176,16 +1468,20 @@ private:
     const ExecuteOptions& options_;
     Roots roots_;
     std::function<leftovers::ProtectionReason(const Location&)> protection_;
+    std::shared_ptr<PackageSystem> packages_;
     std::size_t records_ = 0;
     bool stopped_ = false;
     std::uint64_t bytes_ = 0;
     bool environment_changed_ = false;
 };
 
-bool is_contained(const ChangePlan& plan, std::size_t index) {
+// The item goes with another planned item that will be removed: an irreversible one only when that
+// is allowed (a removal for every user holds the same family's registrations and provisioning).
+bool is_contained(const ChangePlan& plan, std::size_t index, const ExecuteOptions& options) {
     for (std::size_t other = 0; other < plan.items.size(); ++other) {
-        if (other != index && is_removable(plan.items[other].location) &&
-            leftovers::contains(plan.items[other].location, plan.items[index].location)) {
+        const Location& outer = plan.items[other].location;
+        if (other != index && is_removable(outer) && (options.allow_irreversible || is_undoable(outer)) &&
+            leftovers::contains(outer, plan.items[index].location)) {
             return true;
         }
     }
@@ -1205,7 +1501,7 @@ ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteO
     result.items.resize(plan.items.size());
     Run run(*set, options);
     for (const std::size_t index : execution_order(plan)) {
-        result.items[index] = run.remove(index, plan.items[index], is_contained(plan, index));
+        result.items[index] = run.remove(index, plan.items[index], is_contained(plan, index, options));
         if (run.stopped()) {
             result.stopped = true;
             return result;  // As if the process died here: no summary

@@ -43,6 +43,9 @@ struct TaskLocation {
 struct PackageLocation {
     std::wstring full_name;
     std::wstring user_sid;  // The user the package is registered for
+    // Deep removal (ADR 0008): deprovisioned, removed for every user and deleted from this PC.
+    // Irreversible, as the current user's removal is; `user_sid` plays no part then.
+    bool all_users = false;
 };
 
 struct FirewallRuleLocation {
@@ -106,18 +109,47 @@ struct ServiceStartLocation {
     ServiceStart after;
 };
 
-using Location = std::variant<FileLocation, RegistryKeyLocation, RegistryValueLocation, ServiceLocation,
-                              TaskLocation, PackageLocation, FirewallRuleLocation, ValueEditLocation,
-                              StartupApprovedLocation, TaskStateLocation, ServiceStartLocation>;
+// Packaged apps' states (ADR 0008), through the public PackageManager. Unlike PackageLocation's
+// removal, these are undone offline, as long as some version of the family stays on this PC.
+
+// Whether a package family is registered for a user (any version of it). The executor changes it
+// only for the account Avel runs as: Windows has no public way to do it for another user.
+struct PackageUserLocation {
+    std::wstring family_name;  // e.g. Microsoft.BingNews_8wekyb3d8bbwe
+    std::wstring full_name;    // The version registered when planned, which a removal acts on
+    std::wstring user_sid;
+    bool before = true;  // Registered
+    bool after = false;
+};
+
+// Whether a package family is provisioned, that is, installed for every new user.
+struct PackageProvisioningLocation {
+    std::wstring family_name;
+    std::wstring provisioned_full_name;  // The version provisioned when planned; empty if none was
+    bool before = true;                  // Provisioned
+    bool after = false;
+};
+
+using Location =
+    std::variant<FileLocation, RegistryKeyLocation, RegistryValueLocation, ServiceLocation, TaskLocation,
+                 PackageLocation, FirewallRuleLocation, ValueEditLocation, StartupApprovedLocation,
+                 TaskStateLocation, ServiceStartLocation, PackageUserLocation, PackageProvisioningLocation>;
 
 // A case-insensitive key identifying the item, used to merge what several scanners found:
 // "file:c:\x", "key:hklm\software\x", "value:hku\s-1-5-21-…\software\x\name", ... A value edit's
 // key also holds what it does ("edit:hklm\…\environment\\path|remove-path-entries|c:\x\bin"), so
 // two traces' edits to one value stay two items. A state change's key names only the item
-// ("approved:…\\name", "task-state:\x", "service-start:x"), whatever states it goes between.
+// ("approved:…\\name", "task-state:\x", "service-start:x", "package-user:<sid>\<family>",
+// "package-provisioning:<family>"), whatever states it goes between. A package's removal is
+// "package:<sid>:<full name>" for one user, "package:all-users:<full name>" for every user.
 std::wstring identity(const Location& location);
 
-// `outer` contains `inner`: a folder and something below it, or a key and a subkey or value of it.
+// The family name of a package's full name: "Name_Version_Arch_ResourceId_PublisherId" gives
+// "Name_PublisherId". Empty when the full name doesn't have those five parts.
+std::wstring package_family_name(std::wstring_view full_name);
+
+// `outer` contains `inner`: a folder and something below it, a key and a subkey or value of it, or a
+// package's removal for every user and a registration or the provisioning of the same family.
 bool contains(const Location& outer, const Location& inner);
 
 // The user whose profile or hive holds the item; empty for machine-wide items.
@@ -178,7 +210,7 @@ struct Leftover {
 
 // The group an item falls in by its kind alone: .lnk files are shortcuts, value edits, startup
 // approvals and other keys and values registry, a task's state tasks, a service's start type
-// services, and so on.
+// services, a package's registration and provisioning packages, and so on.
 Category category_of(const Location& location);
 
 // Excluded in its program's install trace's review (Evidence::ExcludedInTraceReview).

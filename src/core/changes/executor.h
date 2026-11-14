@@ -6,20 +6,25 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "core/changes/change_set.h"
 #include "core/changes/locks.h"
+#include "core/changes/package_items.h"
 #include "core/changes/store.h"
 #include "core/leftovers/protection.h"
 
 namespace avel::changes {
 
 struct ExecuteOptions {
-    // Packages can't be put back; they're only removed when this allows it.
+    // Packages can't be put back; they're only removed when this allows it (for the current user,
+    // or for every user). A user's registration and the provisioning can be, and need nothing.
     bool allow_irreversible = false;
+    // How packages are read and changed; the default calls platform/packages. Tests replace it.
+    std::shared_ptr<PackageSystem> packages;
     // The registry root for a hive: HKLM, or a user's hive. The default opens the live registry
     // (HKU\<sid>, or the profile's NTUSER.DAT loaded for writing while the user is signed out).
     std::function<HKEY(platform::Hive hive, const std::wstring& sid)> registry_root;
@@ -54,10 +59,12 @@ struct ChangeEvents {
 };
 
 // Removes the plan's items, in a safe order: services and tasks first (so their files are free),
-// then task folders (deepest first, once their tasks are gone), packages, registry values and value
-// edits, state changes, registry keys, and files last. An item inside another planned item is left
-// to go with it. A value edit or a state change (ADR 0007) is applied only while the item is still
-// what it expects; otherwise it is skipped as `changed`. Hold store.lock() around this.
+// then task folders (deepest first, once their tasks are gone), packages (removals, then users'
+// registrations, then provisioning), registry values and value edits, state changes, registry keys,
+// and files last. An item inside another planned item is left to go with it. A value edit or a
+// state change (ADR 0007, and a package's registration or provisioning, ADR 0008) is applied only
+// while the item is still what it expects; otherwise it is skipped as `changed`. Hold store.lock()
+// around this.
 ExecuteResult execute(ChangeStore& store, const ChangePlan& plan, const ExecuteOptions& options = {},
                       const ChangeEvents& events = {});
 

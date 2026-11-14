@@ -96,6 +96,18 @@
         <translation>(Լռելյայն)</translation>
     </message>
     <message>
+        <source>Package (every user)</source>
+        <translation>Փաթեթ (բոլոր օգտատերերը)</translation>
+    </message>
+    <message>
+        <source>Package registration</source>
+        <translation>Փաթեթի գրանցում</translation>
+    </message>
+    <message>
+        <source>Package for new users</source>
+        <translation>Փաթեթ նոր օգտատերերի համար</translation>
+    </message>
+    <message>
         <source>Startup entry</source>
         <translation>Ինքնագործարկման տարր</translation>
     </message>
@@ -106,6 +118,34 @@
     <message>
         <source>Service start type</source>
         <translation>Ծառայության գործարկման տեսակ</translation>
+    </message>
+    <message>
+        <source>Remove %1 for every user</source>
+        <translation>Հեռացնել բոլոր օգտատերերի համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Register %1 for you</source>
+        <translation>Գրանցել ձեզ համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Remove %1 for you</source>
+        <translation>Հեռացնել ձեզ համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Register %1 for %2</source>
+        <translation>Գրանցել %2 օգտատիրոջ համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Remove %1 for %2</source>
+        <translation>Հեռացնել %2 օգտատիրոջ համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Install %1 for new users</source>
+        <translation>Տեղադրել նոր օգտատերերի համար՝ %1</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install %1 for new users</source>
+        <translation>Չտեղադրել նոր օգտատերերի համար՝ %1</translation>
     </message>
     <message>
         <source>Clear the startup state of %1 (%2)</source>
@@ -644,6 +684,54 @@
         <translation>Խմբագրված է</translation>
     </message>
     <message>
+        <source>Removed for every user</source>
+        <translation>Հեռացված է բոլոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Partly removed: it won&apos;t be installed for new users, but it is still installed</source>
+        <translation>Մասամբ հեռացված է․ այն այլևս չի տեղադրվի նոր օգտատերերի համար, բայց դեռ տեղադրված է</translation>
+    </message>
+    <message>
+        <source>Registered for you again</source>
+        <translation>Կրկին գրանցված է ձեզ համար</translation>
+    </message>
+    <message>
+        <source>Registered for you</source>
+        <translation>Գրանցված է ձեզ համար</translation>
+    </message>
+    <message>
+        <source>Removed for you again</source>
+        <translation>Կրկին հեռացված է ձեզ համար</translation>
+    </message>
+    <message>
+        <source>Removed for you</source>
+        <translation>Հեռացված է ձեզ համար</translation>
+    </message>
+    <message>
+        <source>Will be installed for new users again</source>
+        <translation>Կրկին կտեղադրվի նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Will be installed for new users</source>
+        <translation>Կտեղադրվի նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Won&apos;t be installed for new users again</source>
+        <translation>Կրկին չի տեղադրվի նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Won&apos;t be installed for new users</source>
+        <translation>Չի տեղադրվի նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Avel can do this only for the account it runs as</source>
+        <translation>Avel-ը կարող է դա անել միայն այն հաշվի համար, որով գործարկված է</translation>
+    </message>
+    <message>
+        <source>no other user has it and it isn&apos;t installed for new users, so Windows would delete it</source>
+        <translation>ոչ մի այլ օգտատեր այն չունի, և այն չի տեղադրվում նոր օգտատերերի համար, ուստի Windows-ը կջնջեր այն</translation>
+    </message>
+    <message>
         <source>Cleared</source>
         <translation>Մաքրված է</translation>
     </message>
@@ -662,6 +750,10 @@
     <message>
         <source>its state has changed since</source>
         <translation>դրա վիճակն այդ ընթացքում փոխվել է</translation>
+    </message>
+    <message>
+        <source>the app is no longer on this PC; reinstall it from the Microsoft Store</source>
+        <translation>հավելվածն այլևս այս համակարգչում չէ․ նորից տեղադրեք այն Microsoft Store-ից</translation>
     </message>
     <message>
         <source>Boot</source>
@@ -813,6 +905,10 @@
     <message>
         <source>Can&apos;t uninstall: its installer doesn&apos;t allow it</source>
         <translation>Հնարավոր չէ հեռացնել․ տեղադրիչը դա թույլ չի տալիս</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: Windows or a desktop program needs this app</source>
+        <translation>Հնարավոր չէ հեռացնել․ այս հավելվածն անհրաժեշտ է Windows-ին կամ դասական ծրագրի</translation>
     </message>
     <message>
         <source>Can&apos;t uninstall: installed for another user, who has to uninstall it</source>
@@ -1481,6 +1577,244 @@
     <message>
         <source>Incomplete: %1</source>
         <translation>Թերի․ %1</translation>
+    </message>
+</context>
+<context>
+    <name>WindowsAppsText</name>
+    <message>
+        <source>Other</source>
+        <translation>Այլ</translation>
+    </message>
+    <message>
+        <source>Often removed</source>
+        <translation>Հաճախ հեռացվող</translation>
+    </message>
+    <message>
+        <source>Semi-critical</source>
+        <translation>Կիսակրիտիկական</translation>
+    </message>
+    <message>
+        <source>Critical</source>
+        <translation>Կրիտիկական</translation>
+    </message>
+    <message>
+        <source>Part of Windows</source>
+        <translation>Windows-ի մաս</translation>
+    </message>
+    <message>
+        <source>Part of a desktop program</source>
+        <translation>Դասական ծրագրի մաս</translation>
+    </message>
+    <message>
+        <source>It opens a common type of file by default: without it, those files ask which app to open them with.</source>
+        <translation>Լռելյայն դրանով են բացվում տարածված տեսակի ֆայլեր․ առանց դրա Windows-ը կհարցնի, թե որ հավելվածով բացել դրանք։</translation>
+    </message>
+    <message>
+        <source>Console programs open in it: without it, they open in the old console window.</source>
+        <translation>Վահանակային ծրագրերը բացվում են դրանում․ առանց դրա դրանք կբացվեն հին վահանակի պատուհանում։</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge&apos;s integration with Windows and the web content of other apps go with it.</source>
+        <translation>Դրա հետ կվերանան Microsoft Edge-ի ինտեգրումը Windows-ին և այլ հավելվածների վեբ բովանդակությունը։</translation>
+    </message>
+    <message>
+        <source>Games sign in to Xbox and show its notifications through it.</source>
+        <translation>Խաղերը դրա միջոցով են մուտք գործում Xbox և ցուցադրում Xbox-ի ծանուցումները։</translation>
+    </message>
+    <message>
+        <source>Game Bar goes with it: recording, screenshots and performance overlays in games.</source>
+        <translation>Դրա հետ կվերանա Game Bar-ը՝ խաղերում տեսագրումը, էկրանի նկարները և արտադրողականության ցուցիչները։</translation>
+    </message>
+    <message>
+        <source>Games from the Microsoft Store and PC Game Pass need it to start and update.</source>
+        <translation>Microsoft Store-ի և PC Game Pass-ի խաղերին այն անհրաժեշտ է գործարկվելու և թարմացվելու համար։</translation>
+    </message>
+    <message>
+        <source>The Widgets board, the taskbar&apos;s weather and the lock screen&apos;s widgets go with it.</source>
+        <translation>Դրա հետ կվերանան վիջեթների վահանակը, առաջադրանքների գոտու եղանակը և կողպման էկրանի վիջեթները։</translation>
+    </message>
+    <message>
+        <source>Win+Shift+S and the Print Screen key take screenshots with it.</source>
+        <translation>Win+Shift+S համակցությունը և Print Screen ստեղնը էկրանի նկարներն անում են դրա միջոցով։</translation>
+    </message>
+    <message>
+        <source>A media extension: apps can&apos;t open or play its formats without it.</source>
+        <translation>Մեդիա ընդլայնում է․ առանց դրա հավելվածները չեն կարող բացել կամ նվագարկել դրա ձևաչափերը։</translation>
+    </message>
+    <message>
+        <source>OneDrive&apos;s integration with File Explorer goes with it: files on demand and their status.</source>
+        <translation>Դրա հետ կվերանա OneDrive-ի ինտեգրումը File Explorer-ին՝ ըստ պահանջի ներբեռնվող ֆայլերը և դրանց վիճակը։</translation>
+    </message>
+    <message>
+        <source>winget&apos;s catalog of apps (its &quot;winget&quot; source) goes with it: winget can&apos;t find or install apps from that source.</source>
+        <translation>Դրա հետ կվերանա winget-ի հավելվածների կատալոգը (նրա «winget» աղբյուրը)․ winget-ը չի կարողանա գտնել կամ տեղադրել հավելվածներ այդ աղբյուրից։</translation>
+    </message>
+    <message>
+        <source>A language pack: Windows&apos; display language may change back without it.</source>
+        <translation>Լեզվի փաթեթ է․ առանց դրա Windows-ի ինտերֆեյսի լեզուն կարող է վերադառնալ նախկինին։</translation>
+    </message>
+    <message>
+        <source>Music and videos open in it by default: without it, they ask which app to open them with.</source>
+        <translation>Լռելյայն երաժշտությունն ու տեսանյութերը բացվում են դրանում․ առանց դրա Windows-ը կհարցնի, թե որ հավելվածով բացել դրանք։</translation>
+    </message>
+    <message>
+        <source>PC Game Pass games are installed, started and updated with it.</source>
+        <translation>PC Game Pass-ի խաղերը դրանով են տեղադրվում, գործարկվում և թարմացվում։</translation>
+    </message>
+    <message>
+        <source>Signed as part of Windows: Windows doesn&apos;t let it be removed, and Avel never changes it.</source>
+        <translation>Ստորագրված է որպես Windows-ի մաս․ Windows-ը թույլ չի տալիս այն հեռացնել, և Avel-ը այն երբեք չի փոխում։</translation>
+    </message>
+    <message>
+        <source>Windows or other apps need it, so Avel never changes it.</source>
+        <translation>Այն անհրաժեշտ է Windows-ին կամ այլ հավելվածների, ուստի Avel-ը այն երբեք չի փոխում։</translation>
+    </message>
+    <message>
+        <source>Part of the desktop program in %1: it gives that program its context menus, notifications or its integration with Windows. It goes when that program is uninstalled; removed alone, the program breaks, so Avel never changes it.</source>
+        <translation>%1 թղթապանակում գտնվող դասական ծրագրի մաս է․ այն ապահովում է այդ ծրագրի համատեքստային ընտրացանկերը, ծանուցումները կամ ինտեգրումը Windows-ին։ Այն հեռացվում է այդ ծրագրի հետ միասին․ առանձին հեռացնելու դեպքում ծրագիրը կխափանվի, ուստի Avel-ը այն երբեք չի փոխում։</translation>
+    </message>
+    <message numerus="yes">
+        <source>You and %n other user(s)</source>
+        <translation>
+            <numerusform>Դուք և ևս %n օգտատեր</numerusform>
+            <numerusform>Դուք և ևս %n օգտատեր</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>You</source>
+        <translation>Դուք</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n other user(s)</source>
+        <translation>
+            <numerusform>%n այլ օգտատեր</numerusform>
+            <numerusform>%n այլ օգտատեր</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>New users</source>
+        <translation>Նոր օգտատերեր</translation>
+    </message>
+    <message>
+        <source>%1, new users</source>
+        <translation>%1, նոր օգտատերեր</translation>
+    </message>
+    <message>
+        <source>Nobody</source>
+        <translation>Ոչ ոք</translation>
+    </message>
+    <message>
+        <source>Not signed</source>
+        <translation>Ստորագրված չէ</translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation>Մշակող</translation>
+    </message>
+    <message>
+        <source>Enterprise</source>
+        <translation>Կորպորատիվ</translation>
+    </message>
+    <message>
+        <source>Microsoft Store</source>
+        <translation>Microsoft Store</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Այլևս ցանկում չէ․ թարմացրեք F5-ով</translation>
+    </message>
+    <message>
+        <source>Protected: Avel never changes it</source>
+        <translation>Պաշտպանված է․ Avel-ը այն երբեք չի փոխում</translation>
+    </message>
+    <message>
+        <source>Avel isn&apos;t running as administrator, so who else has it isn&apos;t known</source>
+        <translation>Avel-ը գործարկված չէ ադմինիստրատորի իրավունքներով, ուստի հայտնի չէ, թե ուրիշ ով ունի այն</translation>
+    </message>
+    <message>
+        <source>You don&apos;t have it</source>
+        <translation>Դուք այն չունեք</translation>
+    </message>
+    <message>
+        <source>Nobody else has it and it isn&apos;t installed for new users, so Windows would delete it and undo couldn&apos;t bring it back; only &quot;Remove for everyone&quot; removes it</source>
+        <translation>Ուրիշ ոչ ոք այն չունի, և այն չի տեղադրվում նոր օգտատերերի համար, ուստի Windows-ը կջնջի այն, և այն հնարավոր չի լինի վերադարձնել հետարկումով․ այն կարելի է հեռացնել միայն «Հեռացնել բոլորի համար» գործողությամբ</translation>
+    </message>
+    <message>
+        <source>No user has it, so Windows may delete it and undo couldn&apos;t bring it back; only &quot;Remove for everyone&quot; removes it</source>
+        <translation>Ոչ մի օգտատեր այն չունի, ուստի Windows-ը կարող է ջնջել այն, և այն հնարավոր չի լինի վերադարձնել հետարկումով․ այն կարելի է հեռացնել միայն «Հեռացնել բոլորի համար» գործողությամբ</translation>
+    </message>
+    <message>
+        <source>It isn&apos;t installed for new users</source>
+        <translation>Այն չի տեղադրվում նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Removing it for everyone can&apos;t be undone, and that wasn&apos;t confirmed</source>
+        <translation>Բոլորի համար հեռացումը հնարավոր չէ հետարկել, և դա չի հաստատվել</translation>
+    </message>
+    <message>
+        <source>Remove for me</source>
+        <translation>Հեռացնել ինձ համար</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install for new users</source>
+        <translation>Չտեղադրել նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Remove for everyone</source>
+        <translation>Հեռացնել բոլորի համար</translation>
+    </message>
+    <message>
+        <source>Removes the app for you only; it stays on this PC for the other users or for new users. Undo installs it for you again, but your data in it (settings, saved files of its own) is lost.</source>
+        <translation>Հեռացնում է հավելվածը միայն ձեզ համար․ այն մնում է այս համակարգչում այլ օգտատերերի կամ նոր օգտատերերի համար։ Հետարկումը կրկին կտեղադրի այն ձեզ համար, բայց դրանում ձեր տվյալները (կարգավորումները, դրա սեփական պահված ֆայլերը) կկորչեն։</translation>
+    </message>
+    <message>
+        <source>New user accounts no longer get the app; those who have it keep it. Undo makes Windows install it for new users again.</source>
+        <translation>Նոր օգտատիրական հաշիվներն այլևս չեն ստանա հավելվածը․ այն ունեցողների մոտ այն կմնա։ Հետարկումից հետո Windows-ը կրկին կտեղադրի այն նոր օգտատերերի համար։</translation>
+    </message>
+    <message>
+        <source>Removes the app for every user and deletes it from this PC. It can&apos;t be undone: every user&apos;s data in it is lost, and it comes back only from the Microsoft Store or winget.</source>
+        <translation>Հեռացնում է հավելվածը բոլոր օգտատերերի համար և ջնջում այն այս համակարգչից։ Սա հնարավոր չէ հետարկել․ բոլոր օգտատերերի տվյալները դրանում կկորչեն, և այն կարելի է վերադարձնել միայն Microsoft Store-ից կամ winget-ով։</translation>
+    </message>
+    <message>
+        <source>Remove %1 for me</source>
+        <translation>Հեռացնել %1-ը ինձ համար</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install %1 for new users</source>
+        <translation>Չտեղադրել %1-ը նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Remove %1 for everyone</source>
+        <translation>Հեռացնել %1-ը բոլորի համար</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for me</source>
+        <translation>
+            <numerusform>Հեռացնել %n հավելված ինձ համար</numerusform>
+            <numerusform>Հեռացնել %n հավելված ինձ համար</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Don&apos;t install %n app(s) for new users</source>
+        <translation>
+            <numerusform>Չտեղադրել %n հավելված նոր օգտատերերի համար</numerusform>
+            <numerusform>Չտեղադրել %n հավելված նոր օգտատերերի համար</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for everyone</source>
+        <translation>
+            <numerusform>Հեռացնել %n հավելված բոլորի համար</numerusform>
+            <numerusform>Հեռացնել %n հավելված բոլորի համար</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel isn&apos;t running as administrator, so only your apps are listed, and who else has them and whether they are installed for new users aren&apos;t known. Nothing can be changed here.</source>
+        <translation>Avel-ը գործարկված չէ ադմինիստրատորի իրավունքներով, ուստի ցուցադրված են միայն ձեր հավելվածները, և հայտնի չէ, թե ուրիշ ով ունի դրանք և արդյոք դրանք տեղադրվում են նոր օգտատերերի համար։ Այստեղ ոչինչ հնարավոր չէ փոխել։</translation>
+    </message>
+    <message>
+        <source>The list of apps was cut short, so some may be missing.</source>
+        <translation>Հավելվածների ցանկը թերի է ստացվել, ուստի որոշները կարող են բացակայել։</translation>
     </message>
 </context>
 <context>
@@ -2193,6 +2527,14 @@ Left by %2</source>
     <message>
         <source>See and change what starts with Windows, for the machine and every user</source>
         <translation>Դիտել և փոխել այն, ինչ գործարկվում է Windows-ի հետ՝ համակարգչի և յուրաքանչյուր օգտատիրոջ համար</translation>
+    </message>
+    <message>
+        <source>&amp;Windows apps…</source>
+        <translation>&amp;Windows հավելվածներ…</translation>
+    </message>
+    <message>
+        <source>See the Store and Windows&apos; own apps of every user, and remove them for you, for new users or for everyone</source>
+        <translation>Դիտել բոլոր օգտատերերի Store հավելվածները և Windows-ի սեփական հավելվածները և հեռացնել դրանք ձեզ համար, նոր օգտատերերի համար կամ բոլորի համար</translation>
     </message>
     <message>
         <source>&amp;View</source>
@@ -4115,6 +4457,11 @@ After: %2</source>
 <context>
     <name>avel::app::UninstallProgressDialog</name>
     <message>
+        <source>Uninstall %1</source>
+        <extracomment>A ChangeSet&apos;s description in the Undo Center, an action: &quot;Uninstall &lt;program&gt;&quot;</extracomment>
+        <translation>Հեռացում՝ %1</translation>
+    </message>
+    <message>
         <source>Simulating uninstall</source>
         <translation>Հեռացման նմանակում</translation>
     </message>
@@ -4199,6 +4546,10 @@ Uninstall anyway?</source>
         <translation>Սպասում ենք հեռացնողի պատուհանին…</translation>
     </message>
     <message>
+        <source>Removed for you; can be undone in the Undo Center</source>
+        <translation>Հեռացված է ձեզ համար․ կարելի է հետարկել Հետարկման կենտրոնում</translation>
+    </message>
+    <message>
         <source>Looking for leftovers…</source>
         <translation>Մնացորդների որոնում…</translation>
     </message>
@@ -4270,6 +4621,437 @@ Uninstall anyway?</source>
     <message>
         <source>Terminating the uninstaller…</source>
         <translation>Հեռացնողն ընդհատվում է…</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::WindowsAppsTableModel</name>
+    <message>
+        <source>Checked apps: the actions apply to them</source>
+        <translation>Նշված հավելվածներ․ գործողությունները կիրառվում են դրանց նկատմամբ</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Անվանում</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Հրատարակիչ</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Տարբերակ</translation>
+    </message>
+    <message>
+        <source>Installed for</source>
+        <translation>Ում համար</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Կատեգորիա</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::WindowsAppsWindow</name>
+    <message>
+        <source>Avel is changing apps. Close the window once that is done.</source>
+        <translation>Avel-ը փոփոխում է հավելվածները։ Փակեք պատուհանը, երբ փոփոխությունն ավարտվի։</translation>
+    </message>
+    <message>
+        <source>Windows apps</source>
+        <translation>Windows հավելվածներ</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Թարմացնել</translation>
+    </message>
+    <message>
+        <source>List the apps again (F5)</source>
+        <translation>Կրկին ստանալ հավելվածների ցանկը (F5)</translation>
+    </message>
+    <message>
+        <source>Check &amp;often removed</source>
+        <translation>&amp;Նշել հաճախ հեռացվողները</translation>
+    </message>
+    <message>
+        <source>Check the apps people often remove: Windows&apos; promotions and extras such as Clipchamp, the Bing apps and Solitaire. Nothing changes until you choose an action.</source>
+        <translation>Նշել այն հավելվածները, որոնք հաճախ են հեռացնում՝ Windows-ի գովազդային և լրացուցիչ հավելվածները, օրինակ՝ Clipchamp-ը, Bing-ի հավելվածները և Solitaire-ը։ Ոչինչ չի փոխվի, քանի դեռ գործողություն չեք ընտրել։</translation>
+    </message>
+    <message>
+        <source>U&amp;ncheck all</source>
+        <translation>Հանել &amp;բոլոր նշումները</translation>
+    </message>
+    <message>
+        <source>Remove the checked apps (or, when none is checked, the selected ones) for you only. Undo installs them for you again; your data in them is lost.</source>
+        <translation>Հեռացնել նշված հավելվածները (կամ, եթե ոչինչ նշված չէ, ընտրվածները) միայն ձեզ համար։ Հետարկումը կրկին կտեղադրի դրանք ձեզ համար․ դրանցում ձեր տվյալները կկորչեն։</translation>
+    </message>
+    <message>
+        <source>Stop installing the checked apps (or, when none is checked, the selected ones) for new user accounts. Those who have them keep them. Can be undone.</source>
+        <translation>Դադարեցնել նշված հավելվածների (կամ, եթե ոչինչ նշված չէ, ընտրվածների) տեղադրումը նոր օգտատիրական հաշիվների համար։ Դրանք ունեցողների մոտ դրանք կմնան։ Կարելի է հետարկել։</translation>
+    </message>
+    <message>
+        <source>Remove the checked apps (or, when none is checked, the selected ones) for every user and delete them from this PC. Can&apos;t be undone; Avel asks first.</source>
+        <translation>Հեռացնել նշված հավելվածները (կամ, եթե ոչինչ նշված չէ, ընտրվածները) բոլոր օգտատերերի համար և ջնջել դրանք այս համակարգչից։ Հնարավոր չէ հետարկել․ Avel-ը նախ կհարցնի։</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>&amp;Հետարկել վերջին փոփոխությունը</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>Հետարկման &amp;կենտրոն…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Այն ամենը, ինչ Avel-ը փոխել է վերջին 30 օրում՝ վերադարձնելու համար</translation>
+    </message>
+    <message>
+        <source>&amp;Open install folder</source>
+        <translation>&amp;Բացել տեղադրման թղթապանակը</translation>
+    </message>
+    <message>
+        <source>Copy &amp;full name</source>
+        <translation>Պատճենել &amp;լրիվ անունը</translation>
+    </message>
+    <message>
+        <source>Copy the package&apos;s full name, with its version and architecture</source>
+        <translation>Պատճենել փաթեթի լրիվ անունը՝ տարբերակով և ճարտարապետությամբ</translation>
+    </message>
+    <message>
+        <source>Copy f&amp;amily name</source>
+        <translation>Պատճենել &amp;ընտանիքի անունը</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Գտնել</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Գործիքագոտի</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Զտիչներ</translation>
+    </message>
+    <message>
+        <source>Search by name, package or publisher (Ctrl+F)</source>
+        <translation>Որոնում ըստ անվանման, փաթեթի կամ հրատարակչի (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Որոնում</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Կատեգորիա</translation>
+    </message>
+    <message>
+        <source>All apps</source>
+        <translation>Բոլոր հավելվածները</translation>
+    </message>
+    <message>
+        <source>Can be removed</source>
+        <translation>Կարելի է հեռացնել</translation>
+    </message>
+    <message>
+        <source>Protected</source>
+        <translation>Պաշտպանված</translation>
+    </message>
+    <message>
+        <source>Installed for</source>
+        <translation>Ում համար</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Բոլոր օգտատերերը</translation>
+    </message>
+    <message>
+        <source>New users</source>
+        <translation>Նոր օգտատերեր</translation>
+    </message>
+    <message>
+        <source>Listing apps…</source>
+        <translation>Հավելվածների ցանկի ստացում…</translation>
+    </message>
+    <message>
+        <source>%1 (you)</source>
+        <translation>%1 (դուք)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n often removed app(s) checked. Choose an action to remove them.</source>
+        <translation>
+            <numerusform>Նշված է հաճախ հեռացվող %n հավելված։ Ընտրեք գործողություն՝ այն հեռացնելու համար։</numerusform>
+            <numerusform>Նշված է հաճախ հեռացվող %n հավելված։ Ընտրեք գործողություն՝ դրանք հեռացնելու համար։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No other often removed app to check.</source>
+        <translation>Նշելու այլ հաճախ հեռացվող հավելված չկա։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) checked; each action applies to the ones it fits. Details of the selected one:</source>
+        <translation>
+            <numerusform>Նշված է %n հավելված․ յուրաքանչյուր գործողություն կիրառվում է նրանց, որոնց համապատասխանում է։ Ընտրվածի մանրամասները՝</numerusform>
+            <numerusform>Նշված է %n հավելված․ յուրաքանչյուր գործողություն կիրառվում է նրանց, որոնց համապատասխանում է։ Ընտրվածի մանրամասները՝</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) selected; each action applies to the ones it fits. Details of this one:</source>
+        <translation>
+            <numerusform>Ընտրված է %n հավելված․ յուրաքանչյուր գործողություն կիրառվում է նրանց, որոնց համապատասխանում է։ Այս մեկի մանրամասները՝</numerusform>
+            <numerusform>Ընտրված է %n հավելված․ յուրաքանչյուր գործողություն կիրառվում է նրանց, որոնց համապատասխանում է։ Այս մեկի մանրամասները՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Հետարկել այս պատուհանում արված վերջին փոփոխությունը (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Հետարկել «%1»-ը (Ctrl+Z)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s)</source>
+        <translation>
+            <numerusform>%n հավելված</numerusform>
+            <numerusform>%n հավելված</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n app(s)</source>
+        <translation>
+            <numerusform>Ցուցադրված է %1-ը՝ %n հավելվածից</numerusform>
+            <numerusform>Ցուցադրված է %1-ը՝ %n հավելվածից</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n protected</source>
+        <translation>
+            <numerusform>պաշտպանված՝ %n</numerusform>
+            <numerusform>պաշտպանված՝ %n</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n checked</source>
+        <translation>
+            <numerusform>նշված՝ %n</numerusform>
+            <numerusform>նշված՝ %n</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n զգուշացում</numerusform>
+            <numerusform>%n զգուշացում</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an app to see its details.</source>
+        <translation>Ընտրեք հավելված՝ մանրամասները տեսնելու համար։</translation>
+    </message>
+    <message>
+        <source>Full names</source>
+        <translation>Լրիվ անուններ</translation>
+    </message>
+    <message>
+        <source>Full name</source>
+        <translation>Լրիվ անուն</translation>
+    </message>
+    <message>
+        <source>Family</source>
+        <translation>Ընտանիք</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Հրատարակիչ</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Տարբերակ</translation>
+    </message>
+    <message>
+        <source>Install folder</source>
+        <translation>Տեղադրման թղթապանակ</translation>
+    </message>
+    <message>
+        <source>No user</source>
+        <translation>Ոչ մի օգտատեր</translation>
+    </message>
+    <message>
+        <source>Installed for every new user</source>
+        <translation>Տեղադրվում է յուրաքանչյուր նոր օգտատիրոջ համար</translation>
+    </message>
+    <message>
+        <source>Not installed for new users</source>
+        <translation>Չի տեղադրվում նոր օգտատերերի համար</translation>
+    </message>
+    <message>
+        <source>Not known without administrator rights</source>
+        <translation>Անհայտ է առանց ադմինիստրատորի իրավունքների</translation>
+    </message>
+    <message>
+        <source>Signature</source>
+        <translation>Ստորագրություն</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Նույնացուցիչ</translation>
+    </message>
+    <message>
+        <source>Available</source>
+        <translation>Հասանելի է</translation>
+    </message>
+    <message>
+        <source>Not available: %1</source>
+        <translation>Հասանելի չէ․ %1</translation>
+    </message>
+    <message>
+        <source>Removing it breaks something: %1</source>
+        <translation>Դրա հեռացումը ինչ-որ բան կխափանի․ %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1․ %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Փոխելու բան չկա․ %n հավելված բաց է թողնվել։</numerusform>
+            <numerusform>Փոխելու բան չկա․ %n հավելված բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Հեռացնելու բան չկա․ %n հավելված բաց է թողնվել։</numerusform>
+            <numerusform>Հեռացնելու բան չկա․ %n հավելված բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… և ևս %n</numerusform>
+            <numerusform>… և ևս %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>They are removed for every user of this PC and deleted from it. This can&apos;t be undone:</source>
+        <translation>Դրանք կհեռացվեն այս համակարգչի բոլոր օգտատերերի համար և կջնջվեն դրանից։ Սա հնարավոր չէ հետարկել՝</translation>
+    </message>
+    <message>
+        <source>every user&apos;s data in them is lost: their settings and the files they keep</source>
+        <translation>բոլոր օգտատերերի տվյալները դրանցում կկորչեն՝ կարգավորումները և դրանց պահած ֆայլերը</translation>
+    </message>
+    <message>
+        <source>Avel can&apos;t back them up: neither Undo nor the Undo Center can bring them back</source>
+        <translation>Avel-ը չի կարող դրանց պահուստային պատճենը ստեղծել․ ո՛չ հետարկումը, ո՛չ Հետարկման կենտրոնը չեն կարող դրանք վերադարձնել</translation>
+    </message>
+    <message>
+        <source>they come back only when installed again from the Microsoft Store or winget</source>
+        <translation>դրանք կվերադառնան միայն Microsoft Store-ից կամ winget-ով կրկին տեղադրելու դեպքում</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will be skipped:</source>
+        <translation>
+            <numerusform>%n հավելված բաց կթողնվի՝</numerusform>
+            <numerusform>%n հավելված բաց կթողնվի՝</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove for everyone</source>
+        <translation>Հեռացնել բոլորի համար</translation>
+    </message>
+    <message>
+        <source>Remove %1 for every user?</source>
+        <translation>Հեռացնե՞լ %1-ը բոլոր օգտատերերի համար։</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for every user?</source>
+        <translation>
+            <numerusform>Հեռացնե՞լ %n հավելված բոլոր օգտատերերի համար։</numerusform>
+            <numerusform>Հեռացնե՞լ %n հավելված բոլոր օգտատերերի համար։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>I understand this can&apos;t be undone</source>
+        <translation>Ես հասկանում եմ, որ սա հնարավոր չէ հետարկել</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Կատարվում է՝ %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Avel-ի մեկ այլ գործընթաց այժմ փոփոխում է համակարգը։ Ոչինչ չի փոխվել․ կրկին փորձեք, երբ այն ավարտի։</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel-ը չկարողացավ գրել այս փոփոխության պահուստային պատճենը, ուստի ոչինչ չի փոխվել։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for you.</source>
+        <translation>
+            <numerusform>%n հավելված հեռացված է ձեզ համար։</numerusform>
+            <numerusform>%n հավելված հեռացված է ձեզ համար։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will no longer be installed for new users.</source>
+        <translation>
+            <numerusform>%n հավելված այլևս չի տեղադրվի նոր օգտատերերի համար։</numerusform>
+            <numerusform>%n հավելված այլևս չի տեղադրվի նոր օգտատերերի համար։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for everyone.</source>
+        <translation>
+            <numerusform>%n հավելված հեռացված է բոլորի համար։</numerusform>
+            <numerusform>%n հավելված հեռացված է բոլորի համար։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n-ը չհաջողվեց փոխել։</numerusform>
+            <numerusform>%n-ը չհաջողվեց փոխել։</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+            <numerusform>%n-ը բաց է թողնվել։</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Հետարկել կարելի է Ctrl+Z-ով կամ Հետարկման կենտրոնում։</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Հետարկում՝ %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1»-ը հնարավոր չէ հետարկել այստեղ․ դրա պահուստային պատճենը բացակայում է կամ օգտագործվում է Avel-ի մեկ այլ գործընթացի կողմից։ Հետարկման կենտրոնը ցույց է տալիս, թե ինչ դեռ կարելի է վերադարձնել։</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>«%1»-ում հետարկելու այլևս ոչինչ չկա։</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Հետարկված է՝ %1։</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+            <numerusform>%n տարր չհաջողվեց վերադարձնել․ Հետարկման կենտրոնը կարող է կրկին փորձել։</numerusform>
+        </translation>
     </message>
 </context>
 </TS>

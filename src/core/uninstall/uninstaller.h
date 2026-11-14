@@ -28,6 +28,9 @@ struct UninstallResult {
     std::uint32_t error = 0;                 // Win32 error or HRESULT when Failed
     std::chrono::milliseconds elapsed{};
     bool install_location_remains = false;  // Leftovers on disk (Phase 3 cleans them up)
+    // A packaged app removed for the current user through a ChangeSet (run_batch, "soft removal"):
+    // the set's id, which undo takes back. Empty for every other uninstall.
+    std::wstring change_set;
 };
 
 // Windows Installer exit codes that matter here.

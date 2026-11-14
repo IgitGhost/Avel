@@ -61,6 +61,9 @@ is a rename on one volume.
 | Task state (state change) | Enabled before and written (`state.json`) | `put_Enabled` only while the flag is what was planned | `put_Enabled` back while the flag is what was written |
 | Service start type (state change) | Start type and delayed flag before and written (`state.json`) | `ChangeServiceConfig(2)W` only while both are what was planned, each only where it differs | The same, back, while both are what was written |
 | Package | Its name (`package.json`) | `RemovePackageAsync` for the current user | Not possible |
+| Package for every user (deep removal) | Its name, who had it and the provisioned version (`package.json`) | Deprovisioned when provisioned, then `RemovePackageAsync(RemoveForAllUsers)`; only with `allow_irreversible` | Not possible |
+| Package registration (state change) | Registered before and written, the package acted on, the other users and whether it was provisioned (`state.json`) | Removed for the current user only while it is registered for them and something keeps it on this PC, otherwise `skipped (changed)` or `(not-undoable)` | Registered again while it isn't and some version of the family is staged; the version registered goes into `state.json` |
+| Package provisioning (state change) | Provisioned before and written, the package acted on (`state.json`) | Deprovisioned only while it is provisioned | Provisioned again while it isn't and the family is staged |
 | Firewall rule | | Never: reported only | |
 | Driver | | Never: reported only (removing a driver can leave Windows unable to start) | |
 
@@ -122,6 +125,59 @@ How they behave:
 - **Signed-out users.** A user's approval goes through the same writable private load of their
   `NTUSER.DAT` as removals do (`Roots`).
 
+**Packaged apps** ([ADR 0008](adr/0008-windows-apps-and-features.md), Phase 6b) go through the
+public `PackageManager` only (`platform/packages`), which the executor reaches through
+`PackageSystem` (`changes/package_items.h`; tests replace it with a fake):
+- `PackageUserLocation { family_name, full_name, user_sid, before, after }`
+  (`package-user:<sid>\<family>`): whether the family (any version) is registered for a user
+  (`FindUsers`). Avel changes it **only for the account it runs as**: Windows has no public call
+  that removes or registers a package for another user, so another SID is `skipped (other-user)`.
+- `PackageProvisioningLocation { family_name, provisioned_full_name, before, after }`
+  (`package-provisioning:<family>`): whether the family is provisioned, that is, installed for every
+  new user (`FindProvisionedPackages`).
+- `PackageLocation` with `all_users` (`package:all-users:<full name>`): the removal for every user,
+  irreversible like the current user's removal.
+
+How they behave:
+- **Compare-and-set**, as for the other state changes: execute changes the state only while it is
+  `before`, undo only while it is what was written (`skipped (changed)`, `restore-skipped (changed)`).
+- **Undo needs the package on this PC.** Windows deletes a package the moment its last user's
+  registration goes, unless it is provisioned, and nothing brings it back offline. So execute
+  refuses a removal for the current user that nobody else's registration and no provisioning would
+  outlive (`skipped (not-undoable)`: that is a removal for every user, a choice of its own), and
+  undo registers or provisions again only while some version of the family is staged; otherwise
+  `restore-skipped (missing)` ("the app is no longer on this PC; reinstall it from the Store").
+  Undo registers whatever version is staged then: an update may have replaced the one removed.
+- **Success is read back.** An operation counts as done only when the state it is meant to reach
+  is read back afterwards (`PackageOperation::confirmed`): a registration can report success with
+  nothing registered. Otherwise the item failed with the operation's code.
+- **`state.json`** records the full name acted on and, after undo, the one registered or
+  provisioned again (`restored_full_name`). A registration also records the other users that had
+  the family and whether it was provisioned: what made its undo possible. The app's data is not
+  backed up: Windows deletes it with the registration, and undo gives back the registration only.
+- **The removal for every user is one item**, not a deprovisioning item plus a removal item:
+  - the user asked for one irreversible thing, and its confirmation covers both halves;
+  - once the package is gone, a separate deprovisioning item could never be undone either, yet it
+    would be offered in the Undo Center as undoable;
+  - as two items, the deprovisioning would still run when the removal is refused (not allowed,
+    protected), leaving a change the user didn't ask for on its own.
+
+  It deprovisions first when the family is provisioned (so no new user gets it meanwhile), then
+  removes it for every user. If the deprovisioning worked and the removal didn't, the item is
+  `partial`. It holds (`contains`) the same family's registrations and provisioning in the plan,
+  which are then skipped as `contained`, but only when it runs itself (`allow_irreversible`).
+- **Order.** Removals for every user first, then registrations, then provisioning: a user's
+  registration goes while the package is still provisioned, and undo provisions again before it
+  registers.
+- **Protection.** HardFloor refuses every package item (`windows-package`) for a package signed as
+  part of Windows (`SignatureKind::System`, the public stand-in for `NonRemovable`), a framework or
+  resource package, and the families on the critical list (`tools::app_category`: the Store, App
+  Installer, the shell's hosts...); also a package item whose family can't be told. A package with
+  an external location, which gives a desktop program its identity, is refused
+  (`desktop-program-package`) for a registration, provisioning and a removal for every user; only
+  a removal for one user, as the leftover scan offers it once its program is uninstalled, may take
+  it. A package that isn't on this PC is left to the executor, which reports it missing.
+
 **Exactness.** Values are read and written through `NtEnumerateValueKey`, `NtQueryValueKey` and
 `NtSetValueKey`. The Win32 calls may add a terminator to a string value that was stored without
 one, depending on what follows the data in memory.
@@ -151,14 +207,15 @@ exactly as recorded.
 - Tasks that store a password are skipped, and task folders that aren't empty (`not-empty`).
 - A value edit or a state change never overwrites a value or a state that changed since it was
   planned (`changed`).
-- Packages registered for other users are skipped.
+- Packages registered for other users are skipped, and so are other users' registrations.
 
 ## Running a plan
 
 `execute(store, plan, options)` does the following:
 1. **Creates the set** and writes its plan.
-2. **Orders the items:** services first, then tasks, task folders (deepest first), packages,
-   registry values and value edits, state changes, registry keys, and files last. A service or
+2. **Orders the items:** services first, then tasks, task folders (deepest first), packages
+   (removals, users' registrations, provisioning), registry values and value edits, state changes,
+   registry keys, and files last. A service or
    task stops using its files before they move, and a task folder is empty by its turn.
 3. **Skips an item inside another planned item** (`contained`); it goes with its container.
 4. **Checks each item again** right before it changes:
@@ -190,11 +247,13 @@ process. It looks at each item that was backed up but not finished:
 | File or folder | `failed (interrupted)`: untouched | `done` | `partial`: some files moved |
 | Registry key | `failed` if identical to the backup, `partial` otherwise | `done` | |
 | Value, service, task, task folder, package | `failed (interrupted)` | `done` | |
+| Package for every user | `failed (interrupted)`, or `partial` when it is no longer provisioned | `done` | |
 
 | Item | In the state written | Anything else |
 |---|---|---|
 | Value edit | `done` | `failed (interrupted)` |
 | Startup approval, task state, service start type | `done` | `failed (interrupted)`; keys the change created and left empty are deleted |
+| Package registration, package provisioning | `done` | `failed (interrupted)` |
 
 "Anything else" is untouched, or changed by someone else since, which undo mustn't take back. If
 the interrupted run had edited the environment, recovery sends the broadcast it never got to.
@@ -241,7 +300,10 @@ be undone like any other.
   described the same way ("Disable Contoso at startup (HKLM\...\StartupApproved\Run)", "Change
   the start type of the service ContosoSvc from Automatic to Manual"); once made it reads
   "Disabled", "Enabled" or "Start type changed", and "...: its state has changed since" when
-  compare-and-set left it alone.
+  compare-and-set left it alone. A package's registration reads "Remove Contoso.App_abc for you",
+  then "Removed for you" and, after undo, "Registered for you again"; its provisioning "Don't
+  install ... for new users", then "Won't be installed for new users" and "Will be installed for
+  new users again"; a removal for every user "Removed for every user".
 
 ## Testing
 
@@ -295,15 +357,28 @@ be undone like any other.
   EventLog is refused by the floor and, with the floor out of the way, skipped as changed for a
   plan made for another start type. The bytes' decoding (`01`, `02`, `03`, `06`) and the three
   keys have their own tests.
+- **Packaged apps (`executor_package_test.cpp`).** A fake `PackageSystem` behaving as Windows did in
+  the Phase 6b spike (a package goes with its last user unless provisioned; registering needs it
+  staged). Removed for the current user and registered again (a newer version after an update),
+  deprovisioned and provisioned again; another user's registration refused untouched; skipped when
+  the state changed after planning; a removal that would delete the package refused; undo skipped
+  when the state changed or the package went since; a registration that reports success without
+  registering counted as failed, and retried; Windows' own packages refused by the floor; the
+  removal for every user refused without `allow_irreversible`, holding the family's other items
+  with it, partial when only the deprovisioning worked; killed after every record, recovered and
+  undone; an interrupted removal for every user settled by looking. Real packages change only in
+  the Sandbox.
 - **Signatures (`signature_test.cpp`):** Windows' own files, embedded and catalog-signed, are
   valid and Microsoft's; the unsigned test helper is unsigned; a missing file is missing; a folder
   is an error; the cache answers the same.
 - **Serialization (`serialization_test.cpp`):** every location kind through JSON, value edits and
   state changes with raw values and names UTF-8 can't carry, the task-folder flag, a state
-  change's identity, and malformed edits and state changes refused.
+  change's identity, package states and the `all_users` flag (absent in older plans), what a
+  removal for every user contains, and malformed edits, state changes and package states refused.
 - **Protection (`protection_test.cpp`):** the startup approval allow-list and its two shapes,
   Windows' own tasks, and drivers, Microsoft's services and boot or system start types refused
-  (through injected service facts, and EventLog read live).
+  (through injected service facts, and EventLog read live); System-signed, framework, resource and
+  critical packages refused for every package kind (through injected package facts).
 - **Windows Sandbox (`tests/sandbox`, scenario `removal`):**
   - `Contoso Fixture` leaves one leftover of every kind behind, and `avel_state_dump` dumps them.
   - Uninstall with `--remove-leftovers` must remove all of them and Notepad++'s sparse package,
@@ -316,8 +391,11 @@ be undone like any other.
 
 ## Known limits
 
-- **Packages** can't be put back: the original package file is gone. They are removed only when
-  explicitly allowed.
+- **Packages** can't be put back once removed from this PC: the original package file is gone.
+  They are removed only when explicitly allowed. A user's registration and the provisioning are
+  undone only while the package stays staged, and a registration only for the account Avel runs as.
+- **A removal for the current user acts on the version planned.** If an update replaced it
+  between the plan and the change, the removal fails and changes nothing.
 - **Firewall rules** are reported, never removed.
 - **A restored service's triggers** take effect after a restart: they're restored through its
   registry key, which the Service Control Manager reads at startup. It reads a delayed automatic

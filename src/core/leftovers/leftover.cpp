@@ -43,7 +43,14 @@ std::wstring identity(const Location& location) {
             } else if constexpr (std::is_same_v<T, TaskLocation>) {
                 return (item.folder ? L"task-folder:" : L"task:") + platform::to_lower(item.path);
             } else if constexpr (std::is_same_v<T, PackageLocation>) {
-                return L"package:" + platform::to_lower(item.user_sid) + L":" + platform::to_lower(item.full_name);
+                return L"package:" +
+                       (item.all_users ? std::wstring(L"all-users") : platform::to_lower(item.user_sid)) +
+                       L":" + platform::to_lower(item.full_name);
+            } else if constexpr (std::is_same_v<T, PackageUserLocation>) {
+                return L"package-user:" + platform::to_lower(item.user_sid) + L"\\" +
+                       platform::to_lower(item.family_name);
+            } else if constexpr (std::is_same_v<T, PackageProvisioningLocation>) {
+                return L"package-provisioning:" + platform::to_lower(item.family_name);
             } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 return L"firewall:" + platform::to_lower(item.rule_id);
             } else if constexpr (std::is_same_v<T, StartupApprovedLocation>) {
@@ -71,7 +78,35 @@ std::wstring identity(const Location& location) {
         location);
 }
 
+std::wstring package_family_name(std::wstring_view full_name) {
+    // Identity names, versions, architectures, resource ids and publisher ids hold no '_'.
+    std::vector<std::wstring_view> parts;
+    for (std::size_t start = 0;;) {
+        const std::size_t end = full_name.find(L'_', start);
+        parts.push_back(full_name.substr(start, end == std::wstring_view::npos ? end : end - start));
+        if (end == std::wstring_view::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    if (parts.size() != 5 || parts[0].empty() || parts[4].empty()) {
+        return {};
+    }
+    return std::wstring(parts[0]) + L"_" + std::wstring(parts[4]);
+}
+
 bool contains(const Location& outer, const Location& inner) {
+    if (const auto* package = std::get_if<PackageLocation>(&outer); package && package->all_users) {
+        // Removing it for every user also unregisters it for each and deprovisions it.
+        const std::wstring family = package_family_name(package->full_name);
+        if (const auto* user = std::get_if<PackageUserLocation>(&inner)) {
+            return !family.empty() && platform::iequals(user->family_name, family);
+        }
+        if (const auto* provisioning = std::get_if<PackageProvisioningLocation>(&inner)) {
+            return !family.empty() && platform::iequals(provisioning->family_name, family);
+        }
+        return false;
+    }
     if (const auto* folder = std::get_if<FileLocation>(&outer)) {
         const auto* file = std::get_if<FileLocation>(&inner);
         return folder->directory && file && platform::path_is_inside(file->path, folder->path);
@@ -95,7 +130,10 @@ std::wstring owner_sid(const Location& location) {
         return value->key.sid;
     }
     if (const auto* package = std::get_if<PackageLocation>(&location)) {
-        return package->user_sid;
+        return package->all_users ? std::wstring() : package->user_sid;
+    }
+    if (const auto* registration = std::get_if<PackageUserLocation>(&location)) {
+        return registration->user_sid;
     }
     if (const auto* edit = std::get_if<ValueEditLocation>(&location)) {
         return edit->key.sid;
@@ -118,7 +156,9 @@ Category category_of(const Location& location) {
                 return Category::Services;
             } else if constexpr (std::is_same_v<T, TaskLocation> || std::is_same_v<T, TaskStateLocation>) {
                 return Category::Tasks;
-            } else if constexpr (std::is_same_v<T, PackageLocation>) {
+            } else if constexpr (std::is_same_v<T, PackageLocation> ||
+                                 std::is_same_v<T, PackageUserLocation> ||
+                                 std::is_same_v<T, PackageProvisioningLocation>) {
                 return Category::Packages;
             } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 return Category::Firewall;

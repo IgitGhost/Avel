@@ -15,6 +15,8 @@ add_library(avel_core STATIC
     changes/file_quarantine.h
     changes/locks.cpp
     changes/locks.h
+    changes/package_items.cpp
+    changes/package_items.h
     changes/registry_backup.cpp
     changes/registry_backup.h
     changes/serialization.cpp
@@ -93,6 +95,8 @@ add_library(avel_core STATIC
     platform/known_folders.h
     platform/nt_registry.cpp
     platform/nt_registry.h
+    platform/packages.cpp
+    platform/packages.h
     platform/paths.cpp
     platform/paths.h
     platform/processes.cpp
@@ -126,10 +130,17 @@ add_library(avel_core STATIC
     platform/volume_folders.cpp
     platform/volume_folders.h
     platform/version_info.h
+    platform/winrt_apartment.h
     tools/startup.cpp
     tools/startup.h
     tools/startup_changes.cpp
     tools/startup_changes.h
+    tools/windows_apps.cpp
+    tools/windows_apps.h
+    tools/windows_apps_changes.cpp
+    tools/windows_apps_changes.h
+    tools/windows_apps_data.cpp
+    tools/windows_apps_data.h
     tracker/file_changes.cpp
     tracker/file_changes.h
     tracker/install_trace.cpp

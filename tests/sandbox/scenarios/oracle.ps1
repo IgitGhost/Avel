@@ -10,7 +10,12 @@ function Describe($item) {
         { $_ -in 'registry-value', 'value-edit', 'startup-approved' } { "$($location.key) : $($location.value)" }
         { $_ -in 'service', 'driver', 'service-start' } { $location.service }
         { $_ -in 'task', 'task-folder', 'task-state' } { $location.task }
-        'package' { $location.package_full_name }
+        'package' {
+            if ($location.all_users) { "$($location.package_full_name) (all users)" }
+            else { $location.package_full_name }
+        }
+        'package-user' { "$($location.package_family_name) for $($location.user_sid)" }
+        'package-provisioning' { "$($location.package_family_name) (new users)" }
         default { $location.rule_id }
     }
     $why = ($item.evidence | ForEach-Object { $_.kind }) -join ', '

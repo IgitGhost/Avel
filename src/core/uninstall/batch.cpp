@@ -1,7 +1,16 @@
 #include "core/uninstall/batch.h"
 
-#include <algorithm>
+#include <windows.h>
 
+#include <algorithm>
+#include <chrono>
+#include <utility>
+
+#include "core/leftovers/leftover.h"
+#include "core/platform/packages.h"
+#include "core/platform/text.h"
+#include "core/platform/user_profiles.h"
+#include "core/uninstall/registration.h"
 #include "core/uninstall/restore_point.h"
 
 namespace avel::uninstall {
@@ -21,7 +30,95 @@ bool ran(const UninstallResult& result) {
     }
 }
 
+std::wstring family_of(const inventory::Program& program, const UninstallPlan& plan) {
+    return !program.package_family_name.empty() ? program.package_family_name
+                                                : leftovers::package_family_name(plan.package_full_name);
+}
+
+// A packaged app removed for the current user through a ChangeSet, when undo can bring it back
+// (soft_removal_plan; ADR 0008). Nullopt when it can't, and the uninstall goes on as before.
+std::optional<UninstallResult> remove_softly(const BatchItem& item, const BatchOptions& options) {
+    const inventory::Program& program = *item.program;
+    if (options.dry_run || !options.run_change_set || !item.plan.possible() ||
+        item.plan.method != Method::Package) {
+        return std::nullopt;
+    }
+    const std::wstring family = family_of(program, item.plan);
+    if (family.empty()) {
+        return std::nullopt;
+    }
+    auto plan =
+        soft_removal_plan(program, item.plan,
+                          options.package_facts ? options.package_facts(family) : live_package_facts(family));
+    if (!plan) {
+        return std::nullopt;
+    }
+
+    const auto started = std::chrono::steady_clock::now();
+    const changes::ExecuteResult executed = options.run_change_set(std::move(*plan), program);
+    UninstallResult result;
+    const changes::ItemStatus status =
+        executed.items.empty() ? changes::ItemStatus{} : executed.items.front().status;
+    if (executed.set_id.empty()) {
+        // The set couldn't be written, or another Avel process held the store: nothing was changed.
+        result.outcome = Outcome::Failed;
+        result.error = ERROR_BUSY;
+    } else if (status.state == changes::ItemState::Done) {
+        result.outcome = Outcome::Removed;
+        result.change_set = executed.set_id;
+    } else if (is_package_installed(item.plan.package_full_name)) {
+        result.outcome =
+            status.state == changes::ItemState::Failed ? Outcome::Failed : Outcome::StillInstalled;
+        result.error = status.code;
+    } else {
+        result.outcome = Outcome::Removed;  // Gone meanwhile, by other means: nothing to undo
+    }
+    result.elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
+    result.install_location_remains = install_location_exists(program);
+    return result;
+}
+
 }  // namespace
+
+PackageFacts live_package_facts(const std::wstring& family_name) {
+    PackageFacts facts;
+    facts.current_user_sid = platform::current_user_sid();
+    facts.family_users = platform::family_users(family_name);
+    facts.provisioned = platform::provisioned_package(family_name).has_value();
+    return facts;
+}
+
+std::optional<changes::ChangePlan> soft_removal_plan(const inventory::Program& program,
+                                                     const UninstallPlan& plan, const PackageFacts& facts) {
+    if (!plan.possible() || plan.method != Method::Package || plan.package_full_name.empty() ||
+        facts.current_user_sid.empty()) {
+        return std::nullopt;
+    }
+    const std::wstring family = family_of(program, plan);
+    const auto is_current = [&](const std::wstring& sid) {
+        return platform::iequals(sid, facts.current_user_sid);
+    };
+    const bool current_has_it = std::any_of(facts.family_users.begin(), facts.family_users.end(), is_current);
+    const bool someone_else = std::any_of(facts.family_users.begin(), facts.family_users.end(),
+                                          [&](const std::wstring& sid) { return !is_current(sid); });
+    // Without another user or the provisioning, Windows deletes the package with the current user's
+    // registration, and there would be nothing left to register again.
+    if (family.empty() || !current_has_it || !(someone_else || facts.provisioned)) {
+        return std::nullopt;
+    }
+    changes::PlannedItem item;
+    item.location =
+        leftovers::PackageUserLocation{family, plan.package_full_name, facts.current_user_sid, true, false};
+    item.category = leftovers::category_of(item.location);
+    item.programs.push_back(program.display_name);
+    // The user chose to uninstall it: no evidence was scored (the executor doesn't read these).
+    item.confidence = leftovers::Confidence::Unknown;
+    item.score = 0;
+    changes::ChangePlan result;
+    result.items.push_back(std::move(item));
+    return result;
+}
 
 BatchResult run_batch(const std::vector<BatchItem>& items, const BatchOptions& options,
                       const BatchEvents& events, Cancellation& cancellation) {
@@ -55,7 +152,10 @@ BatchResult run_batch(const std::vector<BatchItem>& items, const BatchOptions& o
             if (events.item_started) {
                 events.item_started(index);
             }
-            result = uninstall(*items[index].program, items[index].plan, cancellation, options.dry_run);
+            auto soft = remove_softly(items[index], options);
+            result = soft
+                         ? std::move(*soft)
+                         : uninstall(*items[index].program, items[index].plan, cancellation, options.dry_run);
             changes_made = changes_made || ran(result);
         }
         if (events.item_finished) {

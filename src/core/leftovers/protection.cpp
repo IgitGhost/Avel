@@ -16,6 +16,7 @@
 #include "core/leftovers/startup_approved.h"
 #include "core/leftovers/value_edits.h"
 #include "core/platform/known_folders.h"
+#include "core/platform/packages.h"
 #include "core/platform/paths.h"
 #include "core/platform/registry.h"
 #include "core/platform/services.h"
@@ -23,6 +24,7 @@
 #include "core/platform/text.h"
 #include "core/platform/user_hives.h"
 #include "core/platform/user_profiles.h"
+#include "core/tools/windows_apps_data.h"
 
 namespace avel::leftovers {
 
@@ -278,6 +280,15 @@ ServiceFacts live_service_facts(const std::wstring& name) {
     return facts;
 }
 
+std::optional<PackageFacts> live_package_facts(const std::wstring& full_name) {
+    const auto package = platform::find_package(full_name);
+    if (!package) {
+        return std::nullopt;
+    }
+    return PackageFacts{package->signature_kind == platform::PackageSignatureKind::System, package->framework,
+                        package->resource, !package->external_location.empty()};
+}
+
 std::string_view to_string(ProtectionReason reason) {
     switch (reason) {
         case ProtectionReason::None:
@@ -316,6 +327,10 @@ std::string_view to_string(ProtectionReason reason) {
             return "not-editable";
         case ProtectionReason::WindowsService:
             return "windows-service";
+        case ProtectionReason::WindowsPackage:
+            return "windows-package";
+        case ProtectionReason::DesktopProgramPackage:
+            return "desktop-program-package";
     }
     return "unknown";
 }
@@ -382,6 +397,36 @@ const HardFloor& HardFloor::live() {
     }();
     return floor;
 }
+
+namespace {
+
+// Every package kind: never a package on the critical list, nor one signed as part of Windows, a
+// framework or a resource package (ADR 0008). `family` is the family's name, `full_name` the
+// package the item acts on (empty when there is none yet, as for provisioning a family again).
+// A package with an external location, which gives a desktop program its identity, is refused
+// unless `program_leftover`: a removal for one user, as the leftover scan and traces offer it once
+// its program is uninstalled.
+ProtectionReason check_package(
+    std::wstring_view family, const std::wstring& full_name, bool program_leftover,
+    const std::function<std::optional<PackageFacts>(const std::wstring&)>& packages) {
+    if (family.empty() || tools::app_category(family) == tools::AppCategory::Critical) {
+        return ProtectionReason::WindowsPackage;  // No family to judge it by, or Windows needs it
+    }
+    if (full_name.empty()) {
+        return ProtectionReason::None;  // No package on this PC to look at; the list was checked
+    }
+    const auto facts = packages ? packages(full_name) : live_package_facts(full_name);
+    if (!facts) {
+        return ProtectionReason::None;  // Not on this PC: the executor reports it missing
+    }
+    if (facts->system || facts->framework || facts->resource) {
+        return ProtectionReason::WindowsPackage;
+    }
+    return facts->external_location && !program_leftover ? ProtectionReason::DesktopProgramPackage
+                                                         : ProtectionReason::None;
+}
+
+}  // namespace
 
 ProtectionReason HardFloor::check(const Location& location) const {
     if (const auto* file = std::get_if<FileLocation>(&location)) {
@@ -480,6 +525,20 @@ ProtectionReason HardFloor::check(const Location& location) const {
         }
         return facts.driver || facts.windows ? ProtectionReason::WindowsService : ProtectionReason::None;
     }
+    if (const auto* package = std::get_if<PackageLocation>(&location)) {
+        return check_package(package_family_name(package->full_name), package->full_name, !package->all_users,
+                             data_.packages);
+    }
+    if (const auto* registration = std::get_if<PackageUserLocation>(&location)) {
+        // The family as planned; the version registered now is the executor's to find.
+        return check_package(registration->family_name, registration->full_name, false, data_.packages);
+    }
+    if (const auto* provisioning = std::get_if<PackageProvisioningLocation>(&location)) {
+        return check_package(provisioning->family_name, provisioning->provisioned_full_name, false,
+                             data_.packages);
+    }
+    // Services to remove, whose rules are the executor's (system_items.h), and firewall rules,
+    // which are only reported.
     return ProtectionReason::None;
 }
 

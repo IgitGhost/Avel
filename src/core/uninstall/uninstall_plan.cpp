@@ -5,8 +5,10 @@
 #include <filesystem>
 
 #include "core/inventory/uninstall_entry.h"
+#include "core/leftovers/leftover.h"
 #include "core/platform/command_line.h"
 #include "core/platform/text.h"
+#include "core/tools/windows_apps_data.h"
 
 namespace avel::uninstall {
 
@@ -99,7 +101,8 @@ UninstallPlan make_uninstall_plan(const Program& program, Mode mode, const PlanC
     };
 
     if (program.no_remove) {
-        return fail(PlanError::RemovalBlocked);
+        // A packaged app's no_remove means it is System-signed (appx_source.cpp).
+        return fail(program.source == Source::Appx ? PlanError::ProtectedPackage : PlanError::RemovalBlocked);
     }
     if (program.scope == Scope::User && !program.user_sid.empty() &&
         !platform::iequals(program.user_sid, context.current_user_sid)) {
@@ -110,6 +113,17 @@ UninstallPlan make_uninstall_plan(const Program& program, Mode mode, const PlanC
     if (program.source == Source::Appx) {
         if (program.package_full_name.empty()) {
             return fail(PlanError::NoUninstaller);
+        }
+        // As the Windows apps tool protects them (ADR 0008): the critical list (the Store, App
+        // Installer..., not all System-signed), and a package that gives a desktop program its
+        // identity, which goes with that program as its leftover. The inventory doesn't mark them
+        // no_remove: the leftover scan's related-packages reads that flag.
+        const std::wstring family = !program.package_family_name.empty()
+                                        ? program.package_family_name
+                                        : leftovers::package_family_name(program.package_full_name);
+        if (tools::app_category(family) == tools::AppCategory::Critical ||
+            !program.external_location.empty()) {
+            return fail(PlanError::ProtectedPackage);
         }
         plan.method = Method::Package;
         plan.quiet = true;  // The package manager shows no UI either way
@@ -243,6 +257,8 @@ std::string_view to_string(PlanError error) {
             return "no-uninstaller";
         case PlanError::RemovalBlocked:
             return "removal-blocked";
+        case PlanError::ProtectedPackage:
+            return "protected-package";
         case PlanError::OtherUser:
             return "other-user";
         case PlanError::ElevationRequired:

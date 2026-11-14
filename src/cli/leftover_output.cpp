@@ -110,6 +110,10 @@ std::string_view kind_of(const leftovers::Location& location) {
                 return item.folder ? "task-folder" : "task";
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
                 return "package";
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation>) {
+                return "package-user";
+            } else if constexpr (std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                return "package-provisioning";
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return "firewall-rule";
             } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
@@ -141,7 +145,17 @@ std::wstring describe_location(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
                 return item.path;
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
-                return item.full_name;
+                return item.all_users ? item.full_name + L" (all users)" : item.full_name;
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation>) {
+                // "Contoso.App_abc for S-1-5-21-... (remove)"
+                return item.family_name + L" for " + item.user_sid +
+                       (item.after == item.before ? L""
+                        : item.after              ? L" (register)"
+                                                  : L" (remove)");
+            } else if constexpr (std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                return item.family_name + (item.after == item.before ? L""
+                                           : item.after              ? L" (provision)"
+                                                                     : L" (deprovision)");
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return item.rule_id;
             } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
@@ -151,6 +165,9 @@ std::wstring describe_location(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, leftovers::ServiceStartLocation>) {
                 return item.name + L" (start: " + start_text(item.before) + L" -> " + start_text(item.after) +
                        L")";
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation> ||
+                                 std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                return item.family_name;  // Package A's stand-in so the tree builds; Package B's replaces it
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 return describe_edit(item);
@@ -179,6 +196,18 @@ Json location_to_json(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
                 json["package_full_name"] = to_utf8(item.full_name);
                 json["user_sid"] = to_utf8(item.user_sid);
+                json["all_users"] = item.all_users;
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation>) {
+                json["package_family_name"] = to_utf8(item.family_name);
+                json["package_full_name"] = to_utf8(item.full_name);
+                json["user_sid"] = to_utf8(item.user_sid);
+                json["before"] = item.before;
+                json["after"] = item.after;
+            } else if constexpr (std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                json["package_family_name"] = to_utf8(item.family_name);
+                json["package_full_name"] = to_utf8(item.provisioned_full_name);
+                json["before"] = item.before;
+                json["after"] = item.after;
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 json["rule_id"] = to_utf8(item.rule_id);
             } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
@@ -194,6 +223,9 @@ Json location_to_json(const leftovers::Location& location) {
                 json["service"] = to_utf8(item.name);
                 json["before"] = changes::to_json(item.before);
                 json["after"] = changes::to_json(item.after);
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation> ||
+                                 std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                json["family_name"] = to_utf8(item.family_name);  // Package A's stand-in; Package B's replaces it
             } else {
                 static_assert(std::is_same_v<T, leftovers::ValueEditLocation>);
                 json["key"] = to_utf8(platform::display_path(item.key));

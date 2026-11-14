@@ -163,6 +163,9 @@ bool is_removable(const leftovers::Location& location) {
 }
 
 bool is_undoable(const leftovers::Location& location) {
+    // A package's removal deletes it (for one user, the last one's, or for every user) and nothing
+    // brings it back offline. A user's registration and the provisioning are undone while the
+    // package stays on this PC, which the executor checks before it changes them (ADR 0008).
     return is_removable(location) && !std::holds_alternative<leftovers::PackageLocation>(location);
 }
 

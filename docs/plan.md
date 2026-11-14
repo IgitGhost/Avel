@@ -470,7 +470,7 @@ D:\Avel\
     - **Follow-ups:**
       - Windows' update scan 15 minutes after logon fell between the GUI round's removal and its undo in both runs. Should it fall during the removal or the undo instead, its random COM classes would fail the undo check.
       - `LeftoverSmokeTest` exceeded its 20 s budget on the host again (23 s for 598 programs, 20.6 s of it in matching; see 5b).
-- **Phase 6 (Avel Tools): in progress, in four sub-phases.** Plan approved 2026-10-31; 6a done (2026-11-12), 6b next.
+- **Phase 6 (Avel Tools): in progress, in five sub-phases.** Plan approved 2026-10-31; 6a done (2026-11-12); 6b done (2026-11-14); 6c (browser extensions) next.
   - **User decisions (2026-10-31, asked interactively):**
     - **Sub-phases by tool,** each a vertical slice (core, CLI, GUI, RU/HY, a Sandbox scenario, docs, one commit): **6a** Startup manager; **6b** Windows apps, and Windows features and capabilities; **6c** browser extensions; **6d** Steam and Epic sources.
     - **Startup manager, "Task Manager plus":** Run and RunOnce (machine 64/32-bit and every user), the Startup folders, scheduled tasks with logon or boot triggers, and auto-start services not from Microsoft. Disable as Task Manager does (`StartupApproved`; a task's Enabled flag; a service's start type), delete through the ChangeSet, everything undoable. Winlogon, AppInit_DLLs, shell extensions, IFEO and drivers aren't in scope.
@@ -480,8 +480,17 @@ D:\Avel\
     - **Games:** Steam and Epic as inventory sources (list, uninstall through the client, leftovers). Not GOG, EA, Ubisoft or Battle.net.
     - **GUI:** separate non-modal windows from the Tools menu (Startup, Windows apps, Windows features, Browser extensions); games are a category of the program list.
   - **Groundwork (start of 6a):** ChangeSet *state changes* (ADR 0007): new location kinds for a `StartupApproved` value, a task's Enabled flag and a service's start type (6b adds package modes and Windows features), each recording the state before and after and undone only while the item is still as Avel left it. A `src/core/tools` module. Writable loading of signed-out users' hives for their changes. Authenticode signer reading (`platform/signature`), which nothing does yet.
-  - **6b starts with a spike** (ADR 0008): removing a package for one other user, re-registering it as undo, deprovisioning, and which DismAPI operations work offline in the Sandbox.
-  - **Sandbox scenarios:** `startup`, `apps`, `features`, `extensions` and a games round (fake Steam and Epic libraries: no client can be installed offline, so uninstall reports the missing client and Avel Force removes the game).
+  - **6b started with a spike** ([ADR 0008](adr/0008-windows-apps-and-features.md), 2026-11-14; `avel_package_probe` and the Sandbox scenario `spike_6b`, 4 runs offline, the last two **RESULT: PASS**):
+    - The public `PackageManager` can't remove a package for another, signed-out user (`Remove-AppxPackage -User` only marks a removal pending; `CleanupPackageForUserAsync` needs a machine policy flipped and has no undo).
+    - Registering again undoes a removal for the current user offline, but the app's data is gone (`PreserveApplicationData` is refused). A package no user has and nothing provisions is deleted at once, so such a removal isn't soft.
+    - Deprovisioning is undone offline by provisioning again while the package is staged; `RemoveForAllUsers` deletes it for good.
+    - DISM doesn't work in the Sandbox: its component store is incomplete (0x800F0831), and offline, listing capabilities searches Windows Update (0x80072EE6). DismAPI's header and library are in the ADK, not the SDK.
+  - **User decisions (2026-11-14, asked interactively), recorded in ADR 0008:**
+    - Soft removal (and its offline undo) is for the current user only; other users' registrations are shown, with deprovisioning and deep removal for them. This narrows "the chosen users" of 2026-10-31.
+    - Three modes: soft removal, "don't install for new users" (deprovisioning, undoable), and deep removal (irreversible).
+    - Avel declares DismAPI itself and loads `DismApi.dll` at run time; no ADK.
+    - **The sub-phases are now:** **6b** Windows apps; **6c** browser extensions; **6d** Steam and Epic sources; **6e** Windows features and capabilities, after a verification environment with a full Windows image (a Hyper-V VM with checkpoints) exists, since the Sandbox can't service.
+  - **Sandbox scenarios:** `startup`, `apps`, `extensions` and a games round (`features` runs in the VM, 6e) (fake Steam and Epic libraries: no client can be installed offline, so uninstall reports the missing client and Avel Force removes the game).
   - **6a (Startup manager): done and verified in Windows Sandbox** (2026-11-01 to 2026-11-12, from `a18d1ec`):
     - **Core, CLI and docs.** 487 unit tests (5 admin-only ones skip on the host).
       - ChangeSet state changes ([ADR 0007](adr/0007-changeset-state-changes.md)): `StartupApprovedLocation`, `TaskStateLocation`, `ServiceStartLocation`, compare-and-set on execute and undo, recovery, the hard floor's rules for each.
@@ -503,3 +512,21 @@ D:\Avel\
       - GUI round (UI Automation): search; the greyed-out Windows' own row; two Run values disabled as one ChangeSet and undone; a service disabled and enabled; a Startup folder shortcut deleted after the confirmation and undone. The final dump equals the first, and avel.exe exits with 0.
       - Not driven by a scenario: the context menu's extras, the filters, Ctrl+Z (the round uses the Undo button), and a change waiting for another window's scan.
     - **Regression runs** after 6a's changes to shared helpers, ChangeSets and the app: `leftovers`, `removal`, `force` and `trace_gui` all **RESULT: PASS** (2026-11-12).
+  - **6b (Windows apps): done and verified in Windows Sandbox** (2026-11-14, from `6a76bce`; [ADR 0008](adr/0008-windows-apps-and-features.md), [tools.md](tools.md) "Windows apps"):
+    - **Core and CLI.** 542 unit tests.
+      - `platform/packages`: packaged apps through the public `PackageManager` only, each call on its own MTA thread; every user's registrations and the provisioned packages need elevation.
+      - `tools/windows_apps` (one entry per package family: who has it, provisioned, category from the `windows_apps_data` table, protection, the modes it allows) and `tools/windows_apps_changes` (the planner).
+      - ChangeSet state changes `PackageUserLocation` ("remove for me", undone by registering the family again) and `PackageProvisioningLocation` ("don't install for new users", undone by provisioning again); "remove for everyone" is a `PackageLocation` for all users, irreversible.
+      - `avel-cli apps list|remove|deprovision|remove-everywhere` (`--allow-irreversible` for the last).
+      - Uninstalling a packaged app from the program list is a soft removal through a ChangeSet whenever it can be undone.
+    - **User decisions (2026-11-14, asked interactively):**
+      - The window is like Startup's (one sortable table, search, filters, details below) plus check boxes, "Check often removed", and the three actions on the checked rows, each one ChangeSet. Remove for everyone asks first: its button is enabled only after "I understand this can't be undone".
+      - Windows' own (System-signed) and critical packages are shown greyed out with the reason; frameworks and resource packages aren't listed.
+      - Without administrator rights the listing is incomplete, so it offers no mode at all.
+      - Packages that give a desktop program its identity (sparse, with an external location: PowerToys' context menus, Edge, OneDrive, the Microsoft 365 Copilot app) are protected as `external-location`. A per-user removal of one stays possible for the leftover scan, which removes a gone program's package.
+      - Uninstalling from the program list refuses critical, external-location and System-signed packages (`protected-package`).
+    - **GUI:** Tools > Windows apps… (`windows_apps_window`, `windows_apps_model`, `windows_apps_text`). The actions apply to the checked apps, else the selected ones, and skip those they don't fit, as in Startup. Undo Center and "Undo last change" (Ctrl+Z). RU/HY complete.
+    - **Windows Sandbox,** new scenario `apps` (offline, with a second test MSIX): **RESULT: PASS** (2026-11-14, about 40 s).
+      - Fixtures: the test package staged, provisioned and registered for the current user and the signed-out `AvelOther`; a second one for the current user only. `avel_package_probe` is the oracle.
+      - Rounds: the listing (44 System-signed apps protected, Edge external-location) and refusals that change nothing; remove for me and deprovision, each undone; `would-delete-package`, `not-provisioned` and `irreversible-needs-confirmation` refused, dry runs; crash recovery at both journal records, including a change made behind Avel's back; `avel-cli uninstall` of a packaged app as an undoable ChangeSet; a GUI round (check, Remove for me, undo, the confirmation's disabled button); remove for everyone last. Every other package and provisioning is as before.
+    - **Regression runs:** `uninstall`, `removal`, `leftovers`, `force` and `startup` all **RESULT: PASS** (2026-11-14).

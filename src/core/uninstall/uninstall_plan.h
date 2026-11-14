@@ -24,8 +24,11 @@ enum class Method : std::uint8_t {
 // uninstaller is missing or broken.
 enum class PlanError : std::uint8_t {
     None,
-    NoUninstaller,       // No uninstall command and nothing else to go on
-    RemovalBlocked,      // NoRemove=1, or a system package
+    NoUninstaller,   // No uninstall command and nothing else to go on
+    RemovalBlocked,  // NoRemove=1: the installer forbids it
+    // A packaged app the Windows apps tool protects (tools::AppProtection): System-signed, on the
+    // critical list, or a desktop program's (an external location).
+    ProtectedPackage,
     OtherUser,           // Installed for another account: its uninstaller would act on our profile
     ElevationRequired,   // Installed for all users, but this process isn't elevated
     UnsupportedCommand,  // The command isn't an executable (e.g. a steam:// link)

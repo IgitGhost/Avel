@@ -43,6 +43,7 @@ class ProgramTraces;
 class StartupWindow;
 class TraceController;
 class TraceStoreAccess;
+class WindowsAppsWindow;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -90,6 +91,8 @@ private:
     void openUndoCenter();
     // Tools > Startup...: one window, brought to the front when it is open already.
     void openStartup();
+    // Tools > Windows apps...: likewise.
+    void openWindowsApps();
     void onMaintenanceFinished(const QStringList& settled);
     void openInstallLocation();
     void showTableMenu(const QPoint& position);
@@ -131,6 +134,7 @@ private:
     QAction* orphansAction_ = nullptr;
     QAction* undoCenterAction_ = nullptr;
     QAction* startupAction_ = nullptr;
+    QAction* windowsAppsAction_ = nullptr;
     QAction* findAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* systemLanguageAction_ = nullptr;
@@ -161,6 +165,7 @@ private:
 
     ForceFlow* forceFlow_ = nullptr;         // The one running, if any; it deletes itself
     QPointer<StartupWindow> startupWindow_;  // A top-level window of its own; it deletes itself on close
+    QPointer<WindowsAppsWindow> windowsAppsWindow_;  // Likewise
     // A leftover preview, the orphan finder or a Hunter lookup runs on the worker pool.
     bool busy_ = false;
     // Declared last so it's destroyed first: its destructor waits for a running task.

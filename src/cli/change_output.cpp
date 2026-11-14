@@ -115,6 +115,9 @@ void print_execute_result(const changes::ChangePlan& plan, const changes::Execut
     if (removal) {
         print(std::format("\n{} of {} removed, {} bytes in quarantine. Undo with: avel-cli undo {}\n",
                           removed, plan.items.size(), result.quarantined_bytes, to_utf8(result.set_id)));
+    } else if (wording == ResultWording::Irreversible) {
+        print(std::format("\n{} of {} removed (change set {}). This can't be undone.\n", removed,
+                          plan.items.size(), to_utf8(result.set_id)));
     } else {
         print(std::format("\n{} of {} changed. Undo with: avel-cli undo {}\n", removed, plan.items.size(),
                           to_utf8(result.set_id)));

@@ -5,51 +5,51 @@
     <name>LeftoverText</name>
     <message numerus="yes">
         <source>%n item(s) its installer created</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n item its installer created</numerusform>
+            <numerusform>%n items its installer created</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n of them tied to the program</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n of them tied to the program</numerusform>
+            <numerusform>%n of them tied to the program</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n edit(s) to environment variables or shared DLL counts</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n edit to environment variables or shared DLL counts</numerusform>
+            <numerusform>%n edits to environment variables or shared DLL counts</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n already gone</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n already gone</numerusform>
+            <numerusform>%n already gone</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n protected, left in place</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n protected, left in place</numerusform>
+            <numerusform>%n protected, left in place</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n change(s) to what existed before, shown only</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n change to what existed before, shown only</numerusform>
+            <numerusform>%n changes to what existed before, shown only</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n item(s) excluded in its review, not checked automatically</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n item excluded in its review, not checked automatically</numerusform>
+            <numerusform>%n items excluded in its review, not checked automatically</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -95,16 +95,54 @@
     <name>TraceText</name>
     <message numerus="yes">
         <source>%n byte(s) of type %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n byte of type %1</numerusform>
+            <numerusform>%n bytes of type %1</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 and %n more</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%1 and %n more</numerusform>
+            <numerusform>%1 and %n more</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>WindowsAppsText</name>
+    <message numerus="yes">
+        <source>You and %n other user(s)</source>
+        <translation>
+            <numerusform>You and %n other user</numerusform>
+            <numerusform>You and %n other users</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n other user(s)</source>
+        <translation>
+            <numerusform>%n other user</numerusform>
+            <numerusform>%n other users</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for me</source>
+        <translation>
+            <numerusform>Remove %n app for me</numerusform>
+            <numerusform>Remove %n apps for me</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Don&apos;t install %n app(s) for new users</source>
+        <translation>
+            <numerusform>Don&apos;t install %n app for new users</numerusform>
+            <numerusform>Don&apos;t install %n apps for new users</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for everyone</source>
+        <translation>
+            <numerusform>Remove %n app for everyone</numerusform>
+            <numerusform>Remove %n apps for everyone</numerusform>
         </translation>
     </message>
 </context>
@@ -243,23 +281,23 @@
     <name>avel::app::ProgramTraces</name>
     <message numerus="yes">
         <source>%n item(s) created</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n item created</numerusform>
+            <numerusform>%n items created</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n change(s) to environment variables or shared DLLs</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n change to environment variables or shared DLLs</numerusform>
+            <numerusform>%n changes to environment variables or shared DLLs</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n existing item(s) changed</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n existing item changed</numerusform>
+            <numerusform>%n existing items changed</numerusform>
         </translation>
     </message>
 </context>
@@ -406,16 +444,16 @@
     <name>avel::app::TraceModel</name>
     <message numerus="yes">
         <source>… and %n more</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>… and %n more</numerusform>
             <numerusform>… and %n more</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1, %n item(s) inside</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%1, %n item inside</numerusform>
+            <numerusform>%1, %n items inside</numerusform>
         </translation>
     </message>
 </context>
@@ -423,16 +461,16 @@
     <name>avel::app::TraceProgressDialog</name>
     <message numerus="yes">
         <source>%Ln change(s) recorded.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%Ln change recorded.</numerusform>
+            <numerusform>%Ln changes recorded.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%Ln more set aside as noise.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%Ln more set aside as noise.</numerusform>
+            <numerusform>%Ln more set aside as noise.</numerusform>
         </translation>
     </message>
 </context>
@@ -440,16 +478,16 @@
     <name>avel::app::TraceReviewDialog</name>
     <message numerus="yes">
         <source>%n item(s) shown.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n item shown.</numerusform>
+            <numerusform>%n items shown.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n excluded: removing the program by this trace won&apos;t offer them.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%n excluded: removing the program by this trace won&apos;t offer it.</numerusform>
+            <numerusform>%n excluded: removing the program by this trace won&apos;t offer them.</numerusform>
         </translation>
     </message>
 </context>
@@ -457,9 +495,9 @@
     <name>avel::app::TracesDialog</name>
     <message numerus="yes">
         <source>The file includes %n environment value(s) as they were on this machine: PATH and the other variables the installer changed, before and after. Share it only where those may be seen.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>The file includes %n environment value as it was on this machine: PATH or another variable the installer changed, before and after. Share it only where that may be seen.</numerusform>
+            <numerusform>The file includes %n environment values as they were on this machine: PATH and the other variables the installer changed, before and after. Share it only where those may be seen.</numerusform>
         </translation>
     </message>
 </context>
@@ -491,16 +529,16 @@
     </message>
     <message numerus="yes">
         <source>Use the install traces (%n item(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Use the install traces (%n item)</numerusform>
+            <numerusform>Use the install traces (%n items)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>Use the install trace (%n item(s))</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Use the install trace (%n item)</numerusform>
+            <numerusform>Use the install trace (%n items)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -532,6 +570,142 @@
         <translation>
             <numerusform>Avel found %n leftover.</numerusform>
             <numerusform>Avel found %n leftovers.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::WindowsAppsWindow</name>
+    <message numerus="yes">
+        <source>%n often removed app(s) checked. Choose an action to remove them.</source>
+        <translation>
+            <numerusform>%n often removed app checked. Choose an action to remove it.</numerusform>
+            <numerusform>%n often removed apps checked. Choose an action to remove them.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s)</source>
+        <translation>
+            <numerusform>%n app</numerusform>
+            <numerusform>%n apps</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n app(s)</source>
+        <translation>
+            <numerusform>Showing %1 of %n app</numerusform>
+            <numerusform>Showing %1 of %n apps</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n protected</source>
+        <translation>
+            <numerusform>%n protected</numerusform>
+            <numerusform>%n protected</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n checked</source>
+        <translation>
+            <numerusform>%n checked</numerusform>
+            <numerusform>%n checked</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n warning</numerusform>
+            <numerusform>%n warnings</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) checked; each action applies to the ones it fits. Details of the selected one:</source>
+        <translation>
+            <numerusform>%n app checked; each action applies to it if it fits. Details of the selected one:</numerusform>
+            <numerusform>%n apps checked; each action applies to the ones it fits. Details of the selected one:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) selected; each action applies to the ones it fits. Details of this one:</source>
+        <translation>
+            <numerusform>%n app selected; each action applies to it if it fits. Details of this one:</numerusform>
+            <numerusform>%n apps selected; each action applies to the ones it fits. Details of this one:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Nothing to change: %n app skipped.</numerusform>
+            <numerusform>Nothing to change: %n apps skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Nothing to remove: %n app skipped.</numerusform>
+            <numerusform>Nothing to remove: %n apps skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… and %n more</numerusform>
+            <numerusform>… and %n more</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will be skipped:</source>
+        <translation>
+            <numerusform>%n app will be skipped:</numerusform>
+            <numerusform>%n apps will be skipped:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for every user?</source>
+        <translation>
+            <numerusform>Remove %n app for every user?</numerusform>
+            <numerusform>Remove %n apps for every user?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for you.</source>
+        <translation>
+            <numerusform>%n app removed for you.</numerusform>
+            <numerusform>%n apps removed for you.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will no longer be installed for new users.</source>
+        <translation>
+            <numerusform>%n app will no longer be installed for new users.</numerusform>
+            <numerusform>%n apps will no longer be installed for new users.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for everyone.</source>
+        <translation>
+            <numerusform>%n app removed for everyone.</numerusform>
+            <numerusform>%n apps removed for everyone.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n couldn&apos;t be changed.</numerusform>
+            <numerusform>%n couldn&apos;t be changed.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n skipped.</numerusform>
+            <numerusform>%n skipped.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n item couldn&apos;t be put back; the Undo Center can try again.</numerusform>
+            <numerusform>%n items couldn&apos;t be put back; the Undo Center can try again.</numerusform>
         </translation>
     </message>
 </context>

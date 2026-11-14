@@ -238,4 +238,58 @@ std::optional<UsageError> parse_startup_options(const std::vector<std::wstring_v
     return std::nullopt;
 }
 
+std::optional<UsageError> parse_apps_options(const std::vector<std::wstring_view>& arguments,
+                                             AppsCommandOptions& options) {
+    if (arguments.empty()) {
+        return UsageError{};
+    }
+    const auto name = arguments.front();
+    if (name == L"list") {
+        options.command = AppsCommand::List;
+    } else if (name == L"remove") {
+        options.command = AppsCommand::Remove;
+    } else if (name == L"deprovision") {
+        options.command = AppsCommand::Deprovision;
+    } else if (name == L"remove-everywhere") {
+        options.command = AppsCommand::RemoveEverywhere;
+    } else {
+        return UsageError{"apps: unknown command " + to_utf8(name) + "\n"};
+    }
+    const bool list = options.command == AppsCommand::List;
+    const auto known = [](std::wstring_view option) {
+        return option == L"--all" || option == L"--dry-run" || option == L"--yes" || option == L"-y" ||
+               option == L"--allow-irreversible";
+    };
+    for (std::size_t i = 1; i < arguments.size(); ++i) {
+        const auto argument = arguments[i];
+        if (argument == L"--json") {
+            options.json = true;
+        } else if (argument == L"--all" && list) {
+            options.all = true;
+        } else if (argument == L"--dry-run" && !list) {
+            options.dry_run = true;
+        } else if ((argument == L"--yes" || argument == L"-y") && !list) {
+            options.yes = true;
+        } else if (argument == L"--allow-irreversible" && options.command == AppsCommand::RemoveEverywhere) {
+            options.allow_irreversible = true;
+        } else if (known(argument)) {
+            return UsageError{"apps: " + to_utf8(argument) + " doesn't go with " + to_utf8(name) + "\n"};
+        } else if (argument.starts_with(L"-")) {
+            return UsageError{"apps: unknown option " + to_utf8(argument) + "\n"};
+        } else if (list) {
+            return UsageError{"apps: list takes no ids\n"};
+        } else {
+            options.ids.emplace_back(argument);
+        }
+    }
+    if (!list && options.ids.empty()) {
+        return UsageError{"apps: " + to_utf8(name) +
+                          " needs the ids or family names of the apps (see `avel-cli apps list`)\n"};
+    }
+    if (options.json && !list && !options.yes && !options.dry_run) {
+        return UsageError{"apps: --json needs --yes or --dry-run (it can't ask for confirmation)\n", false};
+    }
+    return std::nullopt;
+}
+
 }  // namespace avel::cli

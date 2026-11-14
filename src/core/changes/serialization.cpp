@@ -235,6 +235,22 @@ Json to_json(const leftovers::Location& location) {
                 json["kind"] = "package";
                 put_text(json, "full_name", item.full_name);
                 put_text(json, "user_sid", item.user_sid);
+                if (item.all_users) {
+                    json["all_users"] = true;
+                }
+            } else if constexpr (std::is_same_v<T, PackageUserLocation>) {
+                json["kind"] = "package-user";
+                put_text(json, "family_name", item.family_name);
+                put_text(json, "full_name", item.full_name);
+                put_text(json, "user_sid", item.user_sid);
+                json["before"] = item.before;
+                json["after"] = item.after;
+            } else if constexpr (std::is_same_v<T, PackageProvisioningLocation>) {
+                json["kind"] = "package-provisioning";
+                put_text(json, "family_name", item.family_name);
+                put_text(json, "provisioned_full_name", item.provisioned_full_name);
+                json["before"] = item.before;
+                json["after"] = item.after;
             } else if constexpr (std::is_same_v<T, FirewallRuleLocation>) {
                 json["kind"] = "firewall-rule";
                 put_text(json, "rule_id", item.rule_id);
@@ -254,6 +270,10 @@ Json to_json(const leftovers::Location& location) {
                 put_text(json, "name", item.name);
                 json["before"] = to_json(item.before);
                 json["after"] = to_json(item.after);
+            } else if constexpr (std::is_same_v<T, PackageUserLocation> ||
+                                 std::is_same_v<T, PackageProvisioningLocation>) {
+                // Package A's stand-in so the tree builds; Package B's serialization replaces it.
+                json["kind"] = "unsupported";
             } else {
                 static_assert(std::is_same_v<T, ValueEditLocation>);
                 json["kind"] = "value-edit";
@@ -303,8 +323,52 @@ bool from_json(const Json& json, leftovers::Location& location) {
         location = TaskLocation{*text("path"), json.value("folder", false)};
         return true;
     }
+    // A package state's two flags, both required.
+    const auto states = [&](bool& before, bool& after) {
+        const auto first = json.find("before");
+        const auto second = json.find("after");
+        if (first == json.end() || !first->is_boolean() || second == json.end() || !second->is_boolean()) {
+            return false;
+        }
+        before = first->get<bool>();
+        after = second->get<bool>();
+        return true;
+    };
     if (kind == "package" && text("full_name") && text("user_sid")) {
-        location = PackageLocation{*text("full_name"), *text("user_sid")};
+        // Plans written before deep removal have no "all_users".
+        const auto all_users = json.find("all_users");
+        if (all_users != json.end() && !all_users->is_boolean()) {
+            return false;
+        }
+        location = PackageLocation{*text("full_name"), *text("user_sid"),
+                                   all_users != json.end() && all_users->get<bool>()};
+        return true;
+    }
+    if (kind == "package-user") {
+        PackageUserLocation registration;
+        const auto family = text("family_name");
+        const auto full_name = text("full_name");
+        const auto sid = text("user_sid");
+        if (!family || family->empty() || !full_name || !sid || sid->empty() ||
+            !states(registration.before, registration.after)) {
+            return false;
+        }
+        registration.family_name = *family;
+        registration.full_name = *full_name;
+        registration.user_sid = *sid;
+        location = std::move(registration);
+        return true;
+    }
+    if (kind == "package-provisioning") {
+        PackageProvisioningLocation provisioning;
+        const auto family = text("family_name");
+        const auto full_name = text("provisioned_full_name");
+        if (!family || family->empty() || !full_name || !states(provisioning.before, provisioning.after)) {
+            return false;
+        }
+        provisioning.family_name = *family;
+        provisioning.provisioned_full_name = *full_name;
+        location = std::move(provisioning);
         return true;
     }
     if (kind == "firewall-rule" && text("rule_id")) {

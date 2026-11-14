@@ -1,6 +1,6 @@
-// avel-cli's options for uninstall, force, scan and startup (src/cli/command_options.cpp): the
-// install trace switches (--no-trace, force --trace), startup's subcommands and options, and the
-// usage errors around them.
+// avel-cli's options for uninstall, force, scan, startup and apps (src/cli/command_options.cpp): the
+// install trace switches (--no-trace, force --trace), startup's and apps' subcommands and options, and
+// the usage errors around them.
 #include <gtest/gtest.h>
 
 #include <string>
@@ -218,6 +218,91 @@ TEST(CliOptionsTest, StartupUsageErrors) {
     error = parse({L"disable", L"x", L"--json"});
     ASSERT_TRUE(error);
     EXPECT_EQ(error->message, "startup: --json needs --yes or --dry-run (it can't ask for confirmation)\n");
+    EXPECT_FALSE(error->usage);
+}
+
+TEST(CliOptionsTest, AppsListAndItsOptions) {
+    AppsCommandOptions options;
+    EXPECT_FALSE(parse_apps_options({L"list"}, options));
+    EXPECT_EQ(options.command, AppsCommand::List);
+    EXPECT_FALSE(options.all);
+    EXPECT_FALSE(options.json);
+
+    AppsCommandOptions all;
+    EXPECT_FALSE(parse_apps_options({L"list", L"--all", L"--json"}, all));
+    EXPECT_TRUE(all.all);
+    EXPECT_TRUE(all.json);  // list never asks: --json goes alone
+}
+
+TEST(CliOptionsTest, AppsActionsTakeIdsOrFamilies) {
+    AppsCommandOptions remove;
+    EXPECT_FALSE(parse_apps_options({L"remove", L"0123456789", L"Microsoft.BingNews_8wekyb3d8bbwe", L"--yes"},
+                                    remove));
+    EXPECT_EQ(remove.command, AppsCommand::Remove);
+    EXPECT_EQ(remove.ids, (std::vector<std::wstring>{L"0123456789", L"Microsoft.BingNews_8wekyb3d8bbwe"}));
+    EXPECT_TRUE(remove.yes);
+    EXPECT_FALSE(remove.allow_irreversible);
+
+    AppsCommandOptions deprovision;
+    EXPECT_FALSE(parse_apps_options({L"deprovision", L"x", L"--dry-run", L"--json"}, deprovision));
+    EXPECT_EQ(deprovision.command, AppsCommand::Deprovision);
+    EXPECT_TRUE(deprovision.dry_run);
+    EXPECT_TRUE(deprovision.json);
+
+    AppsCommandOptions everywhere;
+    EXPECT_FALSE(parse_apps_options({L"remove-everywhere", L"x", L"--allow-irreversible", L"-y", L"--json"},
+                                    everywhere));
+    EXPECT_EQ(everywhere.command, AppsCommand::RemoveEverywhere);
+    EXPECT_TRUE(everywhere.allow_irreversible);
+    EXPECT_TRUE(everywhere.yes);
+
+    // Without the confirmation it parses: the plan refuses it per app (irreversible-needs-confirmation).
+    AppsCommandOptions unconfirmed;
+    EXPECT_FALSE(parse_apps_options({L"remove-everywhere", L"x", L"--dry-run"}, unconfirmed));
+    EXPECT_FALSE(unconfirmed.allow_irreversible);
+}
+
+TEST(CliOptionsTest, AppsUsageErrors) {
+    const auto parse = [](Arguments arguments) {
+        AppsCommandOptions options;
+        return parse_apps_options(arguments, options);
+    };
+    auto error = parse({});
+    ASSERT_TRUE(error);
+    EXPECT_TRUE(error->usage);
+
+    error = parse({L"uninstall", L"x"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: unknown command uninstall\n");
+    EXPECT_TRUE(error->usage);
+
+    // An action needs ids; list takes none.
+    error = parse({L"remove", L"--yes"});
+    ASSERT_TRUE(error);
+    EXPECT_TRUE(error->usage);
+    error = parse({L"list", L"0123456789"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: list takes no ids\n");
+
+    // --allow-irreversible only with remove-everywhere; --all only with list.
+    error = parse({L"remove", L"x", L"--allow-irreversible"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: --allow-irreversible doesn't go with remove\n");
+    error = parse({L"deprovision", L"x", L"--all"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: --all doesn't go with deprovision\n");
+    error = parse({L"list", L"--dry-run"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: --dry-run doesn't go with list\n");
+    error = parse({L"list", L"--all-users"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: unknown option --all-users\n");
+    EXPECT_TRUE(error->usage);
+
+    // An action's --json can't ask for confirmation.
+    error = parse({L"remove", L"x", L"--json"});
+    ASSERT_TRUE(error);
+    EXPECT_EQ(error->message, "apps: --json needs --yes or --dry-run (it can't ask for confirmation)\n");
     EXPECT_FALSE(error->usage);
 }
 

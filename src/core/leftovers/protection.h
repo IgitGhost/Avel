@@ -11,6 +11,11 @@
 //     and both SharedDLLs keys (see value_edits.h). State changes (ADR 0007) have their own rules:
 //     startup approvals only in Explorer's three StartupApproved keys and only as Task Manager
 //     writes them; never Windows' own tasks; never a driver's or a Windows service's start type.
+//     No package item (removal, registration, provisioning) touches a package signed as part of
+//     Windows, a framework or resource package, or one on the critical list (ADR 0008). A package
+//     that gives a desktop program its identity (an external location) goes only as that
+//     program's leftover, removed for one user; never registered, provisioned or removed for
+//     everyone on its own.
 //   - ProtectedPolicy: known folders of every user and of the machine (and their ancestors), plus
 //     the folder and key names Bulk Crap Uninstaller never treats as a program's own
 //     (UninstallTools/UninstallToolsGlobalConfig.cs, Junk/Finders/Registry/SoftwareRegKeyScanner.cs;
@@ -19,6 +24,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -50,6 +56,14 @@ enum class ProtectionReason : std::uint8_t {
                      // a startup approval outside StartupApproved, or not as Task Manager writes it
     WindowsService,  // A start type change of a driver, of a service whose image is Windows' own, or
                      // to a start type other than automatic, manual or disabled
+    WindowsPackage,  // A package Windows needs or that isn't an app of its own: signed as part of
+                     // Windows (SignatureKind System), a framework or resource package, or on the
+                     // list of critical packages (the Store, App Installer, the shell's hosts...)
+    // A package that gives a desktop program its identity (an external location), changed as an
+    // app of its own: registration, provisioning or removal for every user. Only a leftover's
+    // removal for one user (PackageLocation without all_users) may take it, once its program is
+    // uninstalled.
+    DesktopProgramPackage,
 };
 
 std::string_view to_string(ProtectionReason reason);
@@ -71,6 +85,19 @@ struct ServiceFacts {
 // The live service's facts, from the Service Control Manager, its key and its image's signature.
 ServiceFacts live_service_facts(const std::wstring& name);
 
+// What the floor needs to know about a package on this PC before any package item changes.
+struct PackageFacts {
+    bool system = false;  // SignatureKind System: the public stand-in for NonRemovable (ADR 0008)
+    bool framework = false;
+    bool resource = false;
+    // It has an external location: it gives a desktop program its identity (a sparse package)
+    bool external_location = false;
+};
+
+// The facts of the package with this full name, from PackageManager; nullopt when it isn't on this
+// PC (the executor then reports the item missing).
+std::optional<PackageFacts> live_package_facts(const std::wstring& full_name);
+
 class HardFloor {
 public:
     struct Data {
@@ -81,6 +108,8 @@ public:
         std::vector<std::pair<std::wstring, ProtectionReason>> subtrees;
         // How services are looked up for ServiceStartLocation; live_service_facts when empty.
         std::function<ServiceFacts(const std::wstring& name)> services;
+        // How packages are looked up for every package kind; live_package_facts when empty.
+        std::function<std::optional<PackageFacts>(const std::wstring& full_name)> packages;
     };
 
     explicit HardFloor(Data data);

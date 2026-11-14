@@ -19,8 +19,10 @@ function Fail([string]$text) { $script:failures++; Log "  FAIL: $text" }
 
 # Runs avel-cli with a time limit; returns @{ exit; text; errors; json }.
 function Invoke-Cli([string[]]$arguments, [string]$label, [int]$timeoutSeconds = 300) {
-    $out = Join-Path $env:TEMP "avel-$label.out"
-    $err = Join-Path $env:TEMP "avel-$label.err"
+    # The label names its files: no colon (an alternate data stream), space or other path character.
+    $file = $label -replace '[\\/:*?"<>|\s]+', '-'
+    $out = Join-Path $env:TEMP "avel-$file.out"
+    $err = Join-Path $env:TEMP "avel-$file.err"
     $process = Start-Process $cli ($arguments -join ' ') -NoNewWindow -PassThru -RedirectStandardOutput $out `
         -RedirectStandardError $err
     $null = $process.Handle  # Without this, ExitCode stays empty once the process has exited
@@ -45,7 +47,12 @@ function Where-Text($location) {
         { $_ -in 'registry-value', 'value-edit', 'startup-approved' } { return "$($location.key) : $($location.value)" }
         { $_ -in 'service', 'driver', 'service-start' } { return $location.service }
         { $_ -in 'task', 'task-folder', 'task-state' } { return $location.task }
-        'package' { return $location.package_full_name }
+        'package' {
+            if ($location.all_users) { return "$($location.package_full_name) (all users)" }
+            return $location.package_full_name
+        }
+        'package-user' { return "$($location.package_family_name) for $($location.user_sid)" }
+        'package-provisioning' { return "$($location.package_family_name) (new users)" }
         default { return $location.rule_id }
     }
 }

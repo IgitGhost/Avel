@@ -4,7 +4,8 @@ Tools that work on the system rather than on one program. They live in `src/core
 helpers in `src/core/platform`, and like the rest of `avel_core` they have no Qt dependency and
 return codes rather than text. Each tool lists items with ids that stay the same from one run to
 the next, and every change it makes goes through a ChangeSet (see [changes.md](changes.md)), so
-undo can put it back.
+undo can put it back (all but the removal of an app for every user, which Windows can't
+undo and which runs only once confirmed).
 
 ## Startup manager (`tools/startup`)
 
@@ -246,3 +247,222 @@ RunOnce, 8 tasks, 32 services): the listing takes about 0.3 s with `live_signer`
 target, the whole command about 0.45 s with the inventory. Under the product-root rule
 `edgeupdate`, `SQLWriter` and `WSLService` are listed (Microsoft's applications), Windows' own
 services aren't, and `SecurityHealth` is listed as `windows-own`.
+
+## Windows apps (`tools/windows_apps`)
+
+`list_windows_apps` lists the packaged apps on this PC (Store and MSIX apps, Windows' own
+included), one `WindowsApp` per package family, and says which of them can be removed and how
+([ADR 0008](adr/0008-windows-apps-and-features.md)). It only reads. Each app has its id, family and
+identity name, display name, publisher, version and folder (from the package the current user has,
+else the newest), its signature kind, every version on this PC with who has it, the users it is
+registered for (SID, account name, whether it is the current user), whether it is provisioned
+(installed for every new user) and with which package, its category and warning from the data
+list, its protection, and the modes available.
+
+### Sources
+
+Everything comes from the public `PackageManager`, through `platform/packages` (every call on a
+fresh multithreaded-apartment thread, so the GUI thread's apartment is left alone): no Appx
+cmdlets, no StateRepository or `AppxAllUserStore` reads.
+
+- `FindPackagesWithPackageTypes(Main | Optional)` for all users, and `FindUsers` for who has each
+  package (`platform::list_packages`). Frameworks, resource packages and bundles aren't apps of
+  their own and aren't listed; the main and optional packages of a family make one app.
+- `FindProvisionedPackages` for what is provisioned.
+- Both need administrator rights. Without them the listing holds only the current user's packages
+  (`WindowsAppsList::all_users` is false): who else has an app and whether it is provisioned
+  aren't known, so nothing counts as undoable and the planner plans nothing from it
+  (`incomplete-listing`). The listing agrees: no app offers a mode then (`can_remove_for_me`,
+  `can_deprovision` and `can_remove_for_everyone` are all false), and `all_users` is the reason
+  the front ends show, once for the whole list rather than per app.
+- Account names come from `LookupAccountSid` (`live_windows_apps_environment`, with a cache); a
+  SID that doesn't resolve is shown as itself. Tests inject a listing, the current user and the
+  names (`WindowsAppsEnvironment`).
+
+### Categories and the data list (`tools/windows_apps_data`)
+
+What Avel knows about Windows' own apps is a reviewed table, like the noise rules
+(`app_data_entries`), matched by the package's identity name (the family name before its
+publisher id), ignoring case; a trailing `*` matches a prefix. Change it only with a reason.
+
+| Category | Meaning | Examples |
+|---|---|---|
+| `critical` | Windows or other apps need it: never offered | the Store and its purchase app, App Installer, Windows Security, Settings, the Start menu's and the shell's hosts, the sign-in and lock screen apps, SmartScreen, the frameworks other apps run on (`Microsoft.UI.Xaml*`, `Microsoft.WindowsAppRuntime*`, `Microsoft.VCLibs*`...) |
+| `semi-critical` | Offered, with a warning code saying what removing it breaks | Photos, Notepad and Paint (`opens-files-by-default`), Terminal (`default-terminal`), Edge's package (`browser-integration`), the Xbox identity and overlay apps (`game-sign-in`, `game-bar`), Gaming Services (`gaming-services`), the Xbox app (`game-pass`), Widgets (`widgets`), Snipping Tool (`screen-capture`), the media extensions (`media-formats`), OneDrive's sync package (`cloud-files`), winget's source (`winget-catalog`), language packs (`display-language`), Media Player (`default-media-player`) |
+| `often-removed` | Offered; the "often removed" preset checks it (nothing is checked by default) | Clipchamp, the Bing apps (News, Weather...), Solitaire, Get Help, Tips, Feedback Hub, To Do, the new Teams and Outlook, Mail and Calendar, Copilot, Phone Link, Power Automate, Quick Assist, Dev Home, Microsoft 365 (Office), Skype, Maps, and the third-party promotions Windows installs by itself (Candy Crush, Spotify's stub, Disney+, TikTok...) |
+| `other` | Nothing known: offered, never checked by a preset | everything else |
+
+### Protection
+
+An app is **protected** (`AppProtection`), listed but never offered for a change, when:
+- any of its packages is signed as part of Windows (`system`: `SignatureKind::System`, the public
+  stand-in for `NonRemovable`; Windows refuses to remove those anyway), or
+- its family is on the critical list (`critical`; some, like the Store, App Installer and Windows
+  Security, aren't System-signed), or
+- any of its packages has an external location (`external-location`): a sparse package, or one
+  whose files are a desktop program's folder (`PackageInfo::external_location`, from
+  `Package::EffectiveExternalPath`). It gives that program its identity (PowerToys' context
+  menus, Edge's, OneDrive's or the Microsoft 365 Copilot app's integration), and removed alone the
+  program breaks; it goes when the program is uninstalled, as its leftover (`related-packages`,
+  [leftovers.md](leftovers.md)). `WindowsApp::external_location` keeps the program's folder for
+  the details. This comes after the other two, and wins over the data list's category: Edge's
+  and OneDrive's packages stay `semi-critical` with their warning, and Microsoft 365 (Office),
+  now the Copilot app's package, `often-removed`, but none is offered.
+
+The planner refuses protected apps (`protected`), and HardFloor refuses every package item for
+them again right before it changes (`windows-package`), with frameworks, resource packages and
+items whose family can't be told ([changes.md](changes.md), "Packaged apps"). For a package with
+an external location HardFloor refuses registrations, provisioning and removal for every user
+(`desktop-program-package`), but still lets a removal for one user through: that is how the
+leftover scan takes it once its program is uninstalled.
+
+### The three modes (`tools/windows_apps_changes`)
+
+Each takes apps by id or family name (ignoring case; each planned once) and returns a
+`changes::ChangePlan`, the ids planned and per-id issues. An id with an issue is never planned.
+Items carry the app's display name as their program and no confidence: the user chose them.
+
+| Mode | CLI | Item | Offered when | Undo |
+|---|---|---|---|---|
+| Remove for me | `remove` | `PackageUserLocation`, registered to not, for the current user | the current user has it, and the package stays on this PC: another user has the family or it is provisioned (`soft_undoable`) | `RegisterPackageByFamilyNameAsync` for the current user: whatever version of the family is staged then (an update may have replaced the one removed); `restore-skipped (missing)` once the package has left this PC. The app's data isn't kept: Windows deletes it with the registration. |
+| Don't install for new users | `deprovision` | `PackageProvisioningLocation`, provisioned to not | it is provisioned and some user has it | `ProvisionPackageForAllUsersAsync` while the family is staged. Users who have the app keep it either way. |
+| Remove for everyone | `remove-everywhere` | `PackageLocation` with `all_users`, one per version on this PC | it isn't protected, and only with the confirmation that it can't be undone | None. It deprovisions the family first when provisioned, then `RemovePackageAsync(RemoveForAllUsers)` deletes it from this PC. Every user's data in it is lost; it comes back only from the Store or winget. |
+
+- **For the current user only.** Windows has no public call that removes or registers a package
+  for another (signed-out) user, so "Remove for me" acts on the account Avel runs as. Other users'
+  registrations are shown; for them Avel offers deprovisioning and removal for everyone (ADR 0008,
+  maintainer decision A).
+- **A removal that would delete the package isn't soft.** Windows deletes a package the moment its
+  last user's registration goes, unless it is provisioned, and nothing brings it back offline. So
+  "Remove for me" is refused when nobody else has the family and it isn't provisioned
+  (`would-delete-package`): only removal for everyone, irreversible, removes it then. The executor
+  checks it again when it runs (`skipped (not-undoable)`). Deprovisioning a family no user has is
+  refused the same way (that Windows deletes it then is not verified).
+- Issues (codes, no text): `unknown-id`, `protected`, `incomplete-listing` (no administrator
+  rights), `not-installed-for-current-user` (Remove for me), `would-delete-package`,
+  `not-provisioned` (Don't install for new users), `irreversible-needs-confirmation` (Remove for
+  everyone without it). For the CLI every issue is an error: it changes nothing while any id has
+  one. The window changes the apps that fit and reports the others (see "GUI" below).
+- How the executor carries the items out, compare-and-set, recovery and what `state.json` records
+  are in [changes.md](changes.md) ("Packaged apps").
+- The program list's **Uninstall** of a packaged app uses "Remove for me" whenever it is undoable,
+  and refuses the protected ones (`protected-package`) ([uninstall.md](uninstall.md), "Packaged
+  apps").
+
+### CLI (`avel-cli apps`)
+
+```
+avel-cli apps list [--all] [--json]
+avel-cli apps remove <id>... [--dry-run] [--yes] [--json]
+avel-cli apps deprovision <id>... [--dry-run] [--yes] [--json]
+avel-cli apps remove-everywhere <id>... --allow-irreversible [--dry-run] [--yes] [--json]
+```
+
+- An `<id>` is an id from `apps list`, or a package family name.
+- `list` runs without administrator rights; it then lists only the current user's apps and says
+  so on stderr. Without `--all` the protected apps are left out (the summary counts them). Text:
+  one line per app (id, category, who has it: `you`, `you +2`, `3 users`, with `new users` when it
+  is provisioned; name, version and family), then its modes (`[remove, deprovision,
+  remove-everywhere]`) or `[protected: system|critical|external-location]` (the last followed by
+  `[part of: <folder>]`), and `[warning: <code>]` for a semi-critical app. Unelevated, an unprotected app shows `[needs administrator]` instead of its
+  modes, and the note on stderr says that none can be changed.
+- The actions need administrator rights, except with `--dry-run` (which, unelevated, reports
+  `incomplete-listing` for every id). They open the change store (settling interrupted sets and
+  purging old ones), list the apps, plan, print the apps and every refused id with its issue code
+  (`error: <id>: <reason> (<code>)`), and change nothing (exit 1) while any id has an issue. Then
+  they ask (`--yes` doesn't) and run one ChangeSet under the store's lock. `remove` and
+  `deprovision` print "`n of m changed. Undo with: avel-cli undo <set>`"; `remove-everywhere`
+  prints that it can't be undone.
+- `--json` (with an action, it needs `--yes` or `--dry-run`):
+  - `list`: `avel_version`, `elevated`, `all_users` (every user's packages were read),
+    `include_protected` (`--all`), `error` (an HRESULT that cut the listing short, else 0),
+    `elapsed_ms` and `apps[]`. An app is `id`, `family`, `name`, `display_name`, `publisher`,
+    `version`, `install_location`, `external_location` (the desktop program's folder, else
+    empty), `signature` (`none`, `developer`, `enterprise`, `store`, `system`), `versions[]`
+    (`{full_name, version, users[]}`), `current_user_full_name`, `users[]` (`{sid, account_name,
+    current}`), `provisioned`, `provisioned_full_name`, `category`, `warning`, `protection`
+    (`none`, `system`, `critical`, `external-location`), `soft_undoable` and `modes` (`{remove,
+    deprovision, remove_everywhere}`).
+  - Actions: `avel_version`, `elevated`, `all_users`, `dry_run`, `action`, `apps[]` (the ones
+    asked for), `issues[]` (`{id, code}`), `description`, `plan[]` (locations; empty when refused)
+    and `change` (as `force` writes it, or null).
+- Exit codes: 0 done (and a dry run with no issue); 1 refused, cancelled, not elevated, or an item
+  didn't change; 2 usage; 99 when `AVEL_TEST_FAULT_AFTER` stops the run (recovery tests).
+- The ChangeSet's description is "Remove Microsoft News for me", "Don't install 3 apps for new
+  users" or "Remove Clipchamp for everyone".
+
+```powershell
+avel-cli apps list                                     # your apps (every user's when elevated)
+avel-cli apps list --all --json                        # the protected ones too, for scripts
+avel-cli apps remove Microsoft.BingNews_8wekyb3d8bbwe  # then: avel-cli undo <set>
+avel-cli apps deprovision 41ed4e68c0 --dry-run
+avel-cli apps remove-everywhere 41ed4e68c0 --allow-irreversible --yes
+```
+
+### GUI (Tools > Windows apps…)
+
+`WindowsAppsWindow` (`src/app/windows_apps_window.cpp`) is a non-modal top-level window like the
+Startup manager's: not owned by the main window, opened once and brought back to the front when
+it is open already, closed with the main window, and it refuses to close while a change runs.
+
+- **The list** is made on the window's worker thread: `list_windows_apps` with
+  `live_windows_apps_environment()`. It asks the package manager only and loads no user's hive,
+  so it takes no hive access. F5 lists again.
+- **One sortable table** (`WindowsAppsTableModel` + `WindowsAppsFilterModel`): a check box, Name
+  (the display name; its tooltip the family), Publisher, Version (sorted by number), Installed for
+  ("You", "You and 2 other users", "1 other user", with "new users" when it is provisioned;
+  "Nobody" when it is only staged) and Category ("Often removed", "⚠ Semi-critical" with the
+  warning in its tooltip, "Other"; for a protected app its protection: "Part of Windows",
+  "Critical", "Part of a desktop program"). Above it a search box (display name, identity and
+  family names, publisher) and two filters: the category (all apps, can be removed, often
+  removed, semi-critical, protected) and who has it (every user, one user, the current one marked
+  "(you)", or new users).
+- **Check boxes.** Nothing is checked by default. Protected apps are greyed, have no check box and
+  no action, and their tooltip and details give the reason (for `external-location`, the desktop
+  program's folder). "Check often removed" checks every unprotected `often-removed` app; "Uncheck
+  all" clears them. A refresh keeps the checks of the apps still listed.
+- **The details pane** below shows the selected app: every full name, the family, publisher,
+  version, install folder, the users it is installed for (the current one marked), whether it is
+  installed for new users (with the provisioned package), its category and warning, its signature
+  kind and id; then, for each of the three actions, what it does, whether it can be undone, and
+  whether it is available for this app or why not (the planner's issue for that app alone).
+- **Actions** ("Remove for me", "Don't install for new users", "Remove for everyone…") work on
+  the checked apps, or, when none is checked, on the selected ones. Each is enabled when it fits
+  one of them (`can_remove_for_me`, `can_deprovision`, `can_remove_for_everyone`), and runs as
+  **one ChangeSet** for all of them: the planner gets every id, plans the ones that fit and
+  reports the others, which are skipped (never refused as the CLI does) and listed in the status
+  bar's tooltip with their reasons. "Remove for me" and "Don't install for new users" apply at
+  once. "Remove for everyone…" first opens a confirmation that lists the apps and says that every
+  user's data in them is lost, that nothing can bring them back, and that they come back only from
+  the Store or winget; its button is enabled only once "I understand this can't be undone" is
+  checked, and only then does the set run with `allow_irreversible`. The ChangeSet's description
+  is translated text ("Remove Microsoft News for me", "Don't install 3 apps for new users",
+  "Remove Clipchamp for everyone"). The result goes to the status bar as in the Startup manager;
+  then the list is made again, and the main window scans the installed programs again.
+- **When the listing is incomplete** (`all_users` false: not elevated, which avel.exe never is),
+  a banner above the table says why, and every action, "Check often removed" included, stays
+  disabled. A listing cut short by an error is a warning in the status bar.
+- **Undo**: "Undo last change" (Ctrl+Z) restores the newest undoable set this window made (removal
+  for everyone isn't one); the Undo Center opens from the window too. Each set runs under
+  `exclusiveHiveAccess()` and the store's lock, as every ChangeSet in avel.exe.
+- **Context menu**: the three actions, Copy full name, Copy family name (both for every selected
+  app) and Open install folder.
+- UI Automation finds the parts by object name: `windowsAppsWindow`, `windowsAppsTable`,
+  `windowsAppsSearch`, `windowsAppsCategoryFilter`, `windowsAppsUserFilter`, `windowsAppsBanner`,
+  `windowsAppsDetails`, `windowsAppsResult`, `windowsAppsProgress`, `windowsAppsCount`,
+  `windowsAppsWarnings`; the actions `checkOftenRemovedAction`, `uncheckAllAction`,
+  `removeForMeAction`, `deprovisionAction`, `removeForEveryoneAction`, `windowsAppsRefreshAction`,
+  `windowsAppsUndoAction`, `windowsAppsUndoCenterAction`, `windowsAppsOpenFolderAction`,
+  `windowsAppsCopyFullNameAction`, `windowsAppsCopyFamilyNameAction`, and their toolbar buttons
+  with `Button` for `Action` (`checkOftenRemovedButton`, `removeForMeButton`...). The check box
+  cell is named after its app. The confirmation is `removeForEveryoneConfirmation`, with
+  `removeForEveryoneUnderstandCheck`, `removeForEveryoneConfirmButton` and
+  `removeForEveryoneCancelButton`. The main window's menu item is `windowsAppsAction`.
+
+### Ids
+
+An app's id is 10 hex digits of the FNV-1a hash of its family name, lowercase (`windows_app_id`):
+the same across listings, runs and versions of the app, so the CLI can take it as an argument.
+
+On the development machine (unelevated) `avel-cli apps list --all` lists 132 apps in about 0.4 s:
+81 offered (22 often removed, 28 semi-critical), 44 protected as System-signed and 7 as critical.

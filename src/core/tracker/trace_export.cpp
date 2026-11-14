@@ -117,6 +117,8 @@ public:
             key(registry_value->key);
         } else if (auto* package = std::get_if<leftovers::PackageLocation>(&location)) {
             sid(package->user_sid);
+        } else if (auto* registration = std::get_if<leftovers::PackageUserLocation>(&location)) {
+            sid(registration->user_sid);
         }
     }
 

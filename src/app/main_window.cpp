@@ -59,6 +59,7 @@
 #include "undo_center_dialog.h"
 #include "uninstall_dialog.h"
 #include "uninstall_progress_dialog.h"
+#include "windows_apps_window.h"
 
 using namespace Qt::StringLiterals;
 
@@ -173,6 +174,10 @@ void MainWindow::createActions() {
     startupAction_->setObjectName(u"startupManagerAction"_s);
     connect(startupAction_, &QAction::triggered, this, &MainWindow::openStartup);
 
+    windowsAppsAction_ = new QAction(this);
+    windowsAppsAction_->setObjectName(u"windowsAppsAction"_s);
+    connect(windowsAppsAction_, &QAction::triggered, this, &MainWindow::openWindowsApps);
+
     findAction_ = new QAction(this);
     findAction_->setShortcut(QKeySequence::Find);
     connect(findAction_, &QAction::triggered, this, [this] {
@@ -236,6 +241,7 @@ void MainWindow::createMenus() {
 
     toolsMenu_ = menuBar()->addMenu(QString());
     toolsMenu_->addAction(startupAction_);
+    toolsMenu_->addAction(windowsAppsAction_);
     toolsMenu_->addSeparator();
     toolsMenu_->addAction(orphansAction_);
     toolsMenu_->addAction(undoCenterAction_);
@@ -351,8 +357,15 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    // The Startup window is a top-level window of its own: it goes with this one. It refuses while
-    // it changes the system.
+    // The Startup and Windows apps windows are top-level windows of their own: they go with this one.
+    // Each refuses while it changes the system.
+    if (windowsAppsWindow_) {
+        if (!windowsAppsWindow_->close()) {
+            event->ignore();
+            return;
+        }
+        delete windowsAppsWindow_;  // Now, not once the event loop is gone: it waits for its worker
+    }
     if (startupWindow_) {
         if (!startupWindow_->close()) {
             event->ignore();
@@ -393,6 +406,10 @@ void MainWindow::retranslateUi() {
     undoCenterAction_->setToolTip(tr("Put back leftovers Avel removed in the last 30 days"));
     startupAction_->setText(tr("&Startup…"));
     startupAction_->setToolTip(tr("See and change what starts with Windows, for the machine and every user"));
+    windowsAppsAction_->setText(tr("&Windows apps…"));
+    windowsAppsAction_->setToolTip(
+        tr("See the Store and Windows' own apps of every user, and remove them for you, for new users or "
+           "for everyone"));
     viewMenu_->setTitle(tr("&View"));
     languageMenu_->setTitle(tr("&Language"));
     systemLanguageAction_->setText(tr("System default"));
@@ -920,6 +937,23 @@ void MainWindow::openStartup() {
     }
     startupWindow_->raise();
     startupWindow_->activateWindow();
+}
+
+void MainWindow::openWindowsApps() {
+    if (!windowsAppsWindow_) {
+        // No parent, as the Startup window: an owned window would always stay above this one.
+        windowsAppsWindow_ = new WindowsAppsWindow(stores_);
+        windowsAppsWindow_->setAttribute(Qt::WA_DeleteOnClose);
+        // Packaged apps are in the program list too.
+        connect(windowsAppsWindow_, &WindowsAppsWindow::appsChanged, loader_, &InventoryLoader::start);
+    }
+    if (windowsAppsWindow_->isMinimized()) {
+        windowsAppsWindow_->showNormal();
+    } else {
+        windowsAppsWindow_->show();
+    }
+    windowsAppsWindow_->raise();
+    windowsAppsWindow_->activateWindow();
 }
 
 void MainWindow::onMaintenanceFinished(const QStringList& settled) {

@@ -9,6 +9,7 @@
       Inno Setup                      Inno Setup          latest GitHub release (jrsoftware/issrc)
       Visual C++ Redistributable x64  WiX Burn bundle     https://aka.ms/vs/17/release/vc_redist.x64.exe
       AvelTestPackage.msix            MSIX                built here, unsigned (needs Add-AppxPackage -AllowUnsigned)
+      AvelTestPackage2.msix           MSIX                a second identity, built the same way (the apps scenario)
     The installers are only ever run inside Windows Sandbox. Files already present are kept; use
     -Force to download them again. samples.json records each file's SHA-256 and signer.
 
@@ -57,7 +58,9 @@ function Get-LatestGitHubAsset([string]$Repository, [string]$Pattern) {
 }
 
 # An unsigned MSIX: the publisher carries the OID that marks a package as intentionally unsigned.
-function New-TestPackage([string]$Target) {
+# `Name` is its identity name, `DisplayName` the package's, `AppName` its app's (the program list's).
+function New-TestPackage([string]$Target, [string]$Name = 'Avel.TestPackage', [string]$DisplayName = 'Avel Test Package',
+                         [string]$AppName = 'Avel Test App') {
     if ((Test-Path $Target) -and -not $Force) {
         Write-Host "  have      $(Split-Path $Target -Leaf)"
         return
@@ -65,8 +68,9 @@ function New-TestPackage([string]$Target) {
     $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending | Select-Object -First 1
     if (-not $makeappx) { throw 'makeappx.exe not found; install the Windows SDK (part of the VS C++ workload).' }
+    # Prefer the release build's: the debug one needs the debug runtime.
     $exe = Get-ChildItem (Join-Path $repoRoot 'build\*\bin\avel_test_spawner.exe') -ErrorAction SilentlyContinue |
-        Select-Object -First 1
+        Sort-Object { $_.FullName -notlike '*\build\release\*' } | Select-Object -First 1
     if (-not $exe) { throw 'avel_test_spawner.exe not found; build the project first.' }
 
     $layout = Join-Path ([IO.Path]::GetTempPath()) "avel-msix-$PID"
@@ -88,10 +92,10 @@ function New-TestPackage([string]$Target) {
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap rescap">
-  <Identity Name="Avel.TestPackage" Version="1.0.0.0" ProcessorArchitecture="x64"
+  <Identity Name="@NAME@" Version="1.0.0.0" ProcessorArchitecture="x64"
             Publisher="CN=Avel Tests, OID.2.25.311729368913984317654407730594956997722=1" />
   <Properties>
-    <DisplayName>Avel Test Package</DisplayName>
+    <DisplayName>@DISPLAYNAME@</DisplayName>
     <PublisherDisplayName>Avel Tests</PublisherDisplayName>
     <Logo>StoreLogo.png</Logo>
   </Properties>
@@ -103,7 +107,7 @@ function New-TestPackage([string]$Target) {
   </Resources>
   <Applications>
     <Application Id="App" Executable="AvelTestApp.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Avel Test App" Description="Sample package for Avel's uninstall tests"
+      <uap:VisualElements DisplayName="@APPNAME@" Description="Sample package for Avel's uninstall tests"
                           BackgroundColor="transparent" Square150x150Logo="Square150x150Logo.png"
                           Square44x44Logo="Square44x44Logo.png" />
     </Application>
@@ -113,6 +117,7 @@ function New-TestPackage([string]$Target) {
   </Capabilities>
 </Package>
 '@
+        $manifest = $manifest.Replace('@NAME@', $Name).Replace('@DISPLAYNAME@', $DisplayName).Replace('@APPNAME@', $AppName)
         Set-Content -Path (Join-Path $layout 'AppxManifest.xml') -Value $manifest -Encoding utf8
         Write-Host "  build     $(Split-Path $Target -Leaf)"
         $output = & $makeappx.FullName pack /d $layout /p $Target /o 2>&1
@@ -132,6 +137,8 @@ $samples['inno'] = Get-Sample 'Inno Setup' $inno.browser_download_url 'innosetup
 $samples['burn'] = Get-Sample 'Visual C++ Redistributable' 'https://aka.ms/vs/17/release/vc_redist.x64.exe' 'vc_redist.x64.exe'
 $samples['msix'] = Join-Path $installers 'AvelTestPackage.msix'
 New-TestPackage $samples['msix']
+$samples['msix2'] = Join-Path $installers 'AvelTestPackage2.msix'
+New-TestPackage $samples['msix2'] 'Avel.TestPackage2' 'Avel Test Package 2' 'Avel Test App 2'
 
 $records = foreach ($kind in $samples.Keys) {
     $file = Get-Item $samples[$kind]

@@ -76,7 +76,13 @@ qt_add_executable(avel_app WIN32
     uninstall_dialog.cpp
     uninstall_dialog.h
     uninstall_progress_dialog.cpp
-    uninstall_progress_dialog.h)
+    uninstall_progress_dialog.h
+    windows_apps_model.cpp
+    windows_apps_model.h
+    windows_apps_text.cpp
+    windows_apps_text.h
+    windows_apps_window.cpp
+    windows_apps_window.h)
 
 set_target_properties(avel_app PROPERTIES
     OUTPUT_NAME avel

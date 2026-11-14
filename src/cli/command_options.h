@@ -1,5 +1,5 @@
-// The options of `uninstall`, `force`, `scan` and `startup`, parsed apart from running the commands
-// so the parsing can be tested on its own.
+// The options of `uninstall`, `force`, `scan`, `startup` and `apps`, parsed apart from running the
+// commands so the parsing can be tested on its own.
 #pragma once
 
 #include <cstdint>
@@ -74,6 +74,18 @@ struct StartupCommandOptions {
     bool json = false;
 };
 
+enum class AppsCommand : std::uint8_t { List, Remove, Deprovision, RemoveEverywhere };
+
+struct AppsCommandOptions {
+    AppsCommand command = AppsCommand::List;
+    std::vector<std::wstring> ids;    // remove, deprovision, remove-everywhere: ids or family names
+    bool all = false;                 // list: the protected apps too
+    bool allow_irreversible = false;  // remove-everywhere: the confirmation that it can't be undone
+    bool dry_run = false;
+    bool yes = false;
+    bool json = false;
+};
+
 // The action a startup command asks for; nullopt for list.
 std::optional<tools::StartupAction> startup_action(StartupCommand command);
 
@@ -87,5 +99,8 @@ std::optional<UsageError> parse_scan_options(const std::vector<std::wstring_view
 // `arguments` start with the subcommand (list, disable, enable, delete).
 std::optional<UsageError> parse_startup_options(const std::vector<std::wstring_view>& arguments,
                                                 StartupCommandOptions& options);
+// `arguments` start with the subcommand (list, remove, deprovision, remove-everywhere).
+std::optional<UsageError> parse_apps_options(const std::vector<std::wstring_view>& arguments,
+                                             AppsCommandOptions& options);
 
 }  // namespace avel::cli

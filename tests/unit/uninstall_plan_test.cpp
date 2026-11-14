@@ -153,6 +153,46 @@ TEST(UninstallPlanTest, PackagedAppsGoThroughThePackageManager) {
     EXPECT_TRUE(plan.command_line().empty());
 }
 
+// As the Windows apps tool protects them, with an error of their own (not the installer's NoRemove):
+// System-signed ones, the critical list (not System-signed, so not no_remove) and a package that
+// gives a desktop program its identity, which goes with that program.
+TEST(UninstallPlanTest, CriticalAndDesktopProgramPackagesAreRefused) {
+    Program store;
+    store.source = Source::Appx;
+    store.scope = Scope::User;
+    store.user_sid = kMe;
+    store.package_full_name = L"Microsoft.WindowsStore_22410.1401.1.0_x64__8wekyb3d8bbwe";
+    store.package_family_name = L"Microsoft.WindowsStore_8wekyb3d8bbwe";
+    EXPECT_EQ(make_uninstall_plan(store, Mode::Quiet, context()).error, PlanError::ProtectedPackage);
+
+    // The family told from the full name when the inventory left it empty.
+    Program installer = store;
+    installer.package_full_name = L"Microsoft.DesktopAppInstaller_1.29.380.0_x64__8wekyb3d8bbwe";
+    installer.package_family_name.clear();
+    EXPECT_EQ(make_uninstall_plan(installer, Mode::Quiet, context()).error, PlanError::ProtectedPackage);
+
+    Program sparse = store;
+    sparse.package_full_name = L"NotepadPlusPlus_1.0.0.0_neutral__7njy0v32s6xk6";
+    sparse.package_family_name = L"NotepadPlusPlus_7njy0v32s6xk6";
+    sparse.external_location = LR"(C:\Program Files\Notepad++\contextMenu)";
+    EXPECT_EQ(make_uninstall_plan(sparse, Mode::Quiet, context()).error, PlanError::ProtectedPackage);
+
+    // System-signed: the inventory marks it no_remove; for a package that is this error too.
+    Program system = store;
+    system.package_full_name = L"Microsoft.Windows.Photos_2024.11.0.0_x64__8wekyb3d8bbwe";
+    system.package_family_name = L"Microsoft.Windows.Photos_8wekyb3d8bbwe";
+    system.no_remove = true;
+    EXPECT_EQ(make_uninstall_plan(system, Mode::Quiet, context()).error, PlanError::ProtectedPackage);
+
+    // Neither: removed as before.
+    sparse.external_location.clear();
+    EXPECT_TRUE(make_uninstall_plan(sparse, Mode::Quiet, context()).possible());
+    Program news = store;
+    news.package_full_name = L"Microsoft.BingNews_4.55.62231.0_x64__8wekyb3d8bbwe";
+    news.package_family_name = L"Microsoft.BingNews_8wekyb3d8bbwe";
+    EXPECT_TRUE(make_uninstall_plan(news, Mode::Quiet, context()).possible());
+}
+
 TEST(UninstallPlanTest, ReasonsAProgramCantBeUninstalled) {
     Program blocked = desktop_app(LR"("C:\App\uninst.exe")");
     blocked.no_remove = true;

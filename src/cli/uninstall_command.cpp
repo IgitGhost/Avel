@@ -54,7 +54,9 @@ constexpr std::string_view kUsage =
     "                        the installer create, and its edits to Path and SharedDLLs, join the\n"
     "                        leftovers)\n"
     "  --deep                also search every fixed drive for folders named after the programs\n"
-    "  --json                machine-readable output (needs --yes or --dry-run)\n";
+    "  --json                machine-readable output (needs --yes or --dry-run)\n"
+    "Run as administrator, a packaged app that stays on this PC for another user or for new users\n"
+    "is removed for you only, as a change set that `avel-cli undo` takes back.\n";
 
 // Ctrl+C stops the batch after the running uninstaller; a second Ctrl+C terminates that one too.
 uninstall::Cancellation g_cancellation;
@@ -99,6 +101,9 @@ std::string describe_result(const uninstall::UninstallResult& result) {
     if (result.install_location_remains) {
         text += ", install folder remains";
     }
+    if (!result.change_set.empty()) {
+        text += ", for you only; undo with: avel-cli undo " + to_utf8(result.change_set);
+    }
     return text;
 }
 
@@ -123,6 +128,8 @@ Json to_json(const uninstall::BatchItem& item, const uninstall::UninstallResult&
     json["error"] = result.error;
     json["elapsed_ms"] = result.elapsed.count();
     json["install_location_remains"] = result.install_location_remains;
+    // A packaged app removed for the current user through a ChangeSet: `undo` takes it back.
+    json["change_set"] = result.change_set.empty() ? Json(nullptr) : Json(to_utf8(result.change_set));
     return json;
 }
 
@@ -162,6 +169,16 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     std::vector<uninstall::BatchItem> items;
     for (const auto* program : programs) {
         items.push_back({program, uninstall::make_uninstall_plan(*program, mode, context)});
+    }
+    // A packaged app that stays on this PC for another user or for new users is removed for the
+    // current user through a ChangeSet, so undo can bring it back (docs/uninstall.md, "Packaged
+    // apps"). That needs the change store, administrators' only: without administrator rights,
+    // packaged apps are removed as before.
+    const bool packaged = std::any_of(items.begin(), items.end(), [](const uninstall::BatchItem& item) {
+        return item.plan.possible() && item.plan.method == uninstall::Method::Package;
+    });
+    if (packaged && context.elevated && !options.dry_run && !store && !(store = open_change_store())) {
+        return 1;
     }
 
     // Uninstalling by the trace, the default mode: each program's uninstaller runs, then what its
@@ -206,6 +223,15 @@ int run_uninstall_command(const std::vector<std::wstring_view>& arguments) {
     batch_options.restore_point_description =
         programs.size() == 1 ? L"Avel: uninstall " + programs.front()->display_name
                              : std::format(L"Avel: uninstall {} programs", programs.size());
+    if (packaged && store) {
+        batch_options.run_change_set = [&store](changes::ChangePlan plan, const Program& program) {
+            plan.description = L"Uninstall " + program.display_name;  // Shown by `undo --list`
+            if (const auto guard = store->lock()) {
+                return changes::execute(*store, plan, cli_execute_options(false));
+            }
+            return changes::ExecuteResult{};  // Another Avel process holds the store: nothing changed
+        };
+    }
 
     uninstall::BatchEvents events;
     if (!options.json) {

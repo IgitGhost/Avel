@@ -41,7 +41,8 @@ enum class ItemState : std::uint8_t {
     Pending,         // Nothing done yet
     BackedUp,        // Its backup is on disk; whether it was removed is only known after recovery
     Done,            // Removed
-    Partial,         // Folders only: some files were in use and stayed
+    Partial,         // Some of it stayed: a folder's files in use, part of a key, or a package
+                     // deprovisioned but not removed for every user
     Skipped,         // Left alone; nothing changed (see the reason)
     Failed,          // Removing it failed; nothing changed
     Restored,        // Put back by undo
@@ -61,15 +62,18 @@ enum class Reason : std::uint8_t {
     HasDependents,      // Other services depend on the service
     NeedsPassword,      // Runs under an account whose password undo couldn't restore
     MarkedForDeletion,  // The service is already being deleted
-    OtherUser,          // A package registered for another user
-    NotUndoable,        // Not removed because it couldn't be undone and that wasn't allowed
+    OtherUser,          // A package registered for another user: Avel removes and registers packages
+                        // only for the account it runs as
+    NotUndoable,        // Not removed because it couldn't be undone and that wasn't allowed; for a
+                        // user's registration, removing it would have deleted the package
     ReportOnly,         // Firewall rules are shown, never removed
     Contained,          // Its container is removed too, which takes it along
     Interrupted,        // The run stopped before finishing; recovery found it untouched
     Exists,             // Undo: something new is in its place
     BackupMissing,      // Undo: the backup is gone or unreadable
     Error,              // See the Win32 code
-    Changed,            // A value edit: the value changed since planning (for undo: since the edit)
+    Changed,            // A value edit or a state change: the value or state changed since planning
+                        // (for undo: since the change)
     NotEmpty,           // A task folder that still holds tasks or folders
 };
 

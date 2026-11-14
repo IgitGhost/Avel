@@ -96,6 +96,18 @@
         <translation>(По умолчанию)</translation>
     </message>
     <message>
+        <source>Package (every user)</source>
+        <translation>Пакет (все пользователи)</translation>
+    </message>
+    <message>
+        <source>Package registration</source>
+        <translation>Регистрация пакета</translation>
+    </message>
+    <message>
+        <source>Package for new users</source>
+        <translation>Пакет для новых пользователей</translation>
+    </message>
+    <message>
         <source>Startup entry</source>
         <translation>Элемент автозагрузки</translation>
     </message>
@@ -106,6 +118,34 @@
     <message>
         <source>Service start type</source>
         <translation>Тип запуска службы</translation>
+    </message>
+    <message>
+        <source>Remove %1 for every user</source>
+        <translation>Удалить %1 для всех пользователей</translation>
+    </message>
+    <message>
+        <source>Register %1 for you</source>
+        <translation>Зарегистрировать %1 для вас</translation>
+    </message>
+    <message>
+        <source>Remove %1 for you</source>
+        <translation>Удалить %1 для вас</translation>
+    </message>
+    <message>
+        <source>Register %1 for %2</source>
+        <translation>Зарегистрировать %1 для пользователя %2</translation>
+    </message>
+    <message>
+        <source>Remove %1 for %2</source>
+        <translation>Удалить %1 для пользователя %2</translation>
+    </message>
+    <message>
+        <source>Install %1 for new users</source>
+        <translation>Устанавливать %1 для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install %1 for new users</source>
+        <translation>Не устанавливать %1 для новых пользователей</translation>
     </message>
     <message>
         <source>Clear the startup state of %1 (%2)</source>
@@ -652,6 +692,54 @@
         <translation>Изменено</translation>
     </message>
     <message>
+        <source>Removed for every user</source>
+        <translation>Удалено для всех пользователей</translation>
+    </message>
+    <message>
+        <source>Partly removed: it won&apos;t be installed for new users, but it is still installed</source>
+        <translation>Удалено частично: для новых пользователей оно больше не устанавливается, но всё ещё установлено</translation>
+    </message>
+    <message>
+        <source>Registered for you again</source>
+        <translation>Снова зарегистрировано для вас</translation>
+    </message>
+    <message>
+        <source>Registered for you</source>
+        <translation>Зарегистрировано для вас</translation>
+    </message>
+    <message>
+        <source>Removed for you again</source>
+        <translation>Снова удалено для вас</translation>
+    </message>
+    <message>
+        <source>Removed for you</source>
+        <translation>Удалено для вас</translation>
+    </message>
+    <message>
+        <source>Will be installed for new users again</source>
+        <translation>Снова будет устанавливаться для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Will be installed for new users</source>
+        <translation>Будет устанавливаться для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Won&apos;t be installed for new users again</source>
+        <translation>Снова не будет устанавливаться для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Won&apos;t be installed for new users</source>
+        <translation>Не будет устанавливаться для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Avel can do this only for the account it runs as</source>
+        <translation>Avel может сделать это только для учётной записи, от имени которой запущен</translation>
+    </message>
+    <message>
+        <source>no other user has it and it isn&apos;t installed for new users, so Windows would delete it</source>
+        <translation>у других пользователей его нет и для новых пользователей оно не устанавливается, поэтому Windows удалила бы его</translation>
+    </message>
+    <message>
         <source>Cleared</source>
         <translation>Сброшено</translation>
     </message>
@@ -670,6 +758,10 @@
     <message>
         <source>its state has changed since</source>
         <translation>его состояние с тех пор изменилось</translation>
+    </message>
+    <message>
+        <source>the app is no longer on this PC; reinstall it from the Microsoft Store</source>
+        <translation>приложения больше нет на этом компьютере; установите его заново из Microsoft Store</translation>
     </message>
     <message>
         <source>Boot</source>
@@ -821,6 +913,10 @@
     <message>
         <source>Can&apos;t uninstall: its installer doesn&apos;t allow it</source>
         <translation>Удаление невозможно: установщик это запрещает</translation>
+    </message>
+    <message>
+        <source>Can&apos;t uninstall: Windows or a desktop program needs this app</source>
+        <translation>Удаление невозможно: это приложение нужно Windows или классической программе</translation>
     </message>
     <message>
         <source>Can&apos;t uninstall: installed for another user, who has to uninstall it</source>
@@ -1495,6 +1591,249 @@
     <message>
         <source>Incomplete: %1</source>
         <translation>Неполное: %1</translation>
+    </message>
+</context>
+<context>
+    <name>WindowsAppsText</name>
+    <message>
+        <source>Other</source>
+        <translation>Прочие</translation>
+    </message>
+    <message>
+        <source>Often removed</source>
+        <translation>Часто удаляемые</translation>
+    </message>
+    <message>
+        <source>Semi-critical</source>
+        <translation>Важные</translation>
+    </message>
+    <message>
+        <source>Critical</source>
+        <translation>Критически важные</translation>
+    </message>
+    <message>
+        <source>Part of Windows</source>
+        <translation>Часть Windows</translation>
+    </message>
+    <message>
+        <source>Part of a desktop program</source>
+        <translation>Часть классической программы</translation>
+    </message>
+    <message>
+        <source>It opens a common type of file by default: without it, those files ask which app to open them with.</source>
+        <translation>По умолчанию в нём открываются файлы распространённого типа: без него Windows будет спрашивать, каким приложением их открыть.</translation>
+    </message>
+    <message>
+        <source>Console programs open in it: without it, they open in the old console window.</source>
+        <translation>В нём открываются консольные программы: без него они будут открываться в старом окне консоли.</translation>
+    </message>
+    <message>
+        <source>Microsoft Edge&apos;s integration with Windows and the web content of other apps go with it.</source>
+        <translation>Вместе с ним пропадут интеграция Microsoft Edge с Windows и веб-содержимое других приложений.</translation>
+    </message>
+    <message>
+        <source>Games sign in to Xbox and show its notifications through it.</source>
+        <translation>Через него игры входят в Xbox и показывают его уведомления.</translation>
+    </message>
+    <message>
+        <source>Game Bar goes with it: recording, screenshots and performance overlays in games.</source>
+        <translation>Вместе с ним пропадёт игровая панель Xbox: запись, снимки экрана и показатели производительности поверх игр.</translation>
+    </message>
+    <message>
+        <source>Games from the Microsoft Store and PC Game Pass need it to start and update.</source>
+        <translation>Без него игры из Microsoft Store и PC Game Pass не запускаются и не обновляются.</translation>
+    </message>
+    <message>
+        <source>The Widgets board, the taskbar&apos;s weather and the lock screen&apos;s widgets go with it.</source>
+        <translation>Вместе с ним пропадут панель мини-приложений, погода на панели задач и мини-приложения на экране блокировки.</translation>
+    </message>
+    <message>
+        <source>Win+Shift+S and the Print Screen key take screenshots with it.</source>
+        <translation>Через него делают снимки экрана Win+Shift+S и клавиша Print Screen.</translation>
+    </message>
+    <message>
+        <source>A media extension: apps can&apos;t open or play its formats without it.</source>
+        <translation>Расширение для мультимедиа: без него приложения не смогут открывать и воспроизводить его форматы.</translation>
+    </message>
+    <message>
+        <source>OneDrive&apos;s integration with File Explorer goes with it: files on demand and their status.</source>
+        <translation>Вместе с ним пропадёт интеграция OneDrive с проводником: файлы по запросу и их состояние.</translation>
+    </message>
+    <message>
+        <source>winget&apos;s catalog of apps (its &quot;winget&quot; source) goes with it: winget can&apos;t find or install apps from that source.</source>
+        <translation>Вместе с ним пропадёт каталог приложений winget (его источник «winget»): winget не сможет находить и устанавливать приложения из этого источника.</translation>
+    </message>
+    <message>
+        <source>A language pack: Windows&apos; display language may change back without it.</source>
+        <translation>Языковой пакет: без него язык интерфейса Windows может смениться на прежний.</translation>
+    </message>
+    <message>
+        <source>Music and videos open in it by default: without it, they ask which app to open them with.</source>
+        <translation>По умолчанию в нём открываются музыка и видео: без него Windows будет спрашивать, каким приложением их открыть.</translation>
+    </message>
+    <message>
+        <source>PC Game Pass games are installed, started and updated with it.</source>
+        <translation>Через него устанавливаются, запускаются и обновляются игры PC Game Pass.</translation>
+    </message>
+    <message>
+        <source>Signed as part of Windows: Windows doesn&apos;t let it be removed, and Avel never changes it.</source>
+        <translation>Подписано как часть Windows: Windows не даёт его удалить, а Avel никогда его не изменяет.</translation>
+    </message>
+    <message>
+        <source>Windows or other apps need it, so Avel never changes it.</source>
+        <translation>Оно нужно Windows или другим приложениям, поэтому Avel никогда его не изменяет.</translation>
+    </message>
+    <message>
+        <source>Part of the desktop program in %1: it gives that program its context menus, notifications or its integration with Windows. It goes when that program is uninstalled; removed alone, the program breaks, so Avel never changes it.</source>
+        <translation>Часть классической программы в папке %1: даёт этой программе контекстные меню, уведомления или интеграцию с Windows. Оно удаляется вместе с программой; если удалить его отдельно, программа перестанет работать, поэтому Avel никогда его не изменяет.</translation>
+    </message>
+    <message numerus="yes">
+        <source>You and %n other user(s)</source>
+        <translation>
+            <numerusform>Вы и ещё %n пользователь</numerusform>
+            <numerusform>Вы и ещё %n пользователя</numerusform>
+            <numerusform>Вы и ещё %n пользователей</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>You</source>
+        <translation>Вы</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n other user(s)</source>
+        <translation>
+            <numerusform>%n другой пользователь</numerusform>
+            <numerusform>%n других пользователя</numerusform>
+            <numerusform>%n других пользователей</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>New users</source>
+        <translation>Новые пользователи</translation>
+    </message>
+    <message>
+        <source>%1, new users</source>
+        <translation>%1, новые пользователи</translation>
+    </message>
+    <message>
+        <source>Nobody</source>
+        <translation>Никто</translation>
+    </message>
+    <message>
+        <source>Not signed</source>
+        <translation>Нет подписи</translation>
+    </message>
+    <message>
+        <source>Developer</source>
+        <translation>Разработчик</translation>
+    </message>
+    <message>
+        <source>Enterprise</source>
+        <translation>Предприятие</translation>
+    </message>
+    <message>
+        <source>Microsoft Store</source>
+        <translation>Microsoft Store</translation>
+    </message>
+    <message>
+        <source>No longer listed; refresh with F5</source>
+        <translation>Больше нет в списке; обновите по F5</translation>
+    </message>
+    <message>
+        <source>Protected: Avel never changes it</source>
+        <translation>Защищено: Avel никогда его не изменяет</translation>
+    </message>
+    <message>
+        <source>Avel isn&apos;t running as administrator, so who else has it isn&apos;t known</source>
+        <translation>Avel запущен без прав администратора, поэтому неизвестно, у кого ещё оно есть</translation>
+    </message>
+    <message>
+        <source>You don&apos;t have it</source>
+        <translation>У вас его нет</translation>
+    </message>
+    <message>
+        <source>Nobody else has it and it isn&apos;t installed for new users, so Windows would delete it and undo couldn&apos;t bring it back; only &quot;Remove for everyone&quot; removes it</source>
+        <translation>Больше ни у кого его нет, и оно не устанавливается для новых пользователей, поэтому Windows удалит его и отмена не сможет его вернуть; удалить его можно только через «Удалить для всех»</translation>
+    </message>
+    <message>
+        <source>No user has it, so Windows may delete it and undo couldn&apos;t bring it back; only &quot;Remove for everyone&quot; removes it</source>
+        <translation>Его нет ни у одного пользователя, поэтому Windows может удалить его и отмена не сможет его вернуть; удалить его можно только через «Удалить для всех»</translation>
+    </message>
+    <message>
+        <source>It isn&apos;t installed for new users</source>
+        <translation>Оно не устанавливается для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Removing it for everyone can&apos;t be undone, and that wasn&apos;t confirmed</source>
+        <translation>Удаление для всех нельзя отменить, а это не было подтверждено</translation>
+    </message>
+    <message>
+        <source>Remove for me</source>
+        <translation>Удалить для меня</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install for new users</source>
+        <translation>Не устанавливать для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Remove for everyone</source>
+        <translation>Удалить для всех</translation>
+    </message>
+    <message>
+        <source>Removes the app for you only; it stays on this PC for the other users or for new users. Undo installs it for you again, but your data in it (settings, saved files of its own) is lost.</source>
+        <translation>Удаляет приложение только для вас; на этом компьютере оно остаётся для других пользователей или для новых. Отмена снова установит его для вас, но ваши данные в нём (параметры, сохранённые им файлы) будут потеряны.</translation>
+    </message>
+    <message>
+        <source>New user accounts no longer get the app; those who have it keep it. Undo makes Windows install it for new users again.</source>
+        <translation>Новые учётные записи больше не получат приложение; у тех, у кого оно есть, оно останется. После отмены Windows снова будет устанавливать его для новых пользователей.</translation>
+    </message>
+    <message>
+        <source>Removes the app for every user and deletes it from this PC. It can&apos;t be undone: every user&apos;s data in it is lost, and it comes back only from the Microsoft Store or winget.</source>
+        <translation>Удаляет приложение для всех пользователей и стирает его с этого компьютера. Это нельзя отменить: данные всех пользователей в нём будут потеряны, а вернуть его можно только из Microsoft Store или через winget.</translation>
+    </message>
+    <message>
+        <source>Remove %1 for me</source>
+        <translation>Удалить %1 для меня</translation>
+    </message>
+    <message>
+        <source>Don&apos;t install %1 for new users</source>
+        <translation>Не устанавливать %1 для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Remove %1 for everyone</source>
+        <translation>Удалить %1 для всех</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for me</source>
+        <translation>
+            <numerusform>Удалить %n приложение для меня</numerusform>
+            <numerusform>Удалить %n приложения для меня</numerusform>
+            <numerusform>Удалить %n приложений для меня</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Don&apos;t install %n app(s) for new users</source>
+        <translation>
+            <numerusform>Не устанавливать %n приложение для новых пользователей</numerusform>
+            <numerusform>Не устанавливать %n приложения для новых пользователей</numerusform>
+            <numerusform>Не устанавливать %n приложений для новых пользователей</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for everyone</source>
+        <translation>
+            <numerusform>Удалить %n приложение для всех</numerusform>
+            <numerusform>Удалить %n приложения для всех</numerusform>
+            <numerusform>Удалить %n приложений для всех</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Avel isn&apos;t running as administrator, so only your apps are listed, and who else has them and whether they are installed for new users aren&apos;t known. Nothing can be changed here.</source>
+        <translation>Avel запущен без прав администратора: показаны только ваши приложения, и неизвестно, у кого ещё они есть и устанавливаются ли они для новых пользователей. Здесь ничего нельзя изменить.</translation>
+    </message>
+    <message>
+        <source>The list of apps was cut short, so some may be missing.</source>
+        <translation>Список приложений получен не полностью: некоторые приложения могут отсутствовать.</translation>
     </message>
 </context>
 <context>
@@ -2220,6 +2559,14 @@ Left by %2</source>
     <message>
         <source>See and change what starts with Windows, for the machine and every user</source>
         <translation>Посмотреть и изменить, что запускается вместе с Windows, для компьютера и каждого пользователя</translation>
+    </message>
+    <message>
+        <source>&amp;Windows apps…</source>
+        <translation>&amp;Приложения Windows…</translation>
+    </message>
+    <message>
+        <source>See the Store and Windows&apos; own apps of every user, and remove them for you, for new users or for everyone</source>
+        <translation>Посмотреть приложения Store и собственные приложения Windows всех пользователей и удалить их для себя, для новых пользователей или для всех</translation>
     </message>
     <message>
         <source>&amp;View</source>
@@ -4181,6 +4528,11 @@ After: %2</source>
 <context>
     <name>avel::app::UninstallProgressDialog</name>
     <message>
+        <source>Uninstall %1</source>
+        <extracomment>A ChangeSet&apos;s description in the Undo Center, an action: &quot;Uninstall &lt;program&gt;&quot;</extracomment>
+        <translation>Удалить %1</translation>
+    </message>
+    <message>
         <source>Simulating uninstall</source>
         <translation>Симуляция удаления</translation>
     </message>
@@ -4265,6 +4617,10 @@ Uninstall anyway?</source>
         <translation>Ожидание окна деинсталлятора…</translation>
     </message>
     <message>
+        <source>Removed for you; can be undone in the Undo Center</source>
+        <translation>Удалена для вас; можно отменить в Центре отмены</translation>
+    </message>
+    <message>
         <source>Looking for leftovers…</source>
         <translation>Поиск остатков…</translation>
     </message>
@@ -4339,6 +4695,456 @@ Uninstall anyway?</source>
     <message>
         <source>Terminating the uninstaller…</source>
         <translation>Деинсталлятор прерывается…</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::WindowsAppsTableModel</name>
+    <message>
+        <source>Checked apps: the actions apply to them</source>
+        <translation>Отмеченные приложения: к ним применяются действия</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Название</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Издатель</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Версия</translation>
+    </message>
+    <message>
+        <source>Installed for</source>
+        <translation>Установлено для</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Категория</translation>
+    </message>
+</context>
+<context>
+    <name>avel::app::WindowsAppsWindow</name>
+    <message>
+        <source>Avel is changing apps. Close the window once that is done.</source>
+        <translation>Avel изменяет приложения. Закройте окно, когда изменение завершится.</translation>
+    </message>
+    <message>
+        <source>Windows apps</source>
+        <translation>Приложения Windows</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Обновить</translation>
+    </message>
+    <message>
+        <source>List the apps again (F5)</source>
+        <translation>Заново получить список приложений (F5)</translation>
+    </message>
+    <message>
+        <source>Check &amp;often removed</source>
+        <translation>Отметить &amp;часто удаляемые</translation>
+    </message>
+    <message>
+        <source>Check the apps people often remove: Windows&apos; promotions and extras such as Clipchamp, the Bing apps and Solitaire. Nothing changes until you choose an action.</source>
+        <translation>Отметить приложения, которые часто удаляют: рекламные и дополнительные приложения Windows, такие как Clipchamp, приложения Bing и Solitaire. Ничего не изменится, пока вы не выберете действие.</translation>
+    </message>
+    <message>
+        <source>U&amp;ncheck all</source>
+        <translation>&amp;Снять все отметки</translation>
+    </message>
+    <message>
+        <source>Remove the checked apps (or, when none is checked, the selected ones) for you only. Undo installs them for you again; your data in them is lost.</source>
+        <translation>Удалить отмеченные приложения (а если ничего не отмечено — выбранные) только для вас. Отмена снова установит их для вас; ваши данные в них будут потеряны.</translation>
+    </message>
+    <message>
+        <source>Stop installing the checked apps (or, when none is checked, the selected ones) for new user accounts. Those who have them keep them. Can be undone.</source>
+        <translation>Перестать устанавливать отмеченные приложения (а если ничего не отмечено — выбранные) для новых учётных записей. У тех, у кого они есть, они останутся. Можно отменить.</translation>
+    </message>
+    <message>
+        <source>Remove the checked apps (or, when none is checked, the selected ones) for every user and delete them from this PC. Can&apos;t be undone; Avel asks first.</source>
+        <translation>Удалить отмеченные приложения (а если ничего не отмечено — выбранные) для всех пользователей и стереть их с этого компьютера. Отменить нельзя; Avel сначала спросит.</translation>
+    </message>
+    <message>
+        <source>&amp;Undo last change</source>
+        <translation>Отменить последнее &amp;изменение</translation>
+    </message>
+    <message>
+        <source>Undo &amp;Center…</source>
+        <translation>&amp;Центр отмены…</translation>
+    </message>
+    <message>
+        <source>Everything Avel changed in the last 30 days, to put back</source>
+        <translation>Всё, что Avel изменил за последние 30 дней, — чтобы вернуть</translation>
+    </message>
+    <message>
+        <source>&amp;Open install folder</source>
+        <translation>&amp;Открыть папку установки</translation>
+    </message>
+    <message>
+        <source>Copy &amp;full name</source>
+        <translation>Копировать &amp;полное имя</translation>
+    </message>
+    <message>
+        <source>Copy the package&apos;s full name, with its version and architecture</source>
+        <translation>Копировать полное имя пакета с версией и архитектурой</translation>
+    </message>
+    <message>
+        <source>Copy f&amp;amily name</source>
+        <translation>Копировать имя &amp;семейства</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation>Найти</translation>
+    </message>
+    <message>
+        <source>Toolbar</source>
+        <translation>Панель инструментов</translation>
+    </message>
+    <message>
+        <source>Filters</source>
+        <translation>Фильтры</translation>
+    </message>
+    <message>
+        <source>Search by name, package or publisher (Ctrl+F)</source>
+        <translation>Поиск по названию, пакету или издателю (Ctrl+F)</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Поиск</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Категория</translation>
+    </message>
+    <message>
+        <source>All apps</source>
+        <translation>Все приложения</translation>
+    </message>
+    <message>
+        <source>Can be removed</source>
+        <translation>Можно удалить</translation>
+    </message>
+    <message>
+        <source>Protected</source>
+        <translation>Защищённые</translation>
+    </message>
+    <message>
+        <source>Installed for</source>
+        <translation>Установлено для</translation>
+    </message>
+    <message>
+        <source>All users</source>
+        <translation>Все пользователи</translation>
+    </message>
+    <message>
+        <source>New users</source>
+        <translation>Новые пользователи</translation>
+    </message>
+    <message>
+        <source>Listing apps…</source>
+        <translation>Получение списка приложений…</translation>
+    </message>
+    <message>
+        <source>%1 (you)</source>
+        <translation>%1 (вы)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n often removed app(s) checked. Choose an action to remove them.</source>
+        <translation>
+            <numerusform>Отмечено %n часто удаляемое приложение. Выберите действие для удаления.</numerusform>
+            <numerusform>Отмечено %n часто удаляемых приложения. Выберите действие для удаления.</numerusform>
+            <numerusform>Отмечено %n часто удаляемых приложений. Выберите действие для удаления.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No other often removed app to check.</source>
+        <translation>Других часто удаляемых приложений для отметки нет.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) checked; each action applies to the ones it fits. Details of the selected one:</source>
+        <translation>
+            <numerusform>Отмечено %n приложение; каждое действие применяется к тем, к которым подходит. Подробности выбранного:</numerusform>
+            <numerusform>Отмечено %n приложения; каждое действие применяется к тем, к которым подходит. Подробности выбранного:</numerusform>
+            <numerusform>Отмечено %n приложений; каждое действие применяется к тем, к которым подходит. Подробности выбранного:</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) selected; each action applies to the ones it fits. Details of this one:</source>
+        <translation>
+            <numerusform>Выбрано %n приложение; каждое действие применяется к тем, к которым подходит. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n приложения; каждое действие применяется к тем, к которым подходит. Подробности этого:</numerusform>
+            <numerusform>Выбрано %n приложений; каждое действие применяется к тем, к которым подходит. Подробности этого:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo the last change made in this window (Ctrl+Z)</source>
+        <translation>Отменить последнее изменение, сделанное в этом окне (Ctrl+Z)</translation>
+    </message>
+    <message>
+        <source>Undo “%1” (Ctrl+Z)</source>
+        <translation>Отменить «%1» (Ctrl+Z)</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s)</source>
+        <translation>
+            <numerusform>%n приложение</numerusform>
+            <numerusform>%n приложения</numerusform>
+            <numerusform>%n приложений</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Showing %1 of %n app(s)</source>
+        <translation>
+            <numerusform>Показано %1 из %n приложения</numerusform>
+            <numerusform>Показано %1 из %n приложений</numerusform>
+            <numerusform>Показано %1 из %n приложений</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n protected</source>
+        <translation>
+            <numerusform>%n защищённое</numerusform>
+            <numerusform>%n защищённых</numerusform>
+            <numerusform>%n защищённых</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n checked</source>
+        <translation>
+            <numerusform>%n отмеченное</numerusform>
+            <numerusform>%n отмеченных</numerusform>
+            <numerusform>%n отмеченных</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n warning(s)</source>
+        <translation>
+            <numerusform>%n предупреждение</numerusform>
+            <numerusform>%n предупреждения</numerusform>
+            <numerusform>%n предупреждений</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select an app to see its details.</source>
+        <translation>Выберите приложение, чтобы увидеть подробности.</translation>
+    </message>
+    <message>
+        <source>Full names</source>
+        <translation>Полные имена</translation>
+    </message>
+    <message>
+        <source>Full name</source>
+        <translation>Полное имя</translation>
+    </message>
+    <message>
+        <source>Family</source>
+        <translation>Семейство</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Издатель</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Версия</translation>
+    </message>
+    <message>
+        <source>Install folder</source>
+        <translation>Папка установки</translation>
+    </message>
+    <message>
+        <source>No user</source>
+        <translation>Ни для кого</translation>
+    </message>
+    <message>
+        <source>Installed for every new user</source>
+        <translation>Устанавливается для каждого нового пользователя</translation>
+    </message>
+    <message>
+        <source>Not installed for new users</source>
+        <translation>Не устанавливается для новых пользователей</translation>
+    </message>
+    <message>
+        <source>Not known without administrator rights</source>
+        <translation>Неизвестно без прав администратора</translation>
+    </message>
+    <message>
+        <source>Signature</source>
+        <translation>Подпись</translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation>Идентификатор</translation>
+    </message>
+    <message>
+        <source>Available</source>
+        <translation>Доступно</translation>
+    </message>
+    <message>
+        <source>Not available: %1</source>
+        <translation>Недоступно: %1</translation>
+    </message>
+    <message>
+        <source>Removing it breaks something: %1</source>
+        <translation>Если удалить его, что-то перестанет работать: %1</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to change: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Нечего изменять: пропущено %n приложение.</numerusform>
+            <numerusform>Нечего изменять: пропущено %n приложения.</numerusform>
+            <numerusform>Нечего изменять: пропущено %n приложений.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Nothing to remove: %n app(s) skipped.</source>
+        <translation>
+            <numerusform>Нечего удалять: пропущено %n приложение.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n приложения.</numerusform>
+            <numerusform>Нечего удалять: пропущено %n приложений.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1 (%2)</translation>
+    </message>
+    <message numerus="yes">
+        <source>… and %n more</source>
+        <translation>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+            <numerusform>… и ещё %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>They are removed for every user of this PC and deleted from it. This can&apos;t be undone:</source>
+        <translation>Они будут удалены для всех пользователей этого компьютера и стёрты с него. Это нельзя отменить:</translation>
+    </message>
+    <message>
+        <source>every user&apos;s data in them is lost: their settings and the files they keep</source>
+        <translation>данные всех пользователей в них будут потеряны: параметры и файлы, которые они хранят</translation>
+    </message>
+    <message>
+        <source>Avel can&apos;t back them up: neither Undo nor the Undo Center can bring them back</source>
+        <translation>Avel не может сохранить их резервную копию: ни отмена, ни Центр отмены их не вернут</translation>
+    </message>
+    <message>
+        <source>they come back only when installed again from the Microsoft Store or winget</source>
+        <translation>вернуть их можно, только заново установив из Microsoft Store или через winget</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will be skipped:</source>
+        <translation>
+            <numerusform>Будет пропущено %n приложение:</numerusform>
+            <numerusform>Будет пропущено %n приложения:</numerusform>
+            <numerusform>Будет пропущено %n приложений:</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Remove for everyone</source>
+        <translation>Удалить для всех</translation>
+    </message>
+    <message>
+        <source>Remove %1 for every user?</source>
+        <translation>Удалить %1 для всех пользователей?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Remove %n app(s) for every user?</source>
+        <translation>
+            <numerusform>Удалить %n приложение для всех пользователей?</numerusform>
+            <numerusform>Удалить %n приложения для всех пользователей?</numerusform>
+            <numerusform>Удалить %n приложений для всех пользователей?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>I understand this can&apos;t be undone</source>
+        <translation>Я понимаю, что это нельзя отменить</translation>
+    </message>
+    <message>
+        <source>Applying: %1…</source>
+        <translation>Выполняется: %1…</translation>
+    </message>
+    <message>
+        <source>Another Avel process is changing the system. Nothing was changed; try again when it&apos;s done.</source>
+        <translation>Другой процесс Avel сейчас изменяет систему. Ничего не изменено; повторите, когда он закончит.</translation>
+    </message>
+    <message>
+        <source>Avel couldn&apos;t write the backup of this change, so nothing was changed.</source>
+        <translation>Avel не смог записать резервную копию этого изменения, поэтому ничего не изменено.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for you.</source>
+        <translation>
+            <numerusform>%n приложение удалено для вас.</numerusform>
+            <numerusform>%n приложения удалены для вас.</numerusform>
+            <numerusform>%n приложений удалено для вас.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) will no longer be installed for new users.</source>
+        <translation>
+            <numerusform>%n приложение больше не будет устанавливаться для новых пользователей.</numerusform>
+            <numerusform>%n приложения больше не будут устанавливаться для новых пользователей.</numerusform>
+            <numerusform>%n приложений больше не будут устанавливаться для новых пользователей.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n app(s) removed for everyone.</source>
+        <translation>
+            <numerusform>%n приложение удалено для всех.</numerusform>
+            <numerusform>%n приложения удалены для всех.</numerusform>
+            <numerusform>%n приложений удалено для всех.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n couldn&apos;t be changed.</source>
+        <translation>
+            <numerusform>%n не удалось изменить.</numerusform>
+            <numerusform>%n не удалось изменить.</numerusform>
+            <numerusform>%n не удалось изменить.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n skipped.</source>
+        <translation>
+            <numerusform>%n пропущено.</numerusform>
+            <numerusform>%n пропущены.</numerusform>
+            <numerusform>%n пропущено.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Undo with Ctrl+Z or in the Undo Center.</source>
+        <translation>Отменить можно по Ctrl+Z или в Центре отмены.</translation>
+    </message>
+    <message>
+        <source>Undoing: %1…</source>
+        <translation>Отмена: %1…</translation>
+    </message>
+    <message>
+        <source>“%1” can&apos;t be undone here: its backup is missing or in use by another Avel process. The Undo Center shows what can still be put back.</source>
+        <translation>«%1» нельзя отменить здесь: его резервная копия отсутствует или используется другим процессом Avel. Центр отмены показывает, что ещё можно вернуть.</translation>
+    </message>
+    <message>
+        <source>Nothing left to undo in “%1”.</source>
+        <translation>В «%1» больше нечего отменять.</translation>
+    </message>
+    <message>
+        <source>Undone: %1.</source>
+        <translation>Отменено: %1.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n item(s) couldn&apos;t be put back; the Undo Center can try again.</source>
+        <translation>
+            <numerusform>%n элемент не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элемента не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+            <numerusform>%n элементов не удалось вернуть; Центр отмены может попробовать снова.</numerusform>
+        </translation>
     </message>
 </context>
 </TS>

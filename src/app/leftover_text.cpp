@@ -46,21 +46,24 @@ QString valueNameText(const std::wstring& name) {
     return name.empty() ? LeftoverText::tr("(Default)") : toQString(name);
 }
 
-// Whose variables a user's Environment key holds: empty for the user running Avel, otherwise
-// their account name (their SID when it isn't known).
-QString environmentOwner(const platform::RegistryAddress& key) {
+// A user: empty for the user running Avel, otherwise their account name (their SID when it isn't
+// known).
+QString userText(const std::wstring& sid) {
     static const std::wstring current_sid = platform::current_user_sid();
-    if (!current_sid.empty() && platform::iequals(key.sid, current_sid)) {
+    if (!current_sid.empty() && platform::iequals(sid, current_sid)) {
         return {};
     }
     static const std::vector<platform::UserProfile> profiles = platform::enumerate_user_profiles();
     for (const auto& profile : profiles) {
-        if (platform::iequals(profile.sid, key.sid) && !profile.account_name.empty()) {
+        if (platform::iequals(profile.sid, sid) && !profile.account_name.empty()) {
             return toQString(profile.account_name);
         }
     }
-    return toQString(key.sid);
+    return toQString(sid);
 }
+
+// Whose variables a user's Environment key holds, as userText says it.
+QString environmentOwner(const platform::RegistryAddress& key) { return userText(key.sid); }
 
 }  // namespace
 
@@ -103,7 +106,11 @@ QString LeftoverText::kindLabel(const leftovers::Location& location, leftovers::
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
                 return item.folder ? tr("Scheduled task folder") : tr("Scheduled task");
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
-                return tr("Package");
+                return item.all_users ? tr("Package (every user)") : tr("Package");
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation>) {
+                return tr("Package registration");
+            } else if constexpr (std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                return tr("Package for new users");
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return tr("Firewall rule");
             } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
@@ -149,7 +156,21 @@ QString LeftoverText::locationText(const leftovers::Location& location) {
             } else if constexpr (std::is_same_v<T, leftovers::TaskLocation>) {
                 return toQString(item.path);
             } else if constexpr (std::is_same_v<T, leftovers::PackageLocation>) {
-                return toQString(item.full_name);
+                return item.all_users ? tr("Remove %1 for every user").arg(toQString(item.full_name))
+                                      : toQString(item.full_name);
+            } else if constexpr (std::is_same_v<T, leftovers::PackageUserLocation>) {
+                const QString family = toQString(item.family_name);
+                const QString owner = userText(item.user_sid);
+                if (owner.isEmpty()) {
+                    return item.after ? tr("Register %1 for you").arg(family)
+                                      : tr("Remove %1 for you").arg(family);
+                }
+                return item.after ? tr("Register %1 for %2").arg(family, owner)
+                                  : tr("Remove %1 for %2").arg(family, owner);
+            } else if constexpr (std::is_same_v<T, leftovers::PackageProvisioningLocation>) {
+                const QString family = toQString(item.family_name);
+                return item.after ? tr("Install %1 for new users").arg(family)
+                                  : tr("Don't install %1 for new users").arg(family);
             } else if constexpr (std::is_same_v<T, leftovers::FirewallRuleLocation>) {
                 return toQString(item.rule_id);
             } else if constexpr (std::is_same_v<T, leftovers::StartupApprovedLocation>) {
@@ -624,6 +645,59 @@ QString LeftoverText::statusText(const changes::ItemStatus& status) {
 QString LeftoverText::statusText(const changes::ItemStatus& status, const leftovers::Location& location) {
     if (status.state == ItemState::Done && std::holds_alternative<leftovers::ValueEditLocation>(location)) {
         return tr("Edited");
+    }
+    if (const auto* package = std::get_if<leftovers::PackageLocation>(&location);
+        package && package->all_users) {
+        if (status.state == ItemState::Done) {
+            return tr("Removed for every user");
+        }
+        if (status.state == ItemState::Partial) {
+            QString text =
+                tr("Partly removed: it won't be installed for new users, but it is still installed");
+            if (status.code != 0) {
+                text += u" ("_s + ProgramText::systemErrorText(status.code) + u')';
+            }
+            return text;
+        }
+        return statusText(status);
+    }
+    const auto* registration = std::get_if<leftovers::PackageUserLocation>(&location);
+    const auto* provisioning = std::get_if<leftovers::PackageProvisioningLocation>(&location);
+    if (registration || provisioning) {
+        if (status.state == ItemState::Done || status.state == ItemState::Restored) {
+            // The state it reached: what the change set, or after undo what was there before.
+            const bool restored = status.state == ItemState::Restored;
+            if (registration) {
+                const bool registered = restored ? registration->before : registration->after;
+                if (registered) {
+                    return restored ? tr("Registered for you again") : tr("Registered for you");
+                }
+                return restored ? tr("Removed for you again") : tr("Removed for you");
+            }
+            const bool provisioned = restored ? provisioning->before : provisioning->after;
+            if (provisioned) {
+                return restored ? tr("Will be installed for new users again")
+                                : tr("Will be installed for new users");
+            }
+            return restored ? tr("Won't be installed for new users again")
+                            : tr("Won't be installed for new users");
+        }
+        const QString state = itemStateText(status.state);
+        switch (status.reason) {
+            case Reason::Changed:
+                return tr("%1: %2").arg(state, tr("its state has changed since"));
+            case Reason::Missing:
+                // Neither registered nor provisioned by anyone any more: Windows deleted it.
+                return tr("%1: %2").arg(
+                    state, tr("the app is no longer on this PC; reinstall it from the Microsoft Store"));
+            case Reason::OtherUser:
+                return tr("%1: %2").arg(state, tr("Avel can do this only for the account it runs as"));
+            case Reason::NotUndoable:
+                return tr("%1: %2").arg(state, tr("no other user has it and it isn't installed for new "
+                                                  "users, so Windows would delete it"));
+            default:
+                return statusText(status);
+        }
     }
     const bool state_change = std::holds_alternative<leftovers::StartupApprovedLocation>(location) ||
                               std::holds_alternative<leftovers::TaskStateLocation>(location) ||

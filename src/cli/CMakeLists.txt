@@ -5,6 +5,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 configure_file(avel-cli.manifest.in "${CMAKE_CURRENT_BINARY_DIR}/avel-cli.manifest" @ONLY)
 
 add_executable(avel_cli
+    apps_command.cpp
+    apps_command.h
     change_output.cpp
     change_output.h
     command_options.cpp

@@ -19,7 +19,7 @@ running anything. It returns one of three methods, or a reason why it can't proc
 |---|---|---|
 | `msi` | Windows Installer products: `WindowsInstaller=1`, MSI-only products, `msiexec` commands | `msiexec.exe /x {ProductCode}`, plus `/qn /norestart` in quiet mode |
 | `command` | Every other desktop program | The registered uninstall command, plus the technology's silent switch in quiet mode |
-| `package` | Packaged (Store/MSIX) apps | `PackageManager.RemovePackageAsync` for the current user |
+| `package` | Packaged (Store/MSIX) apps | `PackageManager.RemovePackageAsync` for the current user, through a ChangeSet when that can be undone (see "Packaged apps") |
 
 Interactive MSI removal uses `/x`, not the registered `/I`. `/I` would open the repair/remove
 maintenance dialog instead of removing the product.
@@ -56,8 +56,8 @@ Run `InventorySmokeTest.PlansTheRemovalOfEveryListedProgram` to see this breakdo
 **Reasons not to proceed** (`PlanError`):
 
 | Error | When |
-|---|---|
-| `removal-blocked` | `NoRemove=1` (Microsoft Edge, for example) or a system package |
+| `removal-blocked` | `NoRemove=1` (Microsoft Edge, for example): the installer forbids it |
+| `protected-package` | A packaged app Windows needs or that belongs to a desktop program, as the Windows apps tool protects it (see "Packaged apps") |
 | `other-user` | A per-user install of another account: its uninstaller would act on Avel's user profile instead |
 | `elevation-required` | A machine-wide program when Avel isn't elevated. Only the CLI can run unelevated. |
 | `no-uninstaller` | No uninstall command |
@@ -118,6 +118,51 @@ Installer ones in particular, can't safely run side by side.
 
 Phase 3 adds Avel's own backup and undo, which don't depend on System Restore.
 
+## Packaged apps (`batch.cpp`)
+
+**Refused packages.** `make_uninstall_plan` refuses (`protected-package`) the packaged apps the
+Windows apps tool protects ([tools.md](tools.md), "Windows apps", "Protection"), so the program
+list agrees with it:
+- System-signed ones (the inventory's `no_remove`);
+- the families on the critical list (`tools::app_category`: the Store, App Installer, Windows
+  Security...), most of which aren't System-signed;
+- a package with an external location (`Program::external_location`): a sparse package that gives
+  a desktop program its identity, such as Notepad++'s context-menu package or PowerToys'. It goes
+  when that program is uninstalled, as its leftover (`related-packages`, which is why the
+  inventory doesn't mark it `no_remove`: that scan skips `no_remove` packages).
+
+Removing a packaged app for the current user can be undone only while the package stays on this
+PC: Windows deletes it the moment its last user's registration goes, unless it is provisioned
+([ADR 0008](adr/0008-windows-apps-and-features.md)). So the batch removes a packaged app in one of
+two ways (the maintainer's decision of 2026-11-14):
+
+- **Softly, through a ChangeSet**, when it can be undone: the current user has the family, and
+  another user has it too or it is provisioned for new users (`soft_removal_plan`, on
+  `PackageFacts` read through `platform::family_users` and `platform::provisioned_package`). The
+  batch builds a one-item plan, a `PackageUserLocation` from registered to not for the current
+  user, exactly what the Windows apps tool's "Remove for me" plans ([tools.md](tools.md), "Windows
+  apps"), and hands it to the front end (`BatchOptions::run_change_set`), which runs it in its
+  change store under the store's lock, with the plan's description set ("Uninstall Contoso
+  News"). The result keeps the set's id (`UninstallResult::change_set`): undo registers the app
+  for the user again (its data isn't kept). An item that is `done` makes the outcome `removed`; a
+  set that couldn't be written (another Avel process holds the store) `failed`, with nothing
+  changed; anything else `failed` or `still-installed` while the package is still registered.
+- **As before** otherwise: `RemovePackageAsync` for the current user, which Windows can't undo.
+  That is the case when nobody else would keep the package, and whenever the front end has no
+  change store to give: a dry run, or `avel-cli` without administrator rights (who else has the
+  family and the provisioning can't be read then anyway).
+
+The facts are read right before the app's turn in the batch, and the executor checks again when
+the set runs (compare-and-set; `skipped (not-undoable)` if the package would no longer stay).
+
+- **CLI:** `avel-cli uninstall`, elevated, opens the change store when a packaged app is in the
+  batch (settling interrupted sets, as every changing command does; exit 1 when it can't be
+  trusted). The outcome line ends with "for you only; undo with: avel-cli undo <set>", and
+  `--json` reports `results[].change_set` (null for every other uninstall).
+- **GUI:** the uninstall progress dialog runs the set on its worker, with exclusive hive access and
+  then the store's lock, as every ChangeSet in avel.exe; the program's status reads "Removed for
+  you; can be undone in the Undo Center", where the set is listed like any other.
+
 ## Front ends
 
 - **GUI:**
@@ -134,7 +179,8 @@ Phase 3 adds Avel's own backup and undo, which don't depend on System Restore.
   ```
 
   - The exit code is 0 when every program was removed (or would be, with `--dry-run`).
-  - `--json` reports the plan and outcome of each program.
+  - `--json` reports the plan and outcome of each program, and the ChangeSet of a packaged app
+    removed softly (`change_set`).
 
 ## Testing
 
@@ -142,6 +188,8 @@ Phase 3 adds Avel's own backup and undo, which don't depend on System Restore.
 - planning for every technology and every refusal reason;
 - exit-code classification and registration lookups;
 - dry-run batches and cancellation;
+- whether a packaged app is removed softly (on injected facts), and a batch running its ChangeSet
+  through a fake runner;
 - installer detection (manifest and signature);
 - the job-object runner.
 

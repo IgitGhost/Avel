@@ -15,6 +15,9 @@
       logon      smoke test: avel-cli and the GUI start (default)
       uninstall  installs sample programs and uninstalls them interactively and quietly
                  (run Get-SampleInstallers.ps1 first)
+      spike_6b   the Phase 6b spike (docs/adr/0008): packaged apps and DISM, offline
+      apps       Phase 6b acceptance: Windows apps (avel-cli apps, the GUI), offline
+      (tests\sandbox\README.md lists them all)
 
     Windows Sandbox must be enabled once, from an elevated PowerShell (needs a reboot):
         Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM
@@ -36,6 +39,9 @@
 
 .PARAMETER CloseWhenDone
     With -WaitForReport: close the sandbox once the report has arrived.
+
+.PARAMETER NoNetwork
+    Start the sandbox without networking. Scenarios that must run offline (spike_6b, apps) always do.
 #>
 param(
     [string]$Preset = 'release',
@@ -43,7 +49,8 @@ param(
     [switch]$WaitForReport,
     [int]$TimeoutSeconds = 180,
     [switch]$ReplaceRunning,
-    [switch]$CloseWhenDone
+    [switch]$CloseWhenDone,
+    [switch]$NoNetwork
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +62,9 @@ $outDir = Join-Path $repoRoot 'build\sandbox'
 $resultsDir = Join-Path $outDir 'results'
 $reportPath = Join-Path $resultsDir "$Scenario.txt"
 $wsb = Get-Command wsb -ErrorAction SilentlyContinue  # The sandbox CLI, on newer Windows builds
+# Scenarios whose findings must not depend on the network (the Store, Windows Update, winget).
+$offlineScenarios = @('spike_6b', 'apps')
+$networking = if ($NoNetwork -or $Scenario -in $offlineScenarios) { 'Disable' } else { 'Enable' }
 
 if (-not (Test-Path "$env:windir\System32\WindowsSandbox.exe") -and -not $wsb) {
     throw 'Windows Sandbox is not enabled. See the description in this script (Get-Help) for how to enable it.'
@@ -98,7 +108,7 @@ $wsbPath = Join-Path $outDir "avel-$Preset-$Scenario.wsb"
 $config = @"
 <Configuration>
   <VGpu>Disable</VGpu>
-  <Networking>Enable</Networking>
+  <Networking>$networking</Networking>
   <MemoryInMB>4096</MemoryInMB>
   <MappedFolders>
     <MappedFolder>

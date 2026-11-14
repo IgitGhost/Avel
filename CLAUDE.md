@@ -52,7 +52,8 @@ cmake --build --preset release --target deploy
 
 - Scenarios are `tests/sandbox/scenarios/<name>.ps1`: `logon`, `uninstall`, `leftovers`,
   `removal`, `force`, `trace`, `trace_gui` (`trace`'s last round, the GUI's, alone), `startup`
-  (the Startup manager, with a signed-out second user). Each phase's acceptance is one of them, and
+  (the Startup manager, with a signed-out second user), `apps` (Windows apps, offline, with a
+  second user and two test MSIX packages). Each phase's acceptance is one of them, and
   they end with
   `RESULT: PASS` or `RESULT: FAIL (n problem(s))` in `build\sandbox\results\<name>.txt` (also
   `<name>.json`, `<name>.log`).
@@ -128,8 +129,15 @@ Modules under `src/core`, in pipeline order:
     `sharedHiveAccess()` while a `LiveEnvironment` lives and `exclusiveHiveAccess()` around
     every execute, restore and recovery (`src/app/hive_access.h`): on worker threads, before
     the store lock. Scan the inventory with `scanInventory()`, which takes it shared.
+  - `windows_apps` lists packaged apps per family (who has each, provisioned, category from the
+    `windows_apps_data` table, protection), and `windows_apps_changes` plans "remove for me",
+    "don't install for new users" and "remove for everyone" (irreversible) as ChangeSets
+    (ADR 0008). Soft removal is for the current user only, and only while another user or the
+    provisioning keeps the package on this PC; uninstalling a packaged app uses it then.
 - `platform/`: Win32 wrappers shared by all of the above:
   - `nt_registry`: native `Nt*` registry calls, used for exact value backup and restore;
+  - `packages`: packaged apps through the public `PackageManager` only (no Appx cmdlets), each
+    call on its own MTA thread (`winrt_apartment.h`); listing other users' apps needs elevation;
   - `record_folders`: the folder-per-record storage behind both ChangeSets and traces;
   - `signature`: Authenticode, embedded then catalog, never the network;
   - `shortcuts`, `scheduled_tasks`, `services`: read-only enumeration shared by leftovers and tools;

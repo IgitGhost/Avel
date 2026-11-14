@@ -3,12 +3,13 @@
 **Avel** is a professional software removal suite for Windows 10 and 11.
 *Ավել* is Armenian for "broom", and the same word means "excess": a broom for whatever you no longer need.
 
-> **Status: pre-alpha (Phases 0-5 done; Avel Tools in progress, its Startup manager done).** Avel
-> lists installed programs, runs their uninstallers silently or in batches, then finds what they
-> left behind and removes it with a backup that can be undone for 30 days. Programs that can't
-> uninstall themselves can be removed by force. Installations can be traced, and programs later
-> removed by their trace. What starts with Windows can be disabled or deleted, also undoably. See
-> [docs/plan.md](docs/plan.md) for the roadmap.
+> **Status: pre-alpha (Phases 0-5 done; Avel Tools in progress: Startup manager and Windows apps
+> done).** Avel lists installed programs, runs their uninstallers silently or in batches, then
+> finds what they left behind and removes it with a backup that can be undone for 30 days.
+> Programs that can't uninstall themselves can be removed by force. Installations can be traced,
+> and programs later removed by their trace. What starts with Windows can be disabled or deleted,
+> and Store apps removed for you or for new users, also undoably. See [docs/plan.md](docs/plan.md)
+> for the roadmap.
 
 ## What works today
 
@@ -111,6 +112,26 @@
   avel-cli startup disable <id> --service-start disabled
   avel-cli startup enable <id>
   avel-cli startup delete <id> --dry-run
+  ```
+
+  See [docs/tools.md](docs/tools.md).
+- **Windows apps (Avel Tools).** The packaged apps on this PC (Store and MSIX apps, Windows' own
+  included), one per package family: who has each, whether it is installed for new users, and
+  whether it is one people often remove.
+  - **Remove for me** removes an app for you only, while it stays on this PC for another user or
+    for new users, so undo can install it for you again (its data isn't kept). **Don't install for
+    new users** stops provisioning it, also undoably. **Remove for everyone** deletes it from this
+    PC for every user; it can't be undone, so it asks first.
+  - Windows' own apps, the critical ones (Store, App Installer, Settings, the shell's hosts) and the
+    packages of desktop programs are listed but never changed.
+  - **In the GUI:** **Tools > Windows apps…**, with check boxes and **Check often removed**.
+  - **In the CLI:**
+
+  ```powershell
+  avel-cli apps list --all                          # the protected ones too (run as administrator)
+  avel-cli apps remove <id> <id>                    # for you only, undoable
+  avel-cli apps deprovision <id>                    # not for new users, undoable
+  avel-cli apps remove-everywhere <id> --allow-irreversible
   ```
 
   See [docs/tools.md](docs/tools.md).

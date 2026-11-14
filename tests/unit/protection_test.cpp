@@ -369,6 +369,88 @@ TEST(HardFloorTest, GuardsDriversAndWindowsServices) {
     EXPECT_EQ(floor.check(ServiceLocation{L"WindowsSvc"}), Reason::None);
 }
 
+// ADR 0008: no package item touches a package signed as part of Windows, a framework or resource
+// package, or one on the critical list; a package that isn't on this PC is the executor's to report.
+TEST(HardFloorTest, GuardsWindowsPackages) {
+    HardFloor::Data data{LR"(C:\Windows)", {}, {}};
+    data.packages = [](const std::wstring& full_name) -> std::optional<PackageFacts> {
+        if (full_name == L"Contoso.App_1.0.0.0_x64__abc") return PackageFacts{false, false, false};
+        if (full_name == L"Contoso.Shell_1.0.0.0_neutral__abc") return PackageFacts{true, false, false};
+        if (full_name == L"Contoso.Runtime_1.0.0.0_x64__abc") return PackageFacts{false, true, false};
+        if (full_name == L"Contoso.App_1.0.0.0_neutral_split.scale-200_abc")
+            return PackageFacts{false, false, true};
+        // The Store, on the critical list, as if it were an app like any other
+        if (full_name == L"Microsoft.WindowsStore_22401.1400.6.0_x64__8wekyb3d8bbwe") {
+            return PackageFacts{false, false, false};
+        }
+        return std::nullopt;
+    };
+    const HardFloor floor(data);
+    struct Case {
+        std::wstring family;
+        std::wstring full_name;
+        Reason reason;
+    };
+    const Case cases[] = {
+        {L"Contoso.App_abc", L"Contoso.App_1.0.0.0_x64__abc", Reason::None},
+        {L"Contoso.Shell_abc", L"Contoso.Shell_1.0.0.0_neutral__abc", Reason::WindowsPackage},
+        {L"Contoso.Runtime_abc", L"Contoso.Runtime_1.0.0.0_x64__abc", Reason::WindowsPackage},
+        {L"Contoso.App_abc", L"Contoso.App_1.0.0.0_neutral_split.scale-200_abc", Reason::WindowsPackage},
+        {L"Microsoft.WindowsStore_8wekyb3d8bbwe", L"Microsoft.WindowsStore_22401.1400.6.0_x64__8wekyb3d8bbwe",
+         Reason::WindowsPackage},
+        // Not on this PC: nothing to protect beyond the list
+        {L"Contoso.Gone_abc", L"Contoso.Gone_1.0.0.0_x64__abc", Reason::None},
+        {L"Microsoft.WindowsStore_8wekyb3d8bbwe", L"Microsoft.WindowsStore_1.0.0.0_x64__8wekyb3d8bbwe",
+         Reason::WindowsPackage},
+    };
+    for (const auto& [family, full_name, reason] : cases) {
+        SCOPED_TRACE(platform::to_utf8(full_name));
+        EXPECT_EQ(floor.check(PackageUserLocation{family, full_name, L"S-1-5-21-9", true, false}), reason);
+        EXPECT_EQ(floor.check(PackageProvisioningLocation{family, full_name, true, false}), reason);
+        EXPECT_EQ(floor.check(PackageLocation{full_name, L"", true}), reason);
+        EXPECT_EQ(floor.check(PackageLocation{full_name, L"S-1-5-21-9"}), reason);
+    }
+    // Provisioning again with no package named: judged by the family alone.
+    EXPECT_EQ(floor.check(PackageProvisioningLocation{L"Contoso.App_abc", L"", false, true}), Reason::None);
+    EXPECT_EQ(floor.check(PackageProvisioningLocation{L"Microsoft.DesktopAppInstaller_8wekyb3d8bbwe", L"",
+                                                      false, true}),
+              Reason::WindowsPackage);
+    // No family to judge: refused.
+    EXPECT_EQ(floor.check(PackageUserLocation{L"", L"Contoso.App_1.0.0.0_x64__abc", L"S-1-5-21-9"}),
+              Reason::WindowsPackage);
+    EXPECT_EQ(floor.check(PackageLocation{L"not a full name", L"S-1-5-21-9"}), Reason::WindowsPackage);
+}
+
+// A package with an external location gives a desktop program its identity: it goes only as that
+// program's leftover, removed for one user (the related-packages scan, traces), never registered,
+// provisioned or removed for everyone as an app of its own.
+TEST(HardFloorTest, GuardsPackagesOfDesktopPrograms) {
+    HardFloor::Data data{LR"(C:\Windows)", {}, {}};
+    data.packages = [](const std::wstring& full_name) -> std::optional<PackageFacts> {
+        if (full_name == L"Contoso.Sparse_1.0.0.0_neutral__abc") {
+            return PackageFacts{false, false, false, true};
+        }
+        if (full_name == L"Contoso.Host_1.0.0.0_neutral__abc") {
+            return PackageFacts{true, false, false, true};  // System-signed too: Windows' own first
+        }
+        return std::nullopt;
+    };
+    const HardFloor floor(data);
+    const std::wstring sparse = L"Contoso.Sparse_1.0.0.0_neutral__abc";
+    const std::wstring family = L"Contoso.Sparse_abc";
+    EXPECT_EQ(floor.check(PackageLocation{sparse, L"S-1-5-21-9"}), Reason::None);
+    EXPECT_EQ(floor.check(PackageLocation{sparse, L"", true}), Reason::DesktopProgramPackage);
+    EXPECT_EQ(floor.check(PackageUserLocation{family, sparse, L"S-1-5-21-9", true, false}),
+              Reason::DesktopProgramPackage);
+    EXPECT_EQ(floor.check(PackageUserLocation{family, sparse, L"S-1-5-21-9", false, true}),
+              Reason::DesktopProgramPackage);
+    EXPECT_EQ(floor.check(PackageProvisioningLocation{family, sparse, true, false}),
+              Reason::DesktopProgramPackage);
+    EXPECT_EQ(floor.check(PackageLocation{L"Contoso.Host_1.0.0.0_neutral__abc", L"S-1-5-21-9"}),
+              Reason::WindowsPackage);
+    EXPECT_EQ(to_string(Reason::DesktopProgramPackage), "desktop-program-package");
+}
+
 // Read-only queries of the live system: Windows' event log service (a svchost.exe service whose
 // ServiceDll Windows signs through a catalog) is refused; a service that doesn't exist isn't.
 TEST(HardFloorTest, LiveFloorGuardsWindowsServices) {

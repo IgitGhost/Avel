@@ -15,6 +15,9 @@ namespace avel::changes {
 namespace {
 
 using leftovers::Location;
+using leftovers::PackageLocation;
+using leftovers::PackageProvisioningLocation;
+using leftovers::PackageUserLocation;
 using leftovers::ServiceStart;
 using leftovers::ServiceStartLocation;
 using leftovers::StartupApprovedLocation;
@@ -73,6 +76,10 @@ TEST(SerializationTest, EveryLocationKindRoundTrips) {
             raw(L"Contoso", REG_BINARY, bytes({3, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}))},
         TaskStateLocation{LR"(\Contoso\Updater)", true, false},
         ServiceStartLocation{L"ContosoService", {SERVICE_AUTO_START, true}, {SERVICE_DEMAND_START, true}},
+        PackageLocation{L"Contoso.App_1.0.0.0_x64__abc", L"", true},
+        PackageUserLocation{L"Contoso.App_abc", L"Contoso.App_1.0.0.0_x64__abc", L"S-1-5-21-1-2-3-1001", true,
+                            false},
+        PackageProvisioningLocation{L"Contoso.App_abc", L"Contoso.App_1.0.0.0_x64__abc", true, false},
     };
     for (const auto& location : locations) {
         const Location loaded = round_trip(location);
@@ -275,6 +282,105 @@ TEST(SerializationTest, MalformedStateChangesAreRejected) {
     expect_rejected(service, "after", Json{{"start_type", 0x100000000ull}, {"delayed", false}});
     expect_rejected(service, "after", Json{{"start_type", 3}, {"delayed", 1}});
     expect_rejected(service, "before", Json::array());
+}
+
+TEST(SerializationTest, PackageStatesRoundTripExactly) {
+    for (const bool after : {false, true}) {
+        const PackageUserLocation registration{L"Contoso.App_abc", L"Contoso.App_1.0.0.0_x64__abc",
+                                               L"S-1-5-21-1-2-3-1001", !after, after};
+        const auto user = std::get<PackageUserLocation>(round_trip(registration));
+        EXPECT_EQ(user.family_name, registration.family_name);
+        EXPECT_EQ(user.full_name, registration.full_name);
+        EXPECT_EQ(user.user_sid, registration.user_sid);
+        EXPECT_EQ(user.before, !after);
+        EXPECT_EQ(user.after, after);
+
+        // A name UTF-8 can't carry still comes back.
+        const PackageProvisioningLocation provisioning{
+            L"Contoso.\xD800"
+            L"App_abc",
+            after ? L"" : L"Contoso.App_1_x64__abc", !after, after};
+        const auto back = std::get<PackageProvisioningLocation>(round_trip(provisioning));
+        EXPECT_EQ(back.family_name, provisioning.family_name);
+        EXPECT_EQ(back.provisioned_full_name, provisioning.provisioned_full_name);
+        EXPECT_EQ(back.before, !after);
+        EXPECT_EQ(back.after, after);
+    }
+    const auto everyone =
+        std::get<PackageLocation>(round_trip(PackageLocation{L"Contoso.App_1_x64__abc", L"", true}));
+    EXPECT_TRUE(everyone.all_users);
+    EXPECT_FALSE(to_json(Location(PackageLocation{L"x", L"S-1"})).contains("all_users"));
+
+    // Plans written before deep removal.
+    Location loaded;
+    ASSERT_TRUE(from_json(Json::parse(R"({"kind":"package","full_name":"x","user_sid":"S-1"})"), loaded));
+    EXPECT_FALSE(std::get<PackageLocation>(loaded).all_users);
+}
+
+TEST(SerializationTest, APackageStatesIdentityNamesOnlyTheItem) {
+    const PackageUserLocation registration{L"Contoso.App_ABC", L"Contoso.App_1.0.0.0_x64__ABC", L"S-1-5-21-9",
+                                           true, false};
+    EXPECT_EQ(leftovers::identity(registration), L"package-user:s-1-5-21-9\\contoso.app_abc");
+    EXPECT_EQ(leftovers::identity(registration),
+              leftovers::identity(PackageUserLocation{L"contoso.app_abc", L"Contoso.App_2_x64__ABC",
+                                                      L"S-1-5-21-9", false, true}));
+    EXPECT_NE(leftovers::identity(registration),
+              leftovers::identity(PackageUserLocation{L"Contoso.App_ABC", L"", L"S-1-5-21-10", true, false}));
+    EXPECT_EQ(leftovers::identity(PackageProvisioningLocation{L"Contoso.App_ABC", L"", true, false}),
+              L"package-provisioning:contoso.app_abc");
+    EXPECT_EQ(leftovers::identity(PackageLocation{L"Contoso.App_1_x64__ABC", L"S-1-5-21-9", true}),
+              L"package:all-users:contoso.app_1_x64__abc");
+    EXPECT_EQ(leftovers::identity(PackageLocation{L"Contoso.App_1_x64__ABC", L"S-1-5-21-9"}),
+              L"package:s-1-5-21-9:contoso.app_1_x64__abc");
+    EXPECT_EQ(leftovers::owner_sid(registration), L"S-1-5-21-9");
+    EXPECT_EQ(leftovers::owner_sid(PackageProvisioningLocation{L"Contoso.App_ABC"}), L"");
+    EXPECT_EQ(leftovers::owner_sid(PackageLocation{L"x", L"S-1-5-21-9", true}), L"");
+    EXPECT_EQ(leftovers::category_of(registration), leftovers::Category::Packages);
+    EXPECT_EQ(leftovers::category_of(PackageProvisioningLocation{}), leftovers::Category::Packages);
+
+    // A removal for every user holds the family's registrations and provisioning; nothing else does.
+    const PackageLocation everyone{L"Contoso.App_1.0.0.0_x64__ABC", L"", true};
+    EXPECT_EQ(leftovers::package_family_name(everyone.full_name), L"Contoso.App_ABC");
+    EXPECT_EQ(leftovers::package_family_name(L"Contoso.App_1.0.0.0_x64_abc"), L"");
+    EXPECT_TRUE(leftovers::contains(everyone, registration));
+    EXPECT_TRUE(leftovers::contains(everyone, PackageProvisioningLocation{L"contoso.app_abc"}));
+    EXPECT_FALSE(leftovers::contains(everyone, PackageProvisioningLocation{L"Contoso.Other_ABC"}));
+    EXPECT_FALSE(leftovers::contains(PackageLocation{everyone.full_name, L"S-1-5-21-9"}, registration));
+}
+
+TEST(SerializationTest, MalformedPackageStatesAreRejected) {
+    const Json user = to_json(Location(
+        PackageUserLocation{L"Contoso.App_abc", L"Contoso.App_1_x64__abc", L"S-1-5-21-9", true, false}));
+    const Json provisioning =
+        to_json(Location(PackageProvisioningLocation{L"Contoso.App_abc", L"", true, false}));
+    const Json package = to_json(Location(PackageLocation{L"Contoso.App_1_x64__abc", L"", true}));
+    Location loaded;
+    for (const auto* good : {&user, &provisioning, &package}) {
+        ASSERT_TRUE(from_json(*good, loaded)) << good->dump();
+    }
+    const auto expect_rejected = [&](const Json& good, const char* field, std::optional<Json> value) {
+        Json broken = good;
+        if (value) {
+            broken[field] = *value;
+        } else {
+            broken.erase(field);
+        }
+        EXPECT_FALSE(from_json(broken, loaded)) << broken.dump();
+    };
+    for (const char* field : {"family_name", "full_name", "user_sid", "before", "after"}) {
+        expect_rejected(user, field, std::nullopt);
+    }
+    expect_rejected(user, "family_name", Json(""));
+    expect_rejected(user, "user_sid", Json(""));
+    expect_rejected(user, "before", Json(1));
+    expect_rejected(user, "after", Json("false"));
+    for (const char* field : {"family_name", "provisioned_full_name", "before", "after"}) {
+        expect_rejected(provisioning, field, std::nullopt);
+    }
+    expect_rejected(provisioning, "family_name", Json(""));
+    expect_rejected(provisioning, "after", Json(nullptr));
+    expect_rejected(package, "all_users", Json(1));
+    expect_rejected(package, "all_users", Json("true"));
 }
 
 TEST(SerializationTest, AValueEditsIdentityHoldsWhatItDoes) {

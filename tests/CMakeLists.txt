@@ -24,11 +24,17 @@ target_link_libraries(avel_state_dump PRIVATE avel_core nlohmann_json::nlohmann_
 add_executable(avel_capture helpers/capture.cpp)
 target_link_libraries(avel_capture PRIVATE avel_options bcrypt)
 
+# The Phase 6b spike's probe (docs/adr/0008): the public PackageManager and DismAPI calls Avel would
+# make for Windows apps and features, run by the Sandbox scenario spike_6b. None of avel_core's code.
+add_executable(avel_package_probe helpers/package_probe.cpp)
+target_link_libraries(avel_package_probe PRIVATE avel_options nlohmann_json::nlohmann_json advapi32 shlwapi windowsapp)
+
 add_executable(avel_core_tests
     unit/change_store_test.cpp
     unit/cli_options_test.cpp
     unit/command_line_test.cpp
     unit/deep_search_test.cpp
+    unit/executor_package_test.cpp
     unit/executor_state_change_test.cpp
     unit/executor_test.cpp
     unit/executor_value_edit_test.cpp
@@ -91,6 +97,8 @@ add_executable(avel_core_tests
     unit/usn_parse_test.cpp
     unit/value_edits_test.cpp
     unit/version_info_test.cpp
+    unit/windows_apps_changes_test.cpp
+    unit/windows_apps_test.cpp
     # The CLI's option parsing (avel-cli.exe isn't a library).
     ${PROJECT_SOURCE_DIR}/src/cli/command_options.cpp)
 
@@ -100,15 +108,16 @@ add_dependencies(avel_core_tests avel_test_spawner)
 
 gtest_discover_tests(avel_core_tests DISCOVERY_MODE PRE_TEST)
 
-# The GUI's leftover tree, trace review tree and Startup table. avel.exe isn't a library, so the test
-# builds the sources it needs from src/app. It runs without a QGuiApplication: nothing it calls needs
-# one.
+# The GUI's leftover tree, trace review tree, Startup table and Windows apps table. avel.exe isn't a
+# library, so the test builds the sources it needs from src/app. It runs without a QGuiApplication:
+# nothing it calls needs one.
 if(TARGET avel_app)
     find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui)
     add_executable(avel_app_tests
         app/leftover_model_test.cpp
         app/startup_model_test.cpp
         app/trace_model_test.cpp
+        app/windows_apps_model_test.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/leftover_model.h
         ${PROJECT_SOURCE_DIR}/src/app/leftover_text.cpp
@@ -118,7 +127,10 @@ if(TARGET avel_app)
         ${PROJECT_SOURCE_DIR}/src/app/startup_text.cpp
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.cpp
         ${PROJECT_SOURCE_DIR}/src/app/trace_model.h
-        ${PROJECT_SOURCE_DIR}/src/app/trace_text.cpp)
+        ${PROJECT_SOURCE_DIR}/src/app/trace_text.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/windows_apps_model.cpp
+        ${PROJECT_SOURCE_DIR}/src/app/windows_apps_model.h
+        ${PROJECT_SOURCE_DIR}/src/app/windows_apps_text.cpp)
     set_target_properties(avel_app_tests PROPERTIES AUTOMOC ON)
     target_include_directories(avel_app_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
     target_compile_definitions(avel_app_tests PRIVATE QT_NO_KEYWORDS QT_DISABLE_DEPRECATED_UP_TO=0x060C00)

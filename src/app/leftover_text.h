@@ -27,7 +27,8 @@ public:
     // The path, key, service or task name. Keys in the current user's hive read HKCU\... A value
     // edit is described in words (valueEditText), and so is a state change ("Disable Contoso at
     // startup (HKCU\...\StartupApproved\Run)", "Change the start type of the service ContosoSvc
-    // from Automatic to Manual").
+    // from Automatic to Manual", "Remove Contoso.App_abc for you", "Don't install Contoso.App_abc
+    // for new users").
     static QString locationText(const leftovers::Location& location);
     // "Automatic (delayed start)", "Manual", "Disabled", as the Services console says it.
     static QString serviceStartText(const leftovers::ServiceStart& start);
@@ -64,7 +65,9 @@ public:
     static QString statusText(const changes::ItemStatus& status);
     // The same, worded for the item: a value edit that was made is "Edited", not "Removed"; a state
     // change reads "Disabled", "Enabled" or "Start type changed", and "...: its state has changed
-    // since" when compare-and-set left it alone.
+    // since" when compare-and-set left it alone. A package's registration reads "Removed for you"
+    // (after undo "Registered for you again"), its provisioning "Won't be installed for new users"
+    // ("Will be installed for new users again"), a removal for every user "Removed for every user".
     static QString statusText(const changes::ItemStatus& status, const leftovers::Location& location);
     static QString setStateText(changes::SetState state);
     static QString folderStatusText(platform::FolderStatus status);
